@@ -67,9 +67,10 @@ The form description shows the values that will be used.
 Errors: `name_exists`, `invalid_name`.
 
 After setup a **stock Lovelace dashboard** is created and shown in the sidebar
-(`heatprint-<site_id>`). It uses the site slug in entity and statistic ids and
-only built-in cards (no apexcharts). Recreate with the action
-`heatprint.create_dashboard`.
+(`heatprint-<site_id>`). Entity cards look up current `entity_id`s by
+`unique_id` (so a Dutch or other non-English UI does not get "Entity not
+found"). Statistic ids stay `heatprint:<site>_<metric>`. Only built-in cards
+(no apexcharts). Recreate with the action `heatprint.create_dashboard`.
 
 ## Step 2a - Weather source (NL)
 

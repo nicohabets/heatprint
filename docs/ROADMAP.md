@@ -5,6 +5,8 @@
 | 0.1.0 | Foundation + calculation core | Docs, `heatprint_core` with tests (providers, methods, heat, DHW, meter readings, fit, forecast), HA shell (config flow, coordinator, sensors, services, statistics) | done |
 | 0.1.1 | HACS installable without PyPI | Core bundled inside the integration; config-flow 500 from missing `heatprint-core` wheel fixed | done |
 | 0.1.2 | Rooms/cost/health-check specs | Per-room heat allocation & cost design (METHODS §12), cost/CO₂ formula + dynamic tariffs (§13), data-source health checks (§14) - documentation only, no implementation | done |
+| 0.1.3 | HA home defaults + auto dashboard | First-run site from HA home, stock Lovelace overview, CSV import wizard | done |
+| 0.1.4 | Dashboard entity ids | Auto-dashboard resolves Lovelace entity cards by unique_id (Dutch / non-English UI) | done |
 | 0.2.0 | Runs on Nico's HA | Coordinator end-to-end, KNMI station 380, DSMR gas, Buienradar fallback, CSV import of mindergas export (4 gas years), reference case | planned |
 | 0.3.0 | Hybrid | Heat pump generator with thermal/electric meters, heat pump share, daily COP, season 2026/27 live | planned (when the heat pump is installed) |
 | 1.0.0 | HACS release | Measure effect with CI, mindergas bridge, cost/CO₂, COP curve, DHW monthly profile, repairs/diagnostics, HACS default | planned |

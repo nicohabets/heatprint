@@ -1,14 +1,20 @@
 """Stock Heatprint Lovelace overview (no custom cards).
 
-Entity ids follow ``has_entity_name`` with the English strings.json names, so
-``Home`` + ``Space heating yesterday`` becomes ``sensor.home_space_heating_yesterday``.
+Entity cards are language-agnostic: they take already-resolved ``entity_id``s.
+Home Assistant slugifies ``has_entity_name`` object ids from the UI language, so
+English ``sensor.thuis_space_heating_yesterday`` is not the same as Dutch
+``sensor.thuis_ruimteverwarming_gisteren``. The stable key is
+``unique_id = {config_entry.entry_id}_{description.key}`` (see sensor.py /
+binary_sensor.py). ``dashboard.py`` looks those up in the entity registry
+before save.
+
 Statistic ids stay on the metric keys (``heatprint:<site>_<metric>``).
 ApexCharts is intentionally omitted so the dashboard loads on a stock frontend.
 """
 
 from __future__ import annotations
 
-from collections.abc import Iterable, Mapping
+from collections.abc import Callable, Iterable, Mapping
 from typing import Any
 
 # Metric keys match const.py / DATA_MODEL 2.2. This module stays HA-free for pytest.
@@ -25,6 +31,65 @@ _METRIC_HEAT_DHW = "heat_dhw"
 _METRIC_ELECTRIC_HP = "electric_hp"
 _METRIC_GAS = "gas"
 
+# (entity domain, description.key) for every row on the overview entity cards.
+# unique_id is always ``{config_entry.entry_id}_{key}``.
+OVERVIEW_ENTITY_SPECS: tuple[tuple[str, str], ...] = (
+    ("sensor", "effective_temperature"),
+    ("sensor", "degree_days_yesterday"),
+    ("sensor", "heat_space_yesterday"),
+    ("sensor", "cop_yesterday"),
+    ("sensor", "data_quality"),
+    ("binary_sensor", "data_gap"),
+    ("sensor", "last_weather_update"),
+    ("sensor", "degree_days_season"),
+    ("sensor", "heat_space_season"),
+    ("sensor", "heat_dhw_season"),
+    ("sensor", "heat_per_degree_day"),
+    ("sensor", "gas_per_degree_day"),
+    ("sensor", "heat_pump_share_season"),
+    ("sensor", "dhw_baseline"),
+    ("sensor", "heat_loss_coefficient"),
+    ("sensor", "balance_temperature"),
+    ("sensor", "fit_quality"),
+    ("sensor", "forecast_heat_season"),
+    ("sensor", "forecast_gas_season"),
+    ("sensor", "forecast_electric_season"),
+)
+
+_TODAY_KEYS: tuple[str, ...] = (
+    "effective_temperature",
+    "degree_days_yesterday",
+    "heat_space_yesterday",
+    "cop_yesterday",
+    "data_quality",
+    "data_gap",
+    "last_weather_update",
+)
+_SEASON_KEYS: tuple[str, ...] = (
+    "degree_days_season",
+    "heat_space_season",
+    "heat_dhw_season",
+    "heat_per_degree_day",
+    "gas_per_degree_day",
+    "heat_pump_share_season",
+    "dhw_baseline",
+)
+_FIT_KEYS: tuple[str, ...] = (
+    "heat_loss_coefficient",
+    "balance_temperature",
+    "fit_quality",
+    "forecast_heat_season",
+    "forecast_gas_season",
+    "forecast_electric_season",
+)
+
+MISSING_ENTITIES_NOTE = (
+    "Heatprint sensors are not registered yet. Reload the integration, then "
+    "recreate the dashboard with `heatprint.create_dashboard`."
+)
+
+EntityIdLookup = Callable[[str, str, str], str | None]
+
 
 def _statistic_id(site_id: str, metric: str) -> str:
     return f"{_DOMAIN}:{site_id}_{metric}"
@@ -36,29 +101,6 @@ def _generator_metric(generator_id: str) -> str:
 
 DASHBOARD_ICON = "mdi:home-thermometer-outline"
 DASHBOARD_VIEW_PATH = "overview"
-
-# slugify of the English entity names in strings.json (has_entity_name).
-_SENSOR_OBJECT_IDS: dict[str, str] = {
-    "effective_temperature": "effective_temperature",
-    "degree_days_yesterday": "degree_days_yesterday",
-    "degree_days_season": "degree_days_season",
-    "heat_space_yesterday": "space_heating_yesterday",
-    "heat_space_season": "space_heating_season",
-    "heat_dhw_season": "hot_water_season",
-    "heat_per_degree_day": "heat_per_degree_day",
-    "gas_per_degree_day": "gas_per_degree_day",
-    "heat_pump_share_season": "heat_pump_share_season",
-    "cop_yesterday": "cop_yesterday",
-    "heat_loss_coefficient": "heat_loss_coefficient",
-    "balance_temperature": "balance_temperature",
-    "fit_quality": "fit_quality",
-    "forecast_heat_season": "forecast_heat_season",
-    "forecast_gas_season": "forecast_gas_season",
-    "forecast_electric_season": "forecast_electricity_season",
-    "dhw_baseline": "hot_water_baseline",
-    "data_quality": "data_quality",
-    "last_weather_update": "last_weather_update",
-}
 
 
 def dashboard_url_path(site_id: str) -> str:
@@ -73,14 +115,24 @@ def dashboard_title(site_name: str) -> str:
     return f"Heatprint ({name})" if name else "Heatprint"
 
 
-def site_sensor_id(site_id: str, key: str) -> str:
-    """Return ``sensor.<site>_<english_object_id>`` for a site sensor key."""
-    return f"sensor.{site_id}_{_SENSOR_OBJECT_IDS[key]}"
+def site_entity_unique_id(entry_id: str, key: str) -> str:
+    """Return ``{entry_id}_{description.key}`` used by site sensors and binary sensors."""
+    return f"{entry_id}_{key}"
 
 
-def site_binary_sensor_id(site_id: str, key: str) -> str:
-    """Return ``binary_sensor.<site>_<english_object_id>``."""
-    return f"binary_sensor.{site_id}_{key}"
+def resolve_overview_entity_ids(lookup: EntityIdLookup, entry_id: str) -> dict[str, str]:
+    """Map description keys to current ``entity_id``s via the entity registry.
+
+    ``lookup(domain, platform, unique_id)`` matches
+    ``entity_registry.async_get_entity_id``. Keys that are not registered yet
+    are omitted (the card builder skips those rows).
+    """
+    resolved: dict[str, str] = {}
+    for domain, key in OVERVIEW_ENTITY_SPECS:
+        entity_id = lookup(domain, _DOMAIN, site_entity_unique_id(entry_id, key))
+        if entity_id:
+            resolved[key] = entity_id
+    return resolved
 
 
 def build_overview_config(
@@ -88,8 +140,14 @@ def build_overview_config(
     *,
     site_name: str = "Home",
     generators: Iterable[Mapping[str, Any]] | None = None,
+    entity_ids: Mapping[str, str] | None = None,
 ) -> dict[str, Any]:
-    """Return a Lovelace storage config for the stock Heatprint overview."""
+    """Return a Lovelace storage config for the stock Heatprint overview.
+
+    ``entity_ids`` maps description keys (``heat_space_yesterday``, ``data_gap``,
+    …) to the current registry ``entity_id``. Statistic-graph cards do not use
+    this map. Missing keys are omitted rather than written as guessed object ids.
+    """
     generators = list(generators or [])
     return {
         "views": [
@@ -97,14 +155,32 @@ def build_overview_config(
                 "title": "Heatprint",
                 "path": DASHBOARD_VIEW_PATH,
                 "icon": DASHBOARD_ICON,
-                "cards": _overview_cards(site_id, site_name, generators),
+                "cards": _overview_cards(site_id, site_name, generators, entity_ids or {}),
             }
         ]
     }
 
 
+def _entity_rows(keys: tuple[str, ...], entity_ids: Mapping[str, str]) -> list[str]:
+    """Return resolved entity_ids for keys that are present in the map."""
+    return [entity_ids[key] for key in keys if key in entity_ids]
+
+
+def _entities_or_note(
+    title: str, keys: tuple[str, ...], entity_ids: Mapping[str, str]
+) -> dict[str, Any]:
+    """Build an entities card, or a markdown note when nothing is registered."""
+    rows = _entity_rows(keys, entity_ids)
+    if not rows:
+        return {"type": "markdown", "content": f"**{title}.** {MISSING_ENTITIES_NOTE}"}
+    return {"type": "entities", "title": title, "entities": rows}
+
+
 def _overview_cards(
-    site_id: str, site_name: str, generators: list[Mapping[str, Any]]
+    site_id: str,
+    site_name: str,
+    generators: list[Mapping[str, Any]],
+    entity_ids: Mapping[str, str],
 ) -> list[dict[str, Any]]:
     """Return the masonry cards of the overview view."""
     generator_stats: list[dict[str, str]] = []
@@ -141,44 +217,9 @@ def _overview_cards(
                         "methods are attributes of the same sensors."
                     ),
                 },
-                {
-                    "type": "entities",
-                    "title": "Today",
-                    "entities": [
-                        site_sensor_id(site_id, "effective_temperature"),
-                        site_sensor_id(site_id, "degree_days_yesterday"),
-                        site_sensor_id(site_id, "heat_space_yesterday"),
-                        site_sensor_id(site_id, "cop_yesterday"),
-                        site_sensor_id(site_id, "data_quality"),
-                        site_binary_sensor_id(site_id, "data_gap"),
-                        site_sensor_id(site_id, "last_weather_update"),
-                    ],
-                },
-                {
-                    "type": "entities",
-                    "title": "Season to date",
-                    "entities": [
-                        site_sensor_id(site_id, "degree_days_season"),
-                        site_sensor_id(site_id, "heat_space_season"),
-                        site_sensor_id(site_id, "heat_dhw_season"),
-                        site_sensor_id(site_id, "heat_per_degree_day"),
-                        site_sensor_id(site_id, "gas_per_degree_day"),
-                        site_sensor_id(site_id, "heat_pump_share_season"),
-                        site_sensor_id(site_id, "dhw_baseline"),
-                    ],
-                },
-                {
-                    "type": "entities",
-                    "title": "Energy signature and forecast",
-                    "entities": [
-                        site_sensor_id(site_id, "heat_loss_coefficient"),
-                        site_sensor_id(site_id, "balance_temperature"),
-                        site_sensor_id(site_id, "fit_quality"),
-                        site_sensor_id(site_id, "forecast_heat_season"),
-                        site_sensor_id(site_id, "forecast_gas_season"),
-                        site_sensor_id(site_id, "forecast_electric_season"),
-                    ],
-                },
+                _entities_or_note("Today", _TODAY_KEYS, entity_ids),
+                _entities_or_note("Season to date", _SEASON_KEYS, entity_ids),
+                _entities_or_note("Energy signature and forecast", _FIT_KEYS, entity_ids),
             ],
         },
         {

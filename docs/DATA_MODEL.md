@@ -441,11 +441,18 @@ use the site TAC (house preset), per METHODS §12.4.
 
 ## 4. Sensor entities (per site)
 
-Entity ids follow the English translated names (`has_entity_name`). The keys
-below (`heat_space_yesterday`, `heat_dhw_season`, `dhw_baseline`,
-`forecast_electric_season`) become `space_heating_yesterday`,
-`hot_water_season`, `hot_water_baseline` and `forecast_electricity_season`.
+`has_entity_name` object ids are slugified from the **UI language** translations,
+not from the translation key. On an English UI, `heat_space_yesterday` becomes
+`sensor.<site>_space_heating_yesterday`; on a Dutch UI it becomes
+`sensor.<site>_ruimteverwarming_gisteren`. The language-stable identifier is
+`unique_id = {config_entry.entry_id}_{key}` (same pattern for the
+`data_gap` binary sensor). The auto-dashboard (`heatprint.create_dashboard`)
+resolves current `entity_id`s from the entity registry by that unique_id; do
+not hardcode English object ids when generating Lovelace YAML.
+
 Statistic ids stay on the metric keys (`heatprint:<site>_heat_space`).
+
+The table below shows **English-UI** entity ids as examples.
 
 | Entity | Unit | Class | Notes |
 |---|---|---|---|

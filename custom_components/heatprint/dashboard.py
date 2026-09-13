@@ -5,6 +5,10 @@ Uses the same Lovelace storage APIs as Home Assistant's own map dashboard
 then ``LovelaceStorage.async_save`` the views. When the live
 ``DashboardsCollection`` is not reachable, a sidebar panel is registered
 directly on ``hass.data[LOVELACE_DATA]`` so the user can still open it.
+
+Entity cards are filled with ``entity_id``s looked up from the entity
+registry by ``unique_id`` (``{entry_id}_{description.key}``). Object ids
+are language-specific under ``has_entity_name``; statistic ids are not.
 """
 
 from __future__ import annotations
@@ -20,9 +24,11 @@ from homeassistant.exceptions import HomeAssistantError
 from .const import CONF_NAME, CONF_SITE_ID, SUBENTRY_TYPE_GENERATOR
 from .dashboard_config import (
     DASHBOARD_ICON,
+    OVERVIEW_ENTITY_SPECS,
     build_overview_config,
     dashboard_title,
     dashboard_url_path,
+    resolve_overview_entity_ids,
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -151,6 +157,22 @@ def _generator_payloads(entry: ConfigEntry) -> list[dict[str, Any]]:
     return payloads
 
 
+def _resolved_entity_ids(hass: HomeAssistant, entry: ConfigEntry) -> dict[str, str]:
+    """Look up Lovelace entity_ids by unique_id (UI-language independent)."""
+    from homeassistant.helpers import entity_registry as er
+
+    registry = er.async_get(hass)
+    resolved = resolve_overview_entity_ids(registry.async_get_entity_id, entry.entry_id)
+    missing = [key for _domain, key in OVERVIEW_ENTITY_SPECS if key not in resolved]
+    if missing:
+        _LOGGER.debug(
+            "Dashboard omitted unregistered Heatprint entities for %s: %s",
+            entry.entry_id,
+            ", ".join(missing),
+        )
+    return resolved
+
+
 async def async_ensure_overview_dashboard(
     hass: HomeAssistant, entry: ConfigEntry, *, recreate: bool = False
 ) -> dict[str, Any]:
@@ -164,7 +186,10 @@ async def async_ensure_overview_dashboard(
     url_path = dashboard_url_path(site_id)
     title = dashboard_title(site_name)
     config = build_overview_config(
-        site_id, site_name=site_name, generators=_generator_payloads(entry)
+        site_id,
+        site_name=site_name,
+        generators=_generator_payloads(entry),
+        entity_ids=_resolved_entity_ids(hass, entry),
     )
 
     lovelace = _lovelace_data(hass)
