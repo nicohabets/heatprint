@@ -462,6 +462,12 @@ prices at the site level (via each generator's own `cost_eur`); room allocation 
 know which carrier heated which room. Season and total-to-date sums follow the existing pattern
 (`sensor.<site>_room_<room>_cost_season`, §DATA_MODEL §4).
 
+This is the direct answer to "which room is costing me the most": once `cost_room_eur` accumulates
+for a season, ranking rooms by it - or by `heat_room_kwh` for a carrier-neutral view, or by
+`UA_r` (§12.4) for "which room loses heat fastest regardless of how much it was actually
+heated" - needs no extra calculation, only a sort. §DATA_MODEL §4 adds a small ranking sensor
+so a dashboard does not have to build that sort itself.
+
 ### 12.6 Demand-signal sources (non-exhaustive)
 
 Verified on Nico's own instance (HA core 2026.9.2, `tado_ce` by hiall-fyi, 18 zones each a

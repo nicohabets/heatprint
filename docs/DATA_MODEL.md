@@ -481,6 +481,7 @@ Site-level additions for the rooms feature:
 |---|---|---|---|
 | `sensor.<site>_heat_unallocated_season` | kWh | energy/total | METHODS §12.3 |
 | `sensor.<site>_cost_space_season` | € | monetary/total | Sum of `cost_room_eur` + unallocated; reconciles against site `cost_eur` |
+| `sensor.<site>_most_expensive_room` | - | measurement | State = `room.name` of the room with the highest `cost_room_eur` this season; attributes: `ranking` (all enabled rooms, sorted by `cost_room_eur_season` desc, each with `cost_eur`, `heat_kwh` and `share`), `by_heat_loss` (same rooms sorted by `ua_w_per_k` desc, for "which room loses heat fastest" independent of how much it was actually heated). Unavailable while no room has a season total yet. |
 
 ---
 
