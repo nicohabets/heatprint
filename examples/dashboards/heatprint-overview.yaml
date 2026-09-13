@@ -1,0 +1,162 @@
+# Heatprint overview - example Lovelace view.
+#
+# Replace "thuis" with the slug of your site (the name you gave it in the config
+# flow, lower case, spaces as underscores) and "cv_ketel" with a generator id.
+# The statistics-graph cards read the external long-term statistics that
+# Heatprint writes (heatprint:<site>_<metric>); the entity cards show the
+# sensors of the site device. The last card needs the custom apexcharts-card
+# (HACS) and can be removed if it is not installed.
+
+title: Heatprint
+path: heatprint
+icon: mdi:home-thermometer-outline
+cards:
+  - type: vertical-stack
+    cards:
+      - type: markdown
+        content: >-
+          **Heat demand, weather-corrected.** Space heating is one line, whatever
+          the heat source. Degree days are shown for the primary method; the other
+          methods are attributes of the same sensors.
+
+      - type: entities
+        title: Today
+        entities:
+          - entity: sensor.thuis_effective_temperature
+          - entity: sensor.thuis_degree_days_yesterday
+          - entity: sensor.thuis_heat_space_yesterday
+          - entity: sensor.thuis_cop_yesterday
+          - entity: sensor.thuis_data_quality
+          - entity: binary_sensor.thuis_data_gap
+          - entity: sensor.thuis_last_weather_update
+
+      - type: entities
+        title: Season to date
+        entities:
+          - entity: sensor.thuis_degree_days_season
+          - entity: sensor.thuis_heat_space_season
+          - entity: sensor.thuis_heat_dhw_season
+          - entity: sensor.thuis_heat_per_degree_day
+          - entity: sensor.thuis_gas_per_degree_day
+          - entity: sensor.thuis_heat_pump_share_season
+          - entity: sensor.thuis_dhw_baseline
+
+      - type: entities
+        title: Energy signature and forecast
+        entities:
+          - entity: sensor.thuis_heat_loss_coefficient
+          - entity: sensor.thuis_balance_temperature
+          - entity: sensor.thuis_fit_quality
+          - entity: sensor.thuis_forecast_heat_season
+          - entity: sensor.thuis_forecast_gas_season
+          - entity: sensor.thuis_forecast_electric_season
+
+  - type: vertical-stack
+    cards:
+      - type: statistics-graph
+        title: Space heating and hot water per day (kWh)
+        chart_type: bar
+        period: day
+        days_to_show: 60
+        stat_types:
+          - change
+        entities:
+          - entity: heatprint:thuis_heat_space
+            name: Space heating
+          - entity: heatprint:thuis_heat_dhw
+            name: Hot water and cooking
+
+      - type: statistics-graph
+        title: Degree days per day, four methods (K)
+        chart_type: line
+        period: day
+        days_to_show: 60
+        stat_types:
+          - change
+        entities:
+          - entity: heatprint:thuis_dd_classic
+            name: Classic (mindergas)
+          - entity: heatprint:thuis_dd_knmi14
+            name: KNMI 14 °C
+          - entity: heatprint:thuis_dd_pbl
+            name: PBL 2022
+          - entity: heatprint:thuis_dd_house
+            name: House fit
+
+      - type: statistics-graph
+        title: Outdoor and effective temperature (°C)
+        chart_type: line
+        period: day
+        days_to_show: 60
+        stat_types:
+          - mean
+        entities:
+          - entity: heatprint:thuis_t_mean
+            name: Mean temperature
+          - entity: heatprint:thuis_tac_pbl
+            name: Effective (PBL)
+          - entity: heatprint:thuis_tac_house
+            name: Effective (house)
+
+      - type: statistics-graph
+        title: Heat per generator per month (kWh)
+        chart_type: bar
+        period: month
+        days_to_show: 730
+        stat_types:
+          - change
+        entities:
+          - entity: heatprint:thuis_heat_cv_ketel
+            name: Boiler
+          - entity: heatprint:thuis_electric_hp
+            name: Heat pump electricity
+          - entity: heatprint:thuis_gas
+            name: Gas (m³)
+
+  # Optional: energy signature scatter with apexcharts-card (HACS).
+  # Each point is one day: x = effective temperature, y = space heating.
+  # Requires the custom card; delete this card if it is not installed.
+  - type: custom:apexcharts-card
+    header:
+      show: true
+      title: Energy signature (last 180 days)
+    graph_span: 180d
+    chart_type: scatter
+    apex_config:
+      xaxis:
+        type: numeric
+        title:
+          text: Effective temperature (°C)
+        decimalsInFloat: 1
+      yaxis:
+        title:
+          text: Space heating (kWh/day)
+        decimalsInFloat: 0
+      markers:
+        size: 4
+    series:
+      - entity: sensor.thuis_heat_space_yesterday
+        name: Heat vs effective temperature
+        type: scatter
+        statistics:
+          type: mean
+          period: day
+        data_generator: |
+          // Pairs the daily space heating with the daily effective temperature by
+          // reading both statistics through the websocket API of Home Assistant.
+          const end = new Date();
+          const start = new Date(end.getTime() - 180 * 24 * 3600 * 1000);
+          const ids = ["heatprint:thuis_heat_space", "heatprint:thuis_tac_pbl"];
+          const stats = await hass.callWS({
+            type: "recorder/statistics_during_period",
+            start_time: start.toISOString(),
+            end_time: end.toISOString(),
+            statistic_ids: ids,
+            period: "day",
+            types: ["change", "mean"],
+          });
+          const heat = stats["heatprint:thuis_heat_space"] || [];
+          const temp = new Map((stats["heatprint:thuis_tac_pbl"] || []).map((r) => [r.start, r.mean]));
+          return heat
+            .filter((r) => r.change !== null && temp.has(r.start))
+            .map((r) => [temp.get(r.start), r.change]);

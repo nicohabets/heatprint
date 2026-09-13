@@ -1,0 +1,1050 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Site",
+        "description": "One site is one home. Heatprint reads your existing energy meters from the recorder, fetches daily weather and computes weather-corrected heat demand per day.",
+        "data": {
+          "name": "Name",
+          "location": "Location",
+          "timezone": "Time zone",
+          "country": "Country"
+        },
+        "data_description": {
+          "name": "Used for the device name, the entity ids and the statistic ids (heatprint:home_...). Renaming later does not change those ids.",
+          "location": "Only used to pick the nearest weather station or the Open-Meteo grid point. Coordinates never leave your home except in weather requests.",
+          "timezone": "Days are counted from midnight to midnight in this time zone, so the meter and the weather line up.",
+          "country": "In the Netherlands the KNMI station data is used by default; elsewhere Open-Meteo."
+        }
+      },
+      "weather_nl": {
+        "title": "Weather source (Netherlands)",
+        "description": "Nearest KNMI station: {nearest}. KNMI daily values (mean temperature, wind, radiation) are free, definitive after one or two days and go back decades, which makes long backfills and a climatology possible.",
+        "data": {
+          "provider": "Provider",
+          "station_id": "KNMI station",
+          "fallback": "Fallback"
+        },
+        "data_description": {
+          "provider": "KNMI is the reference for the Dutch degree-day methods. Open-Meteo is a worldwide reanalysis; your own sensors only work while their long-term statistics exist.",
+          "station_id": "Pick the station with the climate that resembles yours most; distance is a good first guess, coast versus inland matters too.",
+          "fallback": "Used when the primary source is unavailable, so a day is never lost."
+        }
+      },
+      "weather_intl": {
+        "title": "Weather source",
+        "description": "Outside the Netherlands Open-Meteo provides daily reanalysis data worldwide (since 1940) plus the last days from the forecast model.",
+        "data": {
+          "provider": "Provider"
+        },
+        "data_description": {
+          "provider": "Open-Meteo needs no account and supports backfill and climatology. Your own sensors only cover the period for which Home Assistant has long-term statistics."
+        }
+      },
+      "weather_sensors": {
+        "title": "Weather sensors",
+        "description": "Choose sensors with state class measurement; Heatprint reads their daily means from the long-term statistics. Without wind and radiation the methods fall back to temperature only.",
+        "data": {
+          "temperature": "Outdoor temperature",
+          "wind": "Wind speed",
+          "radiation": "Solar irradiance"
+        },
+        "data_description": {
+          "temperature": "Required. The daily mean of this sensor becomes the outdoor temperature of the day.",
+          "wind": "Optional. Wind increases the heat loss of a house; the effective temperature methods use it.",
+          "radiation": "Optional. Solar gain lowers the heat demand; used by the PBL optimal model and the house fit."
+        }
+      },
+      "situation": {
+        "title": "Heating situation",
+        "description": "This choice only prefills the next step. Detected gas meters: {gas_candidates}. Possible heat pump meters: {heat_pump_candidates}.",
+        "data": {
+          "situation": "How is the house heated?"
+        },
+        "data_description": {
+          "situation": "Hybrid means a gas boiler plus a heat pump on the same site. Choose custom to start with an empty list."
+        }
+      },
+      "generator": {
+        "title": "Heat generator {number}",
+        "description": "Every generator turns an energy carrier (gas, electricity, district heat) into heat. Heatprint keeps space heating as one line even when a heat pump joins the boiler.",
+        "data": {
+          "name": "Name",
+          "kind": "Kind",
+          "role": "Role"
+        },
+        "data_description": {
+          "name": "For example Boiler or Heat pump. The id derived from it is used in statistics and entities.",
+          "kind": "Determines which sensors and conversion are asked next.",
+          "role": "Space heating only, hot water only, or both. Hybrid: boiler both, heat pump space (or both if it also makes hot water)."
+        }
+      },
+      "generator_details": {
+        "title": "Sensors and conversion of {name}",
+        "description": "Pick cumulative meters (state class total or total_increasing). Daily consumption is derived from their long-term statistics, so renaming or replacing a sensor later does not break the history.",
+        "data": {
+          "energy_entity": "Energy meter",
+          "thermal_entity": "Thermal energy meter (kWh heat)",
+          "electric_entity": "Electric energy meter (kWh)",
+          "dhw_entity": "Hot water energy meter",
+          "dhw_electric_entity": "Hot water electric meter"
+        },
+        "data_description": {
+          "energy_entity": "Gas in m³, electricity in kWh or district heat in GJ/kWh. Must be a cumulative meter.",
+          "thermal_entity": "Heat delivered as reported by the heat pump. With this meter the heat is measured instead of estimated.",
+          "electric_entity": "Electricity consumed by the heat pump. Needed for the COP and for the estimate when no thermal meter exists.",
+          "dhw_entity": "Separate meter for hot water heat; enables the measured hot water split.",
+          "dhw_electric_entity": "Electricity used for hot water, if the heat pump reports it separately."
+        },
+        "sections": {
+          "conversion": {
+            "name": "Conversion to heat",
+            "description": "How the carrier becomes heat. Estimates are labelled as estimated in the results.",
+            "data": {
+              "heating_value": "Heating value",
+              "heating_value_custom": "Custom heating value",
+              "efficiency": "Efficiency",
+              "conversion_mode": "Conversion mode",
+              "scop": "Seasonal COP (SCOP)",
+              "cop": "COP",
+              "factor": "Factor (kWh heat per unit)"
+            },
+            "data_description": {
+              "heating_value": "Dutch suppliers bill on the higher heating value (Hs, 8.792 kWh/m³). Lower value (Hi, 7.92) is only for those who want net figures.",
+              "heating_value_custom": "Only used when heating value is set to custom (kWh per m³).",
+              "efficiency": "Share of the carrier energy that ends up as heat. A condensing boiler is around 0.95 on the higher heating value; district heat 1.0.",
+              "conversion_mode": "Automatic uses the thermal meter when present, otherwise electricity times SCOP. Without a thermal meter the heat is an estimate; Heatprint labels it as estimated.",
+              "scop": "Seasonal performance factor used to estimate heat from electricity when no thermal meter exists. 3.5 is a reasonable start for a modern air-to-water heat pump.",
+              "cop": "Average coefficient of performance of the air-to-air unit while heating.",
+              "factor": "kWh of heat per unit of the meter."
+            }
+          },
+          "dhw": {
+            "name": "Hot water and cooking",
+            "description": "Hot water and cooking do not depend on the weather. If they stay in the heating line, the house looks less sensitive to cold than it is and the balance temperature shifts. Splitting them off keeps the heating line honest.",
+            "data": {
+              "dhw_mode": "Split method",
+              "dhw_fixed_per_day": "Fixed amount per day"
+            },
+            "data_description": {
+              "dhw_mode": "Baseline: the average daily use in the summer window is treated as hot water and cooking. Measured: a separate hot water meter. Fixed: a value you know, for example a monthly amount divided by 30. None: everything counts as space heating.",
+              "dhw_fixed_per_day": "In the unit of the meter per day (m³, kWh). Only used with the fixed method."
+            }
+          },
+          "pricing": {
+            "name": "Price and CO2 (optional)",
+            "description": "Optional cost and emission figures per day.",
+            "data": {
+              "price_entity": "Price sensor",
+              "co2_factor": "CO2 factor"
+            },
+            "data_description": {
+              "price_entity": "Sensor with the price per unit of the meter (EUR per m³ or per kWh).",
+              "co2_factor": "kg CO2 per unit of the meter. Defaults: gas 1.78 kg/m³, electricity 0.30 kg/kWh."
+            }
+          }
+        }
+      },
+      "generator_more": {
+        "title": "Another generator?",
+        "description": "Configured so far: {generators}.",
+        "menu_options": {
+          "generator": "Add another generator",
+          "dhw": "Continue"
+        }
+      },
+      "dhw": {
+        "title": "Hot water and cooking",
+        "description": "Per generator: {summary}. The summer window is used for the baseline: the average daily consumption in this window is treated as the weather-independent part (hot water, cooking) for the whole year.",
+        "data": {
+          "dhw_override": "Override split method for all generators",
+          "summer_start": "Summer window start (MM-DD)",
+          "summer_end": "Summer window end (MM-DD)"
+        },
+        "data_description": {
+          "dhw_override": "Keep the per-generator settings, or apply one method to every generator with role both.",
+          "summer_start": "Pick a window with no heating at all, normally 06-01.",
+          "summer_end": "Normally 08-31. The last complete summer is used; without one, the lowest rolling 30-day average is taken."
+        }
+      },
+      "methods": {
+        "title": "Methods and season",
+        "description": "All methods are always computed and stored; enabled decides which get sensors, primary drives the main sensors and the forecast. The house fit becomes primary as soon as at least 30 usable days exist; until then PBL is used.",
+        "data": {
+          "season_start": "Season start",
+          "enabled": "Methods with sensors",
+          "primary": "Primary method",
+          "classic_weighted": "Classic: monthly weighting (mindergas style)"
+        },
+        "data_description": {
+          "season_start": "1 October is the gas year used by KNMI and most Dutch tools; 1 January matches a calendar-year view; 1 July is useful for the southern hemisphere.",
+          "enabled": "Classic is comparable with mindergas and the Degree-days integration, KNMI 14 °C with national gas-year statistics, PBL is the revised national weather correction, house is fitted to your own home.",
+          "primary": "Used for the main sensors, the k-value and the forecast. Must be one of the enabled methods.",
+          "classic_weighted": "Multiplies degree days by the monthly factors of mindergas (Nov-Feb 1.1, Mar and Oct 1.0, Apr-Sep 0.8). Switch off for plain degree days."
+        },
+        "sections": {
+          "advanced": {
+            "name": "Advanced",
+            "description": "Parameters of the individual methods.",
+            "data": {
+              "classic_base_temp": "Classic base temperature",
+              "classic_heating_limit": "Classic heating limit",
+              "pbl_parameter_set": "PBL parameter set",
+              "pbl_wind_mode": "PBL wind term",
+              "pbl_include_sun": "PBL: include solar radiation",
+              "house_fit_wind": "House fit: fit wind sensitivity"
+            },
+            "data_description": {
+              "classic_base_temp": "18 °C is a convention from the 1970s, not a physical constant. A well insulated house starts heating well below it; the house fit finds your own balance temperature.",
+              "classic_heating_limit": "Days with a mean temperature above this limit count zero degree days. mindergas uses 18 °C, many users choose 15.5 °C.",
+              "pbl_parameter_set": "Practical: temperature and wind, De Bilt (PBL 2022 table 3.4). Optimal: six stations with solar radiation (table 3.3).",
+              "pbl_wind_mode": "Linear uses the KNMI style wind term (wind divided by 1.5). Square root follows the PBL description; its coefficient is configurable under advanced options.",
+              "pbl_include_sun": "Only sensible when radiation data is available (KNMI, Open-Meteo or a radiation sensor).",
+              "house_fit_wind": "Estimate the wind sensitivity of your house from the data instead of using a national value."
+            }
+          }
+        }
+      },
+      "history": {
+        "title": "History",
+        "description": "Weather history is fetched in the background. Meter readings from before your Home Assistant history can be imported afterwards with the action Import meter readings (CSV, for example the export of mindergas.nl).",
+        "data": {
+          "backfill_years": "Years of history to backfill",
+          "climatology_years": "Reference years for the climatology",
+          "import_now": "Remind me to import old meter readings"
+        },
+        "data_description": {
+          "backfill_years": "How far back weather and day records are built. Energy data is only available as far as your recorder statistics or imports go.",
+          "climatology_years": "Years of weather used for the normal season (normalised consumption and forecast). 20 is the usual climate reference; 30 is the WMO normal.",
+          "import_now": "Shows a notification with instructions after setup."
+        }
+      },
+      "summary": {
+        "title": "Summary",
+        "description": "Site: {site}. Weather: {weather}. Generators: {generators}. Methods: {methods}. Season start: {season}. Backfill: {backfill} years. Submit to create the site; the backfill and the first calculation start in the background."
+      },
+      "reconfigure": {
+        "title": "Location and weather source",
+        "description": "Change the location or time zone here; the weather source follows in the next step.",
+        "data": {
+          "location": "Location",
+          "timezone": "Time zone"
+        },
+        "data_description": {
+          "location": "Used for the nearest station or the Open-Meteo grid point.",
+          "timezone": "Day boundaries of the meters and the weather."
+        }
+      },
+      "reconfigure_confirm": {
+        "title": "Rebuild history?",
+        "description": "The weather source changed. Heatprint will fetch the weather history again and recompute every day record. Existing statistics are overwritten day by day; this can take a while."
+      }
+    },
+    "error": {
+      "name_exists": "A site with this name already exists.",
+      "invalid_name": "The name must contain at least one letter or digit.",
+      "invalid_timezone": "Unknown time zone.",
+      "cannot_connect": "The weather provider could not be reached.",
+      "no_data_for_station": "The weather provider returned no data for this station or location.",
+      "entity_no_statistics": "This sensor has no state class measurement and therefore no long-term statistics.",
+      "entity_not_found": "Entity not found.",
+      "entity_not_cumulative": "This sensor is not a cumulative meter (state class total or total_increasing).",
+      "unit_mismatch": "The unit of this sensor does not match the kind of generator (m³ for gas, kWh or Wh for electricity and heat, GJ or kWh for district heat).",
+      "missing_thermal_or_electric": "A heat pump needs at least a thermal or an electric energy meter.",
+      "invalid_month_day": "Use the format MM-DD, for example 06-01.",
+      "primary_not_enabled": "The primary method must be one of the enabled methods."
+    },
+    "abort": {
+      "already_configured": "This site is already configured.",
+      "reconfigure_successful": "The site has been reconfigured."
+    }
+  },
+  "config_subentries": {
+    "generator": {
+      "entry_type": "Heat generator",
+      "initiate_flow": {
+        "user": "Add heat generator",
+        "reconfigure": "Change heat generator"
+      },
+      "step": {
+        "user": {
+          "title": "Heat generator",
+          "description": "Every generator turns an energy carrier into heat. Space heating stays one line across all generators.",
+          "data": {
+            "name": "Name",
+            "kind": "Kind",
+            "role": "Role"
+          },
+          "data_description": {
+            "name": "For example Boiler or Heat pump.",
+            "kind": "Determines which sensors and conversion are asked next.",
+            "role": "Space heating only, hot water only, or both."
+          }
+        },
+        "details": {
+          "title": "Sensors and conversion of {name}",
+          "description": "Pick cumulative meters (state class total or total_increasing).",
+          "data": {
+            "energy_entity": "Energy meter",
+            "thermal_entity": "Thermal energy meter (kWh heat)",
+            "electric_entity": "Electric energy meter (kWh)",
+            "dhw_entity": "Hot water energy meter",
+            "dhw_electric_entity": "Hot water electric meter"
+          },
+          "data_description": {
+            "energy_entity": "Gas in m³, electricity in kWh or district heat in GJ/kWh.",
+            "thermal_entity": "Heat delivered as reported by the heat pump; measured instead of estimated.",
+            "electric_entity": "Electricity consumed by the heat pump; needed for the COP and the SCOP estimate.",
+            "dhw_entity": "Separate meter for hot water heat; enables the measured split.",
+            "dhw_electric_entity": "Electricity used for hot water, if reported separately."
+          },
+          "sections": {
+            "conversion": {
+              "name": "Conversion to heat",
+              "description": "How the carrier becomes heat.",
+              "data": {
+                "heating_value": "Heating value",
+                "heating_value_custom": "Custom heating value",
+                "efficiency": "Efficiency",
+                "conversion_mode": "Conversion mode",
+                "scop": "Seasonal COP (SCOP)",
+                "cop": "COP",
+                "factor": "Factor (kWh heat per unit)"
+              },
+              "data_description": {
+                "heating_value": "Hs 8.792 kWh/m³ (billing value in the Netherlands) or Hi 7.92 kWh/m³.",
+                "heating_value_custom": "Only used when heating value is set to custom.",
+                "efficiency": "Condensing boiler about 0.95 on the higher heating value; district heat 1.0.",
+                "conversion_mode": "Without a thermal meter the heat is an estimate; Heatprint labels it as estimated.",
+                "scop": "Used to estimate heat from electricity when no thermal meter exists.",
+                "cop": "Average coefficient of performance while heating.",
+                "factor": "kWh of heat per unit of the meter."
+              }
+            },
+            "dhw": {
+              "name": "Hot water and cooking",
+              "description": "Splitting off the weather-independent part keeps the heating line honest.",
+              "data": {
+                "dhw_mode": "Split method",
+                "dhw_fixed_per_day": "Fixed amount per day"
+              },
+              "data_description": {
+                "dhw_mode": "Baseline from the summer window, measured with a separate meter, a fixed daily amount, or none.",
+                "dhw_fixed_per_day": "In the unit of the meter per day; only with the fixed method."
+              }
+            },
+            "pricing": {
+              "name": "Price and CO2 (optional)",
+              "description": "Optional cost and emission figures per day.",
+              "data": {
+                "price_entity": "Price sensor",
+                "co2_factor": "CO2 factor"
+              },
+              "data_description": {
+                "price_entity": "Sensor with the price per unit of the meter.",
+                "co2_factor": "kg CO2 per unit of the meter."
+              }
+            }
+          }
+        },
+        "reconfigure": {
+          "title": "Change heat generator",
+          "description": "Changing the energy meter triggers a recomputation from the first day the new sensor has statistics. Statistics of a removed generator are kept as history.",
+          "data": {
+            "name": "Name",
+            "kind": "Kind",
+            "role": "Role"
+          },
+          "data_description": {
+            "name": "The id in statistics and entities does not change when you rename.",
+            "kind": "Determines which sensors and conversion are asked next.",
+            "role": "Space heating only, hot water only, or both."
+          }
+        },
+        "reconfigure_details": {
+          "title": "Sensors and conversion of {name}",
+          "description": "Pick cumulative meters (state class total or total_increasing).",
+          "data": {
+            "energy_entity": "Energy meter",
+            "thermal_entity": "Thermal energy meter (kWh heat)",
+            "electric_entity": "Electric energy meter (kWh)",
+            "dhw_entity": "Hot water energy meter",
+            "dhw_electric_entity": "Hot water electric meter"
+          },
+          "data_description": {
+            "energy_entity": "Gas in m³, electricity in kWh or district heat in GJ/kWh.",
+            "thermal_entity": "Heat delivered as reported by the heat pump; measured instead of estimated.",
+            "electric_entity": "Electricity consumed by the heat pump; needed for the COP and the SCOP estimate.",
+            "dhw_entity": "Separate meter for hot water heat; enables the measured split.",
+            "dhw_electric_entity": "Electricity used for hot water, if reported separately."
+          },
+          "sections": {
+            "conversion": {
+              "name": "Conversion to heat",
+              "description": "How the carrier becomes heat.",
+              "data": {
+                "heating_value": "Heating value",
+                "heating_value_custom": "Custom heating value",
+                "efficiency": "Efficiency",
+                "conversion_mode": "Conversion mode",
+                "scop": "Seasonal COP (SCOP)",
+                "cop": "COP",
+                "factor": "Factor (kWh heat per unit)"
+              },
+              "data_description": {
+                "heating_value": "Hs 8.792 kWh/m³ (billing value in the Netherlands) or Hi 7.92 kWh/m³.",
+                "heating_value_custom": "Only used when heating value is set to custom.",
+                "efficiency": "Condensing boiler about 0.95 on the higher heating value; district heat 1.0.",
+                "conversion_mode": "Without a thermal meter the heat is an estimate; Heatprint labels it as estimated.",
+                "scop": "Used to estimate heat from electricity when no thermal meter exists.",
+                "cop": "Average coefficient of performance while heating.",
+                "factor": "kWh of heat per unit of the meter."
+              }
+            },
+            "dhw": {
+              "name": "Hot water and cooking",
+              "description": "Splitting off the weather-independent part keeps the heating line honest.",
+              "data": {
+                "dhw_mode": "Split method",
+                "dhw_fixed_per_day": "Fixed amount per day"
+              },
+              "data_description": {
+                "dhw_mode": "Baseline from the summer window, measured with a separate meter, a fixed daily amount, or none.",
+                "dhw_fixed_per_day": "In the unit of the meter per day; only with the fixed method."
+              }
+            },
+            "pricing": {
+              "name": "Price and CO2 (optional)",
+              "description": "Optional cost and emission figures per day.",
+              "data": {
+                "price_entity": "Price sensor",
+                "co2_factor": "CO2 factor"
+              },
+              "data_description": {
+                "price_entity": "Sensor with the price per unit of the meter.",
+                "co2_factor": "kg CO2 per unit of the meter."
+              }
+            }
+          }
+        }
+      },
+      "error": {
+        "entity_not_found": "Entity not found.",
+        "entity_not_cumulative": "This sensor is not a cumulative meter (state class total or total_increasing).",
+        "unit_mismatch": "The unit of this sensor does not match the kind of generator.",
+        "missing_thermal_or_electric": "A heat pump needs at least a thermal or an electric energy meter."
+      },
+      "abort": {
+        "reconfigure_successful": "The heat generator has been changed."
+      }
+    },
+    "measure": {
+      "entry_type": "Energy-saving measure",
+      "initiate_flow": {
+        "user": "Add measure",
+        "reconfigure": "Change measure"
+      },
+      "step": {
+        "user": {
+          "title": "Energy-saving measure",
+          "description": "A measure marks a date. Heatprint compares the season before with the period after it. The effect is only meaningful once at least 30 days after the date exist; use the action Measure effect.",
+          "data": {
+            "name": "Name",
+            "date": "Effective date",
+            "category": "Category",
+            "notes": "Notes"
+          },
+          "data_description": {
+            "name": "For example Triple glazing, Flow temperature 45 °C or Hybrid heat pump.",
+            "date": "The first day the measure was in effect.",
+            "category": "Insulation mainly changes the slope (heat loss per K), installation the efficiency, behaviour the balance temperature. Used for the interpretation text.",
+            "notes": "Free text, for your own reference."
+          }
+        },
+        "reconfigure": {
+          "title": "Change measure",
+          "description": "Adjust the measure; the comparison uses the new date the next time you run the action Measure effect.",
+          "data": {
+            "name": "Name",
+            "date": "Effective date",
+            "category": "Category",
+            "notes": "Notes"
+          },
+          "data_description": {
+            "name": "For example Triple glazing.",
+            "date": "The first day the measure was in effect.",
+            "category": "Steers the interpretation text (slope versus balance temperature).",
+            "notes": "Free text."
+          }
+        }
+      },
+      "error": {
+        "invalid_name": "The name must contain at least one letter or digit."
+      },
+      "abort": {
+        "reconfigure_successful": "The measure has been changed."
+      }
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Heatprint options",
+        "menu_options": {
+          "methods": "Methods and season",
+          "dhw": "Hot water and cooking",
+          "history": "History",
+          "pricing": "Prices and CO2",
+          "integrations": "Integrations",
+          "advanced": "Advanced"
+        }
+      },
+      "methods": {
+        "title": "Methods and season",
+        "description": "All methods are always computed; enabled decides which get sensors, primary drives the main sensors and the forecast.",
+        "data": {
+          "season_start": "Season start",
+          "enabled": "Methods with sensors",
+          "primary": "Primary method",
+          "classic_weighted": "Classic: monthly weighting (mindergas style)"
+        },
+        "data_description": {
+          "season_start": "1 October is the gas year; 1 January a calendar year; 1 July for the southern hemisphere.",
+          "enabled": "Classic is comparable with mindergas, KNMI 14 °C with national gas-year statistics, PBL is the revised national weather correction, house is fitted to your own home.",
+          "primary": "Must be one of the enabled methods. House falls back to PBL until a fit exists.",
+          "classic_weighted": "Monthly factors of mindergas (Nov-Feb 1.1, Mar and Oct 1.0, Apr-Sep 0.8)."
+        },
+        "sections": {
+          "advanced": {
+            "name": "Advanced",
+            "description": "Parameters of the individual methods.",
+            "data": {
+              "classic_base_temp": "Classic base temperature",
+              "classic_heating_limit": "Classic heating limit",
+              "pbl_parameter_set": "PBL parameter set",
+              "pbl_wind_mode": "PBL wind term",
+              "pbl_include_sun": "PBL: include solar radiation",
+              "house_fit_wind": "House fit: fit wind sensitivity"
+            },
+            "data_description": {
+              "classic_base_temp": "18 °C is a convention, not a physical constant; the house fit finds your own balance temperature.",
+              "classic_heating_limit": "Days with a mean temperature above this limit count zero degree days.",
+              "pbl_parameter_set": "Practical (temperature and wind) or optimal (six stations with solar radiation).",
+              "pbl_wind_mode": "Linear (wind divided by 1.5) or square root of the wind speed.",
+              "pbl_include_sun": "Only sensible when radiation data is available.",
+              "house_fit_wind": "Estimate the wind sensitivity of your house from the data."
+            }
+          }
+        }
+      },
+      "dhw": {
+        "title": "Hot water and cooking",
+        "description": "Per generator: {summary}. The summer window defines the weather-independent baseline.",
+        "data": {
+          "dhw_override": "Override split method for all generators",
+          "summer_start": "Summer window start (MM-DD)",
+          "summer_end": "Summer window end (MM-DD)"
+        },
+        "data_description": {
+          "dhw_override": "Keep the per-generator settings, or apply one method to every generator with role both.",
+          "summer_start": "Pick a window with no heating at all, normally 06-01.",
+          "summer_end": "Normally 08-31."
+        }
+      },
+      "history": {
+        "title": "History",
+        "description": "Change the backfill and climatology years, or recompute all day records from a date (for example after changing a sensor or importing readings).",
+        "data": {
+          "backfill_years": "Years of history to backfill",
+          "climatology_years": "Reference years for the climatology",
+          "recompute_from": "Recompute from date"
+        },
+        "data_description": {
+          "backfill_years": "How far back weather and day records are built.",
+          "climatology_years": "Years of weather used for the normal season.",
+          "recompute_from": "Runs the full pipeline from this date to yesterday in the background after saving."
+        }
+      },
+      "pricing": {
+        "title": "Prices and CO2",
+        "description": "Default emission factors; a live CO2 sensor (kg per kWh) overrides the electricity factor per day.",
+        "data": {
+          "gas_co2_factor": "CO2 factor gas",
+          "electric_co2_factor": "CO2 factor electricity",
+          "district_co2_factor": "CO2 factor district heat",
+          "co2_entity": "CO2 intensity sensor"
+        },
+        "data_description": {
+          "gas_co2_factor": "kg CO2 per m³ of natural gas; 1.78 is the Dutch default.",
+          "electric_co2_factor": "kg CO2 per kWh of electricity; 0.30 is a Dutch average.",
+          "district_co2_factor": "kg CO2 per kWh of district heat; depends on the network, ask your supplier.",
+          "co2_entity": "Optional sensor with the current grid intensity in kg per kWh."
+        }
+      },
+      "integrations": {
+        "title": "Integrations",
+        "description": "Bridge to mindergas.nl. Token currently {token_state}. The token is stored in the config entry, never logged and redacted from diagnostics. Leave the field empty to keep the stored token.",
+        "data": {
+          "mindergas_token": "mindergas.nl API token",
+          "mindergas_generator_id": "Generator to push",
+          "mindergas_daily_push": "Push the reading every day"
+        },
+        "data_description": {
+          "mindergas_token": "Personal API token from your mindergas.nl account settings.",
+          "mindergas_generator_id": "The gas meter whose reading is sent.",
+          "mindergas_daily_push": "After the daily run the meter reading at midnight is sent as today's reading."
+        }
+      },
+      "advanced": {
+        "title": "Advanced",
+        "description": "Override the national PBL parameters and the fit settings. Leave the defaults unless you know why.",
+        "sections": {
+          "pbl": {
+            "name": "PBL parameters",
+            "description": "Monthly parameters of the PBL 2022 practical model (TST = threshold temperature, RER = slope factor, TOP = temperature independent part).",
+            "data": {
+              "pbl_tst_winter": "TST December-February",
+              "pbl_tst_shoulder": "TST March and November",
+              "pbl_tst_transition": "TST April and October",
+              "pbl_tst_summer": "TST May-September",
+              "pbl_rer_winter": "RER December-February",
+              "pbl_rer_shoulder": "RER March and November",
+              "pbl_rer_transition": "RER April and October",
+              "pbl_rer_summer": "RER May-September",
+              "pbl_top": "TOP",
+              "pbl_wind_sqrt_coef": "Wind coefficient (square root mode)"
+            },
+            "data_description": {
+              "pbl_top": "Not used in the degree days by default; hot water and cooking are handled separately.",
+              "pbl_wind_sqrt_coef": "Placeholder from the gas profile method (1/0.35) until the PBL value is verified."
+            }
+          },
+          "fit": {
+            "name": "Energy signature fit",
+            "description": "Settings of the house fit.",
+            "data": {
+              "outlier_threshold": "Outlier threshold (times RMSE)",
+              "min_fit_days": "Minimum usable days for a fit"
+            },
+            "data_description": {
+              "outlier_threshold": "Days with a residual larger than this many times the RMSE are excluded and the fit is repeated once.",
+              "min_fit_days": "Below this number of usable days the house method falls back to PBL."
+            }
+          }
+        }
+      }
+    },
+    "error": {
+      "invalid_month_day": "Use the format MM-DD, for example 06-01.",
+      "primary_not_enabled": "The primary method must be one of the enabled methods.",
+      "token_required": "A token is required for the daily push.",
+      "generator_required": "Choose the generator whose reading should be pushed."
+    }
+  },
+  "selector": {
+    "provider": {
+      "options": {
+        "knmi": "KNMI daily station data",
+        "open_meteo": "Open-Meteo",
+        "ha_sensors": "Home Assistant sensors"
+      }
+    },
+    "fallback": {
+      "options": {
+        "open_meteo": "Open-Meteo",
+        "none": "None"
+      }
+    },
+    "situation": {
+      "options": {
+        "gas": "Gas boiler",
+        "hybrid": "Hybrid (gas boiler and heat pump)",
+        "all_electric": "All-electric (heat pump)",
+        "district_heat": "District heat",
+        "custom": "Custom"
+      }
+    },
+    "generator_kind": {
+      "options": {
+        "gas_boiler": "Gas boiler",
+        "heat_pump": "Heat pump (air-to-water or ground source)",
+        "electric_heater": "Electric heating",
+        "air_to_air": "Air-to-air heat pump",
+        "district_heat": "District heat",
+        "other": "Other"
+      }
+    },
+    "generator_role": {
+      "options": {
+        "space": "Space heating",
+        "dhw": "Hot water",
+        "both": "Space heating and hot water"
+      }
+    },
+    "heating_value": {
+      "options": {
+        "hs": "Higher heating value Hs (8.792 kWh/m³)",
+        "hi": "Lower heating value Hi (7.92 kWh/m³)",
+        "custom": "Custom"
+      }
+    },
+    "conversion_mode": {
+      "options": {
+        "auto": "Automatic (measured when a thermal meter exists)",
+        "measured_thermal": "Measured thermal energy",
+        "cop_fixed": "Electricity times SCOP (estimated)"
+      }
+    },
+    "dhw_mode": {
+      "options": {
+        "baseline": "Baseline from the summer window",
+        "fixed": "Fixed amount per day",
+        "measured": "Measured with a separate meter",
+        "none": "None (everything is space heating)"
+      }
+    },
+    "dhw_override": {
+      "options": {
+        "keep": "Keep per-generator settings",
+        "baseline": "Baseline from the summer window",
+        "fixed": "Fixed amount per day",
+        "measured": "Measured with a separate meter",
+        "none": "None (everything is space heating)"
+      }
+    },
+    "season_start": {
+      "options": {
+        "october": "1 October (gas year)",
+        "january": "1 January (calendar year)",
+        "july": "1 July"
+      }
+    },
+    "method": {
+      "options": {
+        "classic": "Classic weighted degree days (mindergas)",
+        "knmi14": "KNMI 14 °C gas-year degree days",
+        "pbl": "PBL 2022 / KEV-SJV",
+        "house": "House fit"
+      }
+    },
+    "pbl_parameter_set": {
+      "options": {
+        "practical": "Practical (temperature and wind)",
+        "optimal": "Optimal (with solar radiation)"
+      }
+    },
+    "pbl_wind_mode": {
+      "options": {
+        "linear": "Linear (wind divided by 1.5)",
+        "sqrt": "Square root of the wind speed"
+      }
+    },
+    "measure_category": {
+      "options": {
+        "insulation": "Insulation",
+        "installation": "Installation",
+        "behaviour": "Behaviour",
+        "other": "Other"
+      }
+    },
+    "import_unit": {
+      "options": {
+        "m3": "m³ (gas)",
+        "kwh": "kWh",
+        "gj": "GJ (district heat)"
+      }
+    },
+    "tac_preset": {
+      "options": {
+        "house": "House (fitted, recommended)",
+        "pbl": "PBL (inertia weighting, no wind term)"
+      }
+    },
+    "compare_method": {
+      "options": {
+        "signature": "Energy signature (normalised consumption)",
+        "classic": "Classic degree days",
+        "knmi14": "KNMI 14 °C degree days",
+        "pbl": "PBL degree days",
+        "house": "House degree days"
+      }
+    },
+    "push_target": {
+      "options": {
+        "mindergas": "mindergas.nl"
+      }
+    }
+  },
+  "entity": {
+    "sensor": {
+      "effective_temperature": {
+        "name": "Effective temperature"
+      },
+      "degree_days_yesterday": {
+        "name": "Degree days yesterday"
+      },
+      "degree_days_season": {
+        "name": "Degree days season"
+      },
+      "heat_space_yesterday": {
+        "name": "Space heating yesterday"
+      },
+      "heat_space_season": {
+        "name": "Space heating season"
+      },
+      "heat_dhw_season": {
+        "name": "Hot water season"
+      },
+      "heat_per_degree_day": {
+        "name": "Heat per degree day"
+      },
+      "gas_per_degree_day": {
+        "name": "Gas per degree day"
+      },
+      "heat_pump_share_season": {
+        "name": "Heat pump share season"
+      },
+      "cop_yesterday": {
+        "name": "COP yesterday"
+      },
+      "heat_loss_coefficient": {
+        "name": "Heat loss coefficient"
+      },
+      "balance_temperature": {
+        "name": "Balance temperature"
+      },
+      "fit_quality": {
+        "name": "Fit quality"
+      },
+      "forecast_heat_season": {
+        "name": "Forecast heat season"
+      },
+      "forecast_gas_season": {
+        "name": "Forecast gas season"
+      },
+      "forecast_electric_season": {
+        "name": "Forecast electricity season"
+      },
+      "dhw_baseline": {
+        "name": "Hot water baseline"
+      },
+      "data_quality": {
+        "name": "Data quality"
+      },
+      "last_weather_update": {
+        "name": "Last weather update"
+      },
+      "generator_heat_space_season": {
+        "name": "Space heating season"
+      },
+      "generator_heat_dhw_season": {
+        "name": "Hot water season"
+      },
+      "generator_share_season": {
+        "name": "Share season"
+      }
+    },
+    "binary_sensor": {
+      "data_gap": {
+        "name": "Data gap"
+      }
+    }
+  },
+  "services": {
+    "import_readings": {
+      "name": "Import meter readings",
+      "description": "Imports cumulative meter readings from CSV (for example a mindergas.nl export) for days before the Home Assistant history and recomputes from the first imported day.",
+      "fields": {
+        "entry_id": {
+          "name": "Site",
+          "description": "The Heatprint site."
+        },
+        "generator_id": {
+          "name": "Generator id",
+          "description": "Id of the generator the readings belong to (for example cv_ketel)."
+        },
+        "csv": {
+          "name": "CSV text",
+          "description": "The CSV content; either this or a path."
+        },
+        "path": {
+          "name": "File path",
+          "description": "File inside the heatprint folder of your configuration directory."
+        },
+        "mapping": {
+          "name": "Column mapping",
+          "description": "Column names, date format, decimal sign and delimiter (defaults match the mindergas.nl export)."
+        },
+        "unit": {
+          "name": "Unit",
+          "description": "Unit of the readings; defaults to the unit of the generator."
+        }
+      }
+    },
+    "recompute": {
+      "name": "Recompute",
+      "description": "Recomputes all day records from a date to yesterday and rewrites the statistics.",
+      "fields": {
+        "entry_id": {
+          "name": "Site",
+          "description": "The Heatprint site."
+        },
+        "from_date": {
+          "name": "From date",
+          "description": "First day to recompute."
+        }
+      }
+    },
+    "fit_signature": {
+      "name": "Fit energy signature",
+      "description": "Fits the energy signature (balance temperature, heat loss per K, wind sensitivity) for a period and returns the fit.",
+      "fields": {
+        "entry_id": {
+          "name": "Site",
+          "description": "The Heatprint site."
+        },
+        "start": {
+          "name": "Start",
+          "description": "First day of the period (or use season)."
+        },
+        "end": {
+          "name": "End",
+          "description": "Last day of the period."
+        },
+        "season": {
+          "name": "Season",
+          "description": "Season label such as 2024/2025 instead of start and end."
+        },
+        "tac_preset": {
+          "name": "Effective temperature preset",
+          "description": "Which effective temperature is used as regressor."
+        },
+        "fit_wind": {
+          "name": "Fit wind",
+          "description": "Estimate the wind sensitivity; defaults to the site setting."
+        }
+      }
+    },
+    "compare_periods": {
+      "name": "Compare periods",
+      "description": "Compares the weather-corrected heat demand of two periods and returns the comparison.",
+      "fields": {
+        "entry_id": {
+          "name": "Site",
+          "description": "The Heatprint site."
+        },
+        "base_start": {
+          "name": "Base start",
+          "description": "First day of the base period."
+        },
+        "base_end": {
+          "name": "Base end",
+          "description": "Last day of the base period."
+        },
+        "target_start": {
+          "name": "Target start",
+          "description": "First day of the target period."
+        },
+        "target_end": {
+          "name": "Target end",
+          "description": "Last day of the target period."
+        },
+        "method": {
+          "name": "Method",
+          "description": "Energy signature (normalised consumption with confidence interval) or a degree-day method (k-value comparison)."
+        }
+      }
+    },
+    "measure_effect": {
+      "name": "Measure effect",
+      "description": "Compares the season before an energy-saving measure with the period after it and returns the effect.",
+      "fields": {
+        "entry_id": {
+          "name": "Site",
+          "description": "The Heatprint site."
+        },
+        "measure_id": {
+          "name": "Measure id",
+          "description": "Id of the measure (slug of its name)."
+        }
+      }
+    },
+    "forecast": {
+      "name": "Forecast",
+      "description": "Returns the forecast of the running season based on the climatology.",
+      "fields": {
+        "entry_id": {
+          "name": "Site",
+          "description": "The Heatprint site."
+        }
+      }
+    },
+    "export_daily": {
+      "name": "Export day records",
+      "description": "Writes the day records of a period as CSV into the heatprint folder of your configuration directory.",
+      "fields": {
+        "entry_id": {
+          "name": "Site",
+          "description": "The Heatprint site."
+        },
+        "start": {
+          "name": "Start",
+          "description": "First day."
+        },
+        "end": {
+          "name": "End",
+          "description": "Last day."
+        },
+        "path": {
+          "name": "File name",
+          "description": "File name inside the heatprint folder; a default name is used when empty."
+        }
+      }
+    },
+    "push_reading": {
+      "name": "Push meter reading",
+      "description": "Sends the meter reading at the start of a day to mindergas.nl (token from the options).",
+      "fields": {
+        "entry_id": {
+          "name": "Site",
+          "description": "The Heatprint site."
+        },
+        "generator_id": {
+          "name": "Generator id",
+          "description": "Generator whose meter reading is sent."
+        },
+        "target": {
+          "name": "Target",
+          "description": "Only mindergas.nl for now."
+        },
+        "date": {
+          "name": "Date",
+          "description": "Date of the reading (reading at midnight at the start of this day); defaults to today."
+        }
+      }
+    }
+  },
+  "exceptions": {
+    "entry_not_found": {
+      "message": "No Heatprint site with id {entry_id}."
+    },
+    "entry_not_loaded": {
+      "message": "The Heatprint site {entry_id} is not loaded."
+    },
+    "path_not_allowed": {
+      "message": "Path {path} is outside the allowed folder {base}."
+    },
+    "csv_invalid": {
+      "message": "The CSV could not be parsed: {error}."
+    },
+    "invalid_period": {
+      "message": "The period is invalid: start must be before end."
+    },
+    "period_required": {
+      "message": "Give either start and end or a season."
+    },
+    "ha_too_old": {
+      "message": "Heatprint needs Home Assistant 2025.3 or newer (config subentries)."
+    }
+  }
+}

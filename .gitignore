@@ -1,0 +1,34 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+build/
+dist/
+.venv/
+venv/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.coverage
+htmlcov/
+
+# Editors / OS
+.idea/
+.vscode/
+*.swp
+.DS_Store
+Thumbs.db
+
+# Home Assistant dev config (local only)
+config/
+*.db
+*.db-shm
+*.db-wal
+.storage/
+
+# Local data / exports
+data/
+*.csv
+!tests/fixtures/*.csv
+!examples/**/*.csv

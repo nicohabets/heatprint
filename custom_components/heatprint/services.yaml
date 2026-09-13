@@ -1,0 +1,196 @@
+import_readings:
+  fields:
+    entry_id:
+      required: true
+      selector:
+        config_entry:
+          integration: heatprint
+    generator_id:
+      required: true
+      example: cv_ketel
+      selector:
+        text:
+    csv:
+      required: false
+      example: "datum;stand\n01-10-2024;12345,678\n02-10-2024;12349,120"
+      selector:
+        text:
+          multiline: true
+    path:
+      required: false
+      example: mindergas_export.csv
+      selector:
+        text:
+    mapping:
+      required: false
+      example: '{"date_column": "datum", "reading_column": "stand", "date_format": "%d-%m-%Y", "decimal": ",", "delimiter": ";"}'
+      selector:
+        object:
+    unit:
+      required: false
+      selector:
+        select:
+          translation_key: import_unit
+          options:
+            - m3
+            - kwh
+            - gj
+
+recompute:
+  fields:
+    entry_id:
+      required: true
+      selector:
+        config_entry:
+          integration: heatprint
+    from_date:
+      required: true
+      example: "2024-10-01"
+      selector:
+        date:
+
+fit_signature:
+  fields:
+    entry_id:
+      required: true
+      selector:
+        config_entry:
+          integration: heatprint
+    start:
+      required: false
+      example: "2024-10-01"
+      selector:
+        date:
+    end:
+      required: false
+      example: "2025-04-30"
+      selector:
+        date:
+    season:
+      required: false
+      example: "2024/2025"
+      selector:
+        text:
+    tac_preset:
+      required: false
+      default: house
+      selector:
+        select:
+          translation_key: tac_preset
+          options:
+            - house
+            - pbl
+    fit_wind:
+      required: false
+      selector:
+        boolean:
+
+compare_periods:
+  fields:
+    entry_id:
+      required: true
+      selector:
+        config_entry:
+          integration: heatprint
+    base_start:
+      required: true
+      example: "2023-10-01"
+      selector:
+        date:
+    base_end:
+      required: true
+      example: "2024-04-30"
+      selector:
+        date:
+    target_start:
+      required: true
+      example: "2024-10-01"
+      selector:
+        date:
+    target_end:
+      required: true
+      example: "2025-04-30"
+      selector:
+        date:
+    method:
+      required: false
+      default: signature
+      selector:
+        select:
+          translation_key: compare_method
+          options:
+            - signature
+            - classic
+            - knmi14
+            - pbl
+            - house
+
+measure_effect:
+  fields:
+    entry_id:
+      required: true
+      selector:
+        config_entry:
+          integration: heatprint
+    measure_id:
+      required: true
+      example: triple_glas
+      selector:
+        text:
+
+forecast:
+  fields:
+    entry_id:
+      required: true
+      selector:
+        config_entry:
+          integration: heatprint
+
+export_daily:
+  fields:
+    entry_id:
+      required: true
+      selector:
+        config_entry:
+          integration: heatprint
+    start:
+      required: true
+      example: "2024-10-01"
+      selector:
+        date:
+    end:
+      required: true
+      example: "2025-04-30"
+      selector:
+        date:
+    path:
+      required: false
+      example: export_2024_2025.csv
+      selector:
+        text:
+
+push_reading:
+  fields:
+    entry_id:
+      required: true
+      selector:
+        config_entry:
+          integration: heatprint
+    generator_id:
+      required: true
+      example: cv_ketel
+      selector:
+        text:
+    target:
+      required: false
+      default: mindergas
+      selector:
+        select:
+          translation_key: push_target
+          options:
+            - mindergas
+    date:
+      required: false
+      example: "2025-01-15"
+      selector:
+        date:

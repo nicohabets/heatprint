@@ -1,0 +1,1050 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Site",
+        "description": "Eén site is één woning. Heatprint leest je bestaande energiemeters uit de recorder, haalt dagelijks het weer op en berekent per dag de weergecorrigeerde warmtevraag.",
+        "data": {
+          "name": "Naam",
+          "location": "Locatie",
+          "timezone": "Tijdzone",
+          "country": "Land"
+        },
+        "data_description": {
+          "name": "Wordt gebruikt voor de apparaatnaam, de entiteits-id's en de statistiek-id's (heatprint:thuis_...). Later hernoemen verandert die id's niet.",
+          "location": "Alleen gebruikt om het dichtstbijzijnde weerstation of het Open-Meteo-rasterpunt te kiezen. Coördinaten verlaten je huis alleen in weerverzoeken.",
+          "timezone": "Dagen lopen van middernacht tot middernacht in deze tijdzone, zodat meter en weer op elkaar aansluiten.",
+          "country": "In Nederland worden standaard de KNMI-stationsgegevens gebruikt; elders Open-Meteo."
+        }
+      },
+      "weather_nl": {
+        "title": "Weerbron (Nederland)",
+        "description": "Dichtstbijzijnde KNMI-station: {nearest}. KNMI-daggegevens (etmaaltemperatuur, wind, straling) zijn gratis, na één of twee dagen definitief en gaan tientallen jaren terug. Daardoor zijn lange backfills en een klimatologie mogelijk.",
+        "data": {
+          "provider": "Bron",
+          "station_id": "KNMI-station",
+          "fallback": "Terugvaloptie"
+        },
+        "data_description": {
+          "provider": "KNMI is de referentie voor de Nederlandse graaddagmethodes. Open-Meteo is een wereldwijde heranalyse; eigen sensoren werken alleen zolang hun langetermijnstatistieken bestaan.",
+          "station_id": "Kies het station met het klimaat dat het meest op het jouwe lijkt; afstand is een goede eerste gok, kust of binnenland telt ook mee.",
+          "fallback": "Wordt gebruikt als de primaire bron niet beschikbaar is, zodat er nooit een dag verloren gaat."
+        }
+      },
+      "weather_intl": {
+        "title": "Weerbron",
+        "description": "Buiten Nederland levert Open-Meteo wereldwijd dagelijkse heranalysegegevens (sinds 1940) plus de laatste dagen uit het weermodel.",
+        "data": {
+          "provider": "Bron"
+        },
+        "data_description": {
+          "provider": "Open-Meteo heeft geen account nodig en ondersteunt backfill en klimatologie. Eigen sensoren dekken alleen de periode waarvoor Home Assistant langetermijnstatistieken heeft."
+        }
+      },
+      "weather_sensors": {
+        "title": "Weersensoren",
+        "description": "Kies sensoren met state class measurement; Heatprint leest hun daggemiddelden uit de langetermijnstatistieken. Zonder wind en straling vallen de methodes terug op alleen temperatuur.",
+        "data": {
+          "temperature": "Buitentemperatuur",
+          "wind": "Windsnelheid",
+          "radiation": "Zonnestraling"
+        },
+        "data_description": {
+          "temperature": "Verplicht. Het daggemiddelde van deze sensor wordt de buitentemperatuur van de dag.",
+          "wind": "Optioneel. Wind vergroot het warmteverlies van een woning; de effectieve-temperatuurmethodes gebruiken dit.",
+          "radiation": "Optioneel. Zonwinst verlaagt de warmtevraag; gebruikt door het optimale PBL-model en de huisfit."
+        }
+      },
+      "situation": {
+        "title": "Verwarmingssituatie",
+        "description": "Deze keuze vult alleen de volgende stap voor. Gevonden gasmeters: {gas_candidates}. Mogelijke warmtepompmeters: {heat_pump_candidates}.",
+        "data": {
+          "situation": "Hoe wordt de woning verwarmd?"
+        },
+        "data_description": {
+          "situation": "Hybride betekent een cv-ketel plus een warmtepomp op dezelfde site. Kies anders om met een lege lijst te beginnen."
+        }
+      },
+      "generator": {
+        "title": "Warmteopwekker {number}",
+        "description": "Elke opwekker zet een energiedrager (gas, stroom, warmtenet) om in warmte. Heatprint houdt ruimteverwarming als één lijn, ook als er een warmtepomp naast de ketel komt.",
+        "data": {
+          "name": "Naam",
+          "kind": "Soort",
+          "role": "Rol"
+        },
+        "data_description": {
+          "name": "Bijvoorbeeld CV-ketel of Warmtepomp. De id die hiervan wordt afgeleid wordt gebruikt in statistieken en entiteiten.",
+          "kind": "Bepaalt welke sensoren en conversie hierna worden gevraagd.",
+          "role": "Alleen ruimteverwarming, alleen tapwater, of beide. Hybride: ketel beide, warmtepomp ruimteverwarming (of beide als die ook tapwater maakt)."
+        }
+      },
+      "generator_details": {
+        "title": "Sensoren en conversie van {name}",
+        "description": "Kies cumulatieve tellers (state class total of total_increasing). Het dagverbruik wordt afgeleid uit hun langetermijnstatistieken; een sensor later hernoemen of vervangen breekt de historie dus niet.",
+        "data": {
+          "energy_entity": "Energiemeter",
+          "thermal_entity": "Thermische energiemeter (kWh warmte)",
+          "electric_entity": "Elektrische energiemeter (kWh)",
+          "dhw_entity": "Tapwater-energiemeter",
+          "dhw_electric_entity": "Tapwater-stroommeter"
+        },
+        "data_description": {
+          "energy_entity": "Gas in m³, stroom in kWh of warmtenet in GJ/kWh. Moet een cumulatieve teller zijn.",
+          "thermal_entity": "Geleverde warmte zoals de warmtepomp die rapporteert. Met deze teller wordt de warmte gemeten in plaats van geschat.",
+          "electric_entity": "Stroomverbruik van de warmtepomp. Nodig voor de COP en voor de schatting als er geen thermische teller is.",
+          "dhw_entity": "Aparte teller voor tapwaterwarmte; maakt de gemeten tapwatersplitsing mogelijk.",
+          "dhw_electric_entity": "Stroom voor tapwater, als de warmtepomp dat apart rapporteert."
+        },
+        "sections": {
+          "conversion": {
+            "name": "Omrekening naar warmte",
+            "description": "Hoe de drager warmte wordt. Schattingen worden in de resultaten als geschat gelabeld.",
+            "data": {
+              "heating_value": "Verbrandingswaarde",
+              "heating_value_custom": "Eigen verbrandingswaarde",
+              "efficiency": "Rendement",
+              "conversion_mode": "Omrekenmethode",
+              "scop": "Seizoens-COP (SCOP)",
+              "cop": "COP",
+              "factor": "Factor (kWh warmte per eenheid)"
+            },
+            "data_description": {
+              "heating_value": "Nederlandse leveranciers factureren op bovenwaarde (Hs, 8,792 kWh/m³). Onderwaarde (Hi, 7,92) is alleen voor wie netto wil rekenen.",
+              "heating_value_custom": "Alleen gebruikt als verbrandingswaarde op eigen staat (kWh per m³).",
+              "efficiency": "Aandeel van de dragerenergie dat als warmte overblijft. Een HR-ketel zit rond 0,95 op bovenwaarde; warmtenet 1,0.",
+              "conversion_mode": "Automatisch gebruikt de thermische teller als die er is, anders stroom maal SCOP. Zonder thermische teller is de warmte een schatting; Heatprint labelt die als geschat.",
+              "scop": "Seizoensprestatiefactor om warmte uit stroom te schatten als er geen thermische teller is. 3,5 is een redelijk begin voor een moderne lucht-waterwarmtepomp.",
+              "cop": "Gemiddelde prestatiecoëfficiënt van de lucht-luchtunit tijdens verwarmen.",
+              "factor": "kWh warmte per eenheid van de meter."
+            }
+          },
+          "dhw": {
+            "name": "Tapwater en koken",
+            "description": "Tapwater en koken hangen niet van het weer af. Blijven ze in de verwarmingslijn zitten, dan lijkt de woning minder gevoelig voor kou dan ze is en verschuift de balanstemperatuur. Afsplitsen houdt de verwarmingslijn eerlijk.",
+            "data": {
+              "dhw_mode": "Splitsmethode",
+              "dhw_fixed_per_day": "Vast bedrag per dag"
+            },
+            "data_description": {
+              "dhw_mode": "Basislijn: het gemiddelde dagverbruik in het zomervenster geldt als tapwater en koken. Gemeten: een aparte tapwaterteller. Vast: een waarde die je kent, bijvoorbeeld een maandverbruik gedeeld door 30. Geen: alles telt als ruimteverwarming.",
+              "dhw_fixed_per_day": "In de eenheid van de meter per dag (m³, kWh). Alleen gebruikt bij de vaste methode."
+            }
+          },
+          "pricing": {
+            "name": "Prijs en CO2 (optioneel)",
+            "description": "Optionele kosten- en emissiecijfers per dag.",
+            "data": {
+              "price_entity": "Prijssensor",
+              "co2_factor": "CO2-factor"
+            },
+            "data_description": {
+              "price_entity": "Sensor met de prijs per eenheid van de meter (EUR per m³ of per kWh).",
+              "co2_factor": "kg CO2 per eenheid van de meter. Standaard: gas 1,78 kg/m³, stroom 0,30 kg/kWh."
+            }
+          }
+        }
+      },
+      "generator_more": {
+        "title": "Nog een opwekker?",
+        "description": "Tot nu toe ingesteld: {generators}.",
+        "menu_options": {
+          "generator": "Nog een opwekker toevoegen",
+          "dhw": "Verder"
+        }
+      },
+      "dhw": {
+        "title": "Tapwater en koken",
+        "description": "Per opwekker: {summary}. Het zomervenster wordt gebruikt voor de basislijn: het gemiddelde dagverbruik in dit venster geldt het hele jaar als het weeronafhankelijke deel (tapwater, koken).",
+        "data": {
+          "dhw_override": "Splitsmethode voor alle opwekkers overschrijven",
+          "summer_start": "Begin zomervenster (MM-DD)",
+          "summer_end": "Einde zomervenster (MM-DD)"
+        },
+        "data_description": {
+          "dhw_override": "Houd de instellingen per opwekker, of pas één methode toe op elke opwekker met rol beide.",
+          "summer_start": "Kies een venster waarin helemaal niet wordt gestookt, normaal 06-01.",
+          "summer_end": "Normaal 08-31. De laatste volledige zomer wordt gebruikt; zonder zomer wordt het laagste voortschrijdende 30-daagse gemiddelde genomen."
+        }
+      },
+      "methods": {
+        "title": "Methodes en seizoen",
+        "description": "Alle methodes worden altijd berekend en opgeslagen; ingeschakeld bepaalt welke sensoren krijgen, primair stuurt de hoofdsensoren en de prognose. De huisfit wordt primair zodra er minstens 30 bruikbare dagen zijn; tot die tijd wordt PBL gebruikt.",
+        "data": {
+          "season_start": "Begin seizoen",
+          "enabled": "Methodes met sensoren",
+          "primary": "Primaire methode",
+          "classic_weighted": "Klassiek: maandweging (mindergas-stijl)"
+        },
+        "data_description": {
+          "season_start": "1 oktober is het gasjaar dat KNMI en de meeste Nederlandse tools gebruiken; 1 januari past bij een kalenderjaar; 1 juli is handig op het zuidelijk halfrond.",
+          "enabled": "Klassiek is vergelijkbaar met mindergas en de Degree-days-integratie, KNMI 14 °C met de landelijke gasjaarstatistiek, PBL is de herziene landelijke weerscorrectie, huis is gefit op je eigen woning.",
+          "primary": "Gebruikt voor de hoofdsensoren, de k-waarde en de prognose. Moet een van de ingeschakelde methodes zijn.",
+          "classic_weighted": "Vermenigvuldigt graaddagen met de maandfactoren van mindergas (nov-feb 1,1; mrt en okt 1,0; apr-sep 0,8). Zet uit voor ongewogen graaddagen."
+        },
+        "sections": {
+          "advanced": {
+            "name": "Geavanceerd",
+            "description": "Parameters van de afzonderlijke methodes.",
+            "data": {
+              "classic_base_temp": "Klassiek: basistemperatuur",
+              "classic_heating_limit": "Klassiek: stookgrens",
+              "pbl_parameter_set": "PBL-parameterset",
+              "pbl_wind_mode": "PBL-windterm",
+              "pbl_include_sun": "PBL: zonnestraling meenemen",
+              "house_fit_wind": "Huisfit: windgevoeligheid fitten"
+            },
+            "data_description": {
+              "classic_base_temp": "18 °C is een afspraak uit de jaren zeventig, geen natuurconstante. Een goed geïsoleerde woning begint pas ver daaronder te stoken; de huisfit vindt je eigen balanstemperatuur.",
+              "classic_heating_limit": "Dagen met een etmaaltemperatuur boven deze grens tellen nul graaddagen. mindergas gebruikt 18 °C, veel gebruikers kiezen 15,5 °C.",
+              "pbl_parameter_set": "Praktisch: temperatuur en wind, De Bilt (PBL 2022 tabel 3.4). Optimaal: zes stations met zonnestraling (tabel 3.3).",
+              "pbl_wind_mode": "Lineair gebruikt de KNMI-windterm (wind gedeeld door 1,5). Wortel volgt de PBL-beschrijving; de coëfficiënt is instelbaar bij geavanceerde opties.",
+              "pbl_include_sun": "Alleen zinvol als er stralingsgegevens zijn (KNMI, Open-Meteo of een stralingssensor).",
+              "house_fit_wind": "Schat de windgevoeligheid van je woning uit de data in plaats van een landelijke waarde."
+            }
+          }
+        }
+      },
+      "history": {
+        "title": "Historie",
+        "description": "Weerhistorie wordt op de achtergrond opgehaald. Meterstanden van vóór je Home Assistant-historie importeer je daarna met de actie Meterstanden importeren (CSV, bijvoorbeeld de export van mindergas.nl).",
+        "data": {
+          "backfill_years": "Jaren historie om terug te halen",
+          "climatology_years": "Referentiejaren voor de klimatologie",
+          "import_now": "Herinner me aan het importeren van oude meterstanden"
+        },
+        "data_description": {
+          "backfill_years": "Hoe ver terug weer en dagrecords worden opgebouwd. Energiedata is alleen beschikbaar zover je recorderstatistieken of imports reiken.",
+          "climatology_years": "Jaren weer voor het normale seizoen (genormaliseerd verbruik en prognose). 20 is de gebruikelijke klimaatreferentie; 30 is het WMO-normaal.",
+          "import_now": "Toont na de installatie een melding met instructies."
+        }
+      },
+      "summary": {
+        "title": "Samenvatting",
+        "description": "Site: {site}. Weer: {weather}. Opwekkers: {generators}. Methodes: {methods}. Begin seizoen: {season}. Backfill: {backfill} jaar. Bevestig om de site aan te maken; de backfill en de eerste berekening starten op de achtergrond."
+      },
+      "reconfigure": {
+        "title": "Locatie en weerbron",
+        "description": "Pas hier de locatie of tijdzone aan; de weerbron volgt in de volgende stap.",
+        "data": {
+          "location": "Locatie",
+          "timezone": "Tijdzone"
+        },
+        "data_description": {
+          "location": "Gebruikt voor het dichtstbijzijnde station of het Open-Meteo-rasterpunt.",
+          "timezone": "Daggrenzen van de meters en het weer."
+        }
+      },
+      "reconfigure_confirm": {
+        "title": "Historie opnieuw opbouwen?",
+        "description": "De weerbron is gewijzigd. Heatprint haalt de weerhistorie opnieuw op en herberekent alle dagrecords. Bestaande statistieken worden dag voor dag overschreven; dit kan even duren."
+      }
+    },
+    "error": {
+      "name_exists": "Er bestaat al een site met deze naam.",
+      "invalid_name": "De naam moet minstens één letter of cijfer bevatten.",
+      "invalid_timezone": "Onbekende tijdzone.",
+      "cannot_connect": "De weerbron is niet bereikbaar.",
+      "no_data_for_station": "De weerbron gaf geen gegevens voor dit station of deze locatie.",
+      "entity_no_statistics": "Deze sensor heeft geen state class measurement en dus geen langetermijnstatistieken.",
+      "entity_not_found": "Entiteit niet gevonden.",
+      "entity_not_cumulative": "Deze sensor is geen cumulatieve teller (state class total of total_increasing).",
+      "unit_mismatch": "De eenheid van deze sensor past niet bij de soort opwekker (m³ voor gas, kWh of Wh voor stroom en warmte, GJ of kWh voor warmtenet).",
+      "missing_thermal_or_electric": "Een warmtepomp heeft minstens een thermische of een elektrische energiemeter nodig.",
+      "invalid_month_day": "Gebruik het formaat MM-DD, bijvoorbeeld 06-01.",
+      "primary_not_enabled": "De primaire methode moet een van de ingeschakelde methodes zijn."
+    },
+    "abort": {
+      "already_configured": "Deze site is al ingesteld.",
+      "reconfigure_successful": "De site is opnieuw ingesteld."
+    }
+  },
+  "config_subentries": {
+    "generator": {
+      "entry_type": "Warmteopwekker",
+      "initiate_flow": {
+        "user": "Warmteopwekker toevoegen",
+        "reconfigure": "Warmteopwekker wijzigen"
+      },
+      "step": {
+        "user": {
+          "title": "Warmteopwekker",
+          "description": "Elke opwekker zet een energiedrager om in warmte. Ruimteverwarming blijft één lijn over alle opwekkers.",
+          "data": {
+            "name": "Naam",
+            "kind": "Soort",
+            "role": "Rol"
+          },
+          "data_description": {
+            "name": "Bijvoorbeeld CV-ketel of Warmtepomp.",
+            "kind": "Bepaalt welke sensoren en conversie hierna worden gevraagd.",
+            "role": "Alleen ruimteverwarming, alleen tapwater, of beide."
+          }
+        },
+        "details": {
+          "title": "Sensoren en conversie van {name}",
+          "description": "Kies cumulatieve tellers (state class total of total_increasing).",
+          "data": {
+            "energy_entity": "Energiemeter",
+            "thermal_entity": "Thermische energiemeter (kWh warmte)",
+            "electric_entity": "Elektrische energiemeter (kWh)",
+            "dhw_entity": "Tapwater-energiemeter",
+            "dhw_electric_entity": "Tapwater-stroommeter"
+          },
+          "data_description": {
+            "energy_entity": "Gas in m³, stroom in kWh of warmtenet in GJ/kWh.",
+            "thermal_entity": "Geleverde warmte zoals de warmtepomp die rapporteert; gemeten in plaats van geschat.",
+            "electric_entity": "Stroomverbruik van de warmtepomp; nodig voor de COP en de SCOP-schatting.",
+            "dhw_entity": "Aparte teller voor tapwaterwarmte; maakt de gemeten splitsing mogelijk.",
+            "dhw_electric_entity": "Stroom voor tapwater, als dat apart wordt gerapporteerd."
+          },
+          "sections": {
+            "conversion": {
+              "name": "Omrekening naar warmte",
+              "description": "Hoe de drager warmte wordt.",
+              "data": {
+                "heating_value": "Verbrandingswaarde",
+                "heating_value_custom": "Eigen verbrandingswaarde",
+                "efficiency": "Rendement",
+                "conversion_mode": "Omrekenmethode",
+                "scop": "Seizoens-COP (SCOP)",
+                "cop": "COP",
+                "factor": "Factor (kWh warmte per eenheid)"
+              },
+              "data_description": {
+                "heating_value": "Hs 8,792 kWh/m³ (factuurwaarde in Nederland) of Hi 7,92 kWh/m³.",
+                "heating_value_custom": "Alleen gebruikt als verbrandingswaarde op eigen staat.",
+                "efficiency": "HR-ketel ongeveer 0,95 op bovenwaarde; warmtenet 1,0.",
+                "conversion_mode": "Zonder thermische teller is de warmte een schatting; Heatprint labelt die als geschat.",
+                "scop": "Gebruikt om warmte uit stroom te schatten als er geen thermische teller is.",
+                "cop": "Gemiddelde prestatiecoëfficiënt tijdens verwarmen.",
+                "factor": "kWh warmte per eenheid van de meter."
+              }
+            },
+            "dhw": {
+              "name": "Tapwater en koken",
+              "description": "Het weeronafhankelijke deel afsplitsen houdt de verwarmingslijn eerlijk.",
+              "data": {
+                "dhw_mode": "Splitsmethode",
+                "dhw_fixed_per_day": "Vast bedrag per dag"
+              },
+              "data_description": {
+                "dhw_mode": "Basislijn uit het zomervenster, gemeten met een aparte teller, een vast dagbedrag, of geen.",
+                "dhw_fixed_per_day": "In de eenheid van de meter per dag; alleen bij de vaste methode."
+              }
+            },
+            "pricing": {
+              "name": "Prijs en CO2 (optioneel)",
+              "description": "Optionele kosten- en emissiecijfers per dag.",
+              "data": {
+                "price_entity": "Prijssensor",
+                "co2_factor": "CO2-factor"
+              },
+              "data_description": {
+                "price_entity": "Sensor met de prijs per eenheid van de meter.",
+                "co2_factor": "kg CO2 per eenheid van de meter."
+              }
+            }
+          }
+        },
+        "reconfigure": {
+          "title": "Warmteopwekker wijzigen",
+          "description": "Het wijzigen van de energiemeter start een herberekening vanaf de eerste dag waarvoor de nieuwe sensor statistieken heeft. Statistieken van een verwijderde opwekker blijven als historie bestaan.",
+          "data": {
+            "name": "Naam",
+            "kind": "Soort",
+            "role": "Rol"
+          },
+          "data_description": {
+            "name": "De id in statistieken en entiteiten verandert niet bij hernoemen.",
+            "kind": "Bepaalt welke sensoren en conversie hierna worden gevraagd.",
+            "role": "Alleen ruimteverwarming, alleen tapwater, of beide."
+          }
+        },
+        "reconfigure_details": {
+          "title": "Sensoren en conversie van {name}",
+          "description": "Kies cumulatieve tellers (state class total of total_increasing).",
+          "data": {
+            "energy_entity": "Energiemeter",
+            "thermal_entity": "Thermische energiemeter (kWh warmte)",
+            "electric_entity": "Elektrische energiemeter (kWh)",
+            "dhw_entity": "Tapwater-energiemeter",
+            "dhw_electric_entity": "Tapwater-stroommeter"
+          },
+          "data_description": {
+            "energy_entity": "Gas in m³, stroom in kWh of warmtenet in GJ/kWh.",
+            "thermal_entity": "Geleverde warmte zoals de warmtepomp die rapporteert; gemeten in plaats van geschat.",
+            "electric_entity": "Stroomverbruik van de warmtepomp; nodig voor de COP en de SCOP-schatting.",
+            "dhw_entity": "Aparte teller voor tapwaterwarmte; maakt de gemeten splitsing mogelijk.",
+            "dhw_electric_entity": "Stroom voor tapwater, als dat apart wordt gerapporteerd."
+          },
+          "sections": {
+            "conversion": {
+              "name": "Omrekening naar warmte",
+              "description": "Hoe de drager warmte wordt.",
+              "data": {
+                "heating_value": "Verbrandingswaarde",
+                "heating_value_custom": "Eigen verbrandingswaarde",
+                "efficiency": "Rendement",
+                "conversion_mode": "Omrekenmethode",
+                "scop": "Seizoens-COP (SCOP)",
+                "cop": "COP",
+                "factor": "Factor (kWh warmte per eenheid)"
+              },
+              "data_description": {
+                "heating_value": "Hs 8,792 kWh/m³ (factuurwaarde in Nederland) of Hi 7,92 kWh/m³.",
+                "heating_value_custom": "Alleen gebruikt als verbrandingswaarde op eigen staat.",
+                "efficiency": "HR-ketel ongeveer 0,95 op bovenwaarde; warmtenet 1,0.",
+                "conversion_mode": "Zonder thermische teller is de warmte een schatting; Heatprint labelt die als geschat.",
+                "scop": "Gebruikt om warmte uit stroom te schatten als er geen thermische teller is.",
+                "cop": "Gemiddelde prestatiecoëfficiënt tijdens verwarmen.",
+                "factor": "kWh warmte per eenheid van de meter."
+              }
+            },
+            "dhw": {
+              "name": "Tapwater en koken",
+              "description": "Het weeronafhankelijke deel afsplitsen houdt de verwarmingslijn eerlijk.",
+              "data": {
+                "dhw_mode": "Splitsmethode",
+                "dhw_fixed_per_day": "Vast bedrag per dag"
+              },
+              "data_description": {
+                "dhw_mode": "Basislijn uit het zomervenster, gemeten met een aparte teller, een vast dagbedrag, of geen.",
+                "dhw_fixed_per_day": "In de eenheid van de meter per dag; alleen bij de vaste methode."
+              }
+            },
+            "pricing": {
+              "name": "Prijs en CO2 (optioneel)",
+              "description": "Optionele kosten- en emissiecijfers per dag.",
+              "data": {
+                "price_entity": "Prijssensor",
+                "co2_factor": "CO2-factor"
+              },
+              "data_description": {
+                "price_entity": "Sensor met de prijs per eenheid van de meter.",
+                "co2_factor": "kg CO2 per eenheid van de meter."
+              }
+            }
+          }
+        }
+      },
+      "error": {
+        "entity_not_found": "Entiteit niet gevonden.",
+        "entity_not_cumulative": "Deze sensor is geen cumulatieve teller (state class total of total_increasing).",
+        "unit_mismatch": "De eenheid van deze sensor past niet bij de soort opwekker.",
+        "missing_thermal_or_electric": "Een warmtepomp heeft minstens een thermische of een elektrische energiemeter nodig."
+      },
+      "abort": {
+        "reconfigure_successful": "De warmteopwekker is gewijzigd."
+      }
+    },
+    "measure": {
+      "entry_type": "Besparingsmaatregel",
+      "initiate_flow": {
+        "user": "Maatregel toevoegen",
+        "reconfigure": "Maatregel wijzigen"
+      },
+      "step": {
+        "user": {
+          "title": "Besparingsmaatregel",
+          "description": "Een maatregel markeert een datum. Heatprint vergelijkt het seizoen ervoor met de periode erna. Het effect is pas zinvol als er minstens 30 dagen na de datum zijn; gebruik de actie Maatregel-effect.",
+          "data": {
+            "name": "Naam",
+            "date": "Ingangsdatum",
+            "category": "Categorie",
+            "notes": "Notities"
+          },
+          "data_description": {
+            "name": "Bijvoorbeeld Triple glas, Aanvoer 45 °C of Hybride warmtepomp.",
+            "date": "De eerste dag waarop de maatregel van kracht was.",
+            "category": "Isolatie verandert vooral de helling (warmteverlies per K), installatie het rendement, gedrag de balanstemperatuur. Gebruikt voor de interpretatietekst.",
+            "notes": "Vrije tekst, voor jezelf."
+          }
+        },
+        "reconfigure": {
+          "title": "Maatregel wijzigen",
+          "description": "Pas de maatregel aan; de vergelijking gebruikt de nieuwe datum bij de volgende keer dat je de actie Maatregel-effect uitvoert.",
+          "data": {
+            "name": "Naam",
+            "date": "Ingangsdatum",
+            "category": "Categorie",
+            "notes": "Notities"
+          },
+          "data_description": {
+            "name": "Bijvoorbeeld Triple glas.",
+            "date": "De eerste dag waarop de maatregel van kracht was.",
+            "category": "Stuurt de interpretatietekst (helling versus balanstemperatuur).",
+            "notes": "Vrije tekst."
+          }
+        }
+      },
+      "error": {
+        "invalid_name": "De naam moet minstens één letter of cijfer bevatten."
+      },
+      "abort": {
+        "reconfigure_successful": "De maatregel is gewijzigd."
+      }
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Heatprint-opties",
+        "menu_options": {
+          "methods": "Methodes en seizoen",
+          "dhw": "Tapwater en koken",
+          "history": "Historie",
+          "pricing": "Prijzen en CO2",
+          "integrations": "Integraties",
+          "advanced": "Geavanceerd"
+        }
+      },
+      "methods": {
+        "title": "Methodes en seizoen",
+        "description": "Alle methodes worden altijd berekend; ingeschakeld bepaalt welke sensoren krijgen, primair stuurt de hoofdsensoren en de prognose.",
+        "data": {
+          "season_start": "Begin seizoen",
+          "enabled": "Methodes met sensoren",
+          "primary": "Primaire methode",
+          "classic_weighted": "Klassiek: maandweging (mindergas-stijl)"
+        },
+        "data_description": {
+          "season_start": "1 oktober is het gasjaar; 1 januari een kalenderjaar; 1 juli voor het zuidelijk halfrond.",
+          "enabled": "Klassiek is vergelijkbaar met mindergas, KNMI 14 °C met de landelijke gasjaarstatistiek, PBL is de herziene landelijke weerscorrectie, huis is gefit op je eigen woning.",
+          "primary": "Moet een van de ingeschakelde methodes zijn. Huis valt terug op PBL zolang er geen fit is.",
+          "classic_weighted": "Maandfactoren van mindergas (nov-feb 1,1; mrt en okt 1,0; apr-sep 0,8)."
+        },
+        "sections": {
+          "advanced": {
+            "name": "Geavanceerd",
+            "description": "Parameters van de afzonderlijke methodes.",
+            "data": {
+              "classic_base_temp": "Klassiek: basistemperatuur",
+              "classic_heating_limit": "Klassiek: stookgrens",
+              "pbl_parameter_set": "PBL-parameterset",
+              "pbl_wind_mode": "PBL-windterm",
+              "pbl_include_sun": "PBL: zonnestraling meenemen",
+              "house_fit_wind": "Huisfit: windgevoeligheid fitten"
+            },
+            "data_description": {
+              "classic_base_temp": "18 °C is een afspraak, geen natuurconstante; de huisfit vindt je eigen balanstemperatuur.",
+              "classic_heating_limit": "Dagen met een etmaaltemperatuur boven deze grens tellen nul graaddagen.",
+              "pbl_parameter_set": "Praktisch (temperatuur en wind) of optimaal (zes stations met zonnestraling).",
+              "pbl_wind_mode": "Lineair (wind gedeeld door 1,5) of wortel van de windsnelheid.",
+              "pbl_include_sun": "Alleen zinvol als er stralingsgegevens zijn.",
+              "house_fit_wind": "Schat de windgevoeligheid van je woning uit de data."
+            }
+          }
+        }
+      },
+      "dhw": {
+        "title": "Tapwater en koken",
+        "description": "Per opwekker: {summary}. Het zomervenster bepaalt de weeronafhankelijke basislijn.",
+        "data": {
+          "dhw_override": "Splitsmethode voor alle opwekkers overschrijven",
+          "summer_start": "Begin zomervenster (MM-DD)",
+          "summer_end": "Einde zomervenster (MM-DD)"
+        },
+        "data_description": {
+          "dhw_override": "Houd de instellingen per opwekker, of pas één methode toe op elke opwekker met rol beide.",
+          "summer_start": "Kies een venster waarin helemaal niet wordt gestookt, normaal 06-01.",
+          "summer_end": "Normaal 08-31."
+        }
+      },
+      "history": {
+        "title": "Historie",
+        "description": "Wijzig de backfill- en klimatologiejaren, of herbereken alle dagrecords vanaf een datum (bijvoorbeeld na het wisselen van een sensor of het importeren van meterstanden).",
+        "data": {
+          "backfill_years": "Jaren historie om terug te halen",
+          "climatology_years": "Referentiejaren voor de klimatologie",
+          "recompute_from": "Opnieuw berekenen vanaf datum"
+        },
+        "data_description": {
+          "backfill_years": "Hoe ver terug weer en dagrecords worden opgebouwd.",
+          "climatology_years": "Jaren weer voor het normale seizoen.",
+          "recompute_from": "Draait na het opslaan op de achtergrond de volledige berekening van deze datum tot gisteren."
+        }
+      },
+      "pricing": {
+        "title": "Prijzen en CO2",
+        "description": "Standaard emissiefactoren; een live CO2-sensor (kg per kWh) overschrijft per dag de stroomfactor.",
+        "data": {
+          "gas_co2_factor": "CO2-factor gas",
+          "electric_co2_factor": "CO2-factor stroom",
+          "district_co2_factor": "CO2-factor warmtenet",
+          "co2_entity": "CO2-intensiteitssensor"
+        },
+        "data_description": {
+          "gas_co2_factor": "kg CO2 per m³ aardgas; 1,78 is de Nederlandse standaard.",
+          "electric_co2_factor": "kg CO2 per kWh stroom; 0,30 is een Nederlands gemiddelde.",
+          "district_co2_factor": "kg CO2 per kWh warmtenet; hangt af van het net, vraag je leverancier.",
+          "co2_entity": "Optionele sensor met de actuele netintensiteit in kg per kWh."
+        }
+      },
+      "integrations": {
+        "title": "Integraties",
+        "description": "Brug naar mindergas.nl. Token nu {token_state}. Het token wordt in de config entry opgeslagen, nooit gelogd en uit diagnostics weggelaten. Laat het veld leeg om het opgeslagen token te behouden.",
+        "data": {
+          "mindergas_token": "mindergas.nl API-token",
+          "mindergas_generator_id": "Opwekker om te pushen",
+          "mindergas_daily_push": "Meterstand dagelijks pushen"
+        },
+        "data_description": {
+          "mindergas_token": "Persoonlijk API-token uit de accountinstellingen van mindergas.nl.",
+          "mindergas_generator_id": "De gasmeter waarvan de stand wordt verstuurd.",
+          "mindergas_daily_push": "Na de dagelijkse run wordt de meterstand van middernacht als stand van vandaag verstuurd."
+        }
+      },
+      "advanced": {
+        "title": "Geavanceerd",
+        "description": "Overschrijf de landelijke PBL-parameters en de fit-instellingen. Laat de standaardwaarden staan tenzij je weet waarom.",
+        "sections": {
+          "pbl": {
+            "name": "PBL-parameters",
+            "description": "Maandparameters van het praktische PBL 2022-model (TST = drempeltemperatuur, RER = hellingsfactor, TOP = temperatuuronafhankelijk deel).",
+            "data": {
+              "pbl_tst_winter": "TST december-februari",
+              "pbl_tst_shoulder": "TST maart en november",
+              "pbl_tst_transition": "TST april en oktober",
+              "pbl_tst_summer": "TST mei-september",
+              "pbl_rer_winter": "RER december-februari",
+              "pbl_rer_shoulder": "RER maart en november",
+              "pbl_rer_transition": "RER april en oktober",
+              "pbl_rer_summer": "RER mei-september",
+              "pbl_top": "TOP",
+              "pbl_wind_sqrt_coef": "Windcoëfficiënt (wortelmodus)"
+            },
+            "data_description": {
+              "pbl_top": "Standaard niet in de graaddagen gebruikt; tapwater en koken worden apart behandeld.",
+              "pbl_wind_sqrt_coef": "Plaatsvervanger uit de profielenmethodiek aardgas (1/0,35) totdat de PBL-waarde is geverifieerd."
+            }
+          },
+          "fit": {
+            "name": "Energiekenlijn-fit",
+            "description": "Instellingen van de huisfit.",
+            "data": {
+              "outlier_threshold": "Uitschieterdrempel (maal RMSE)",
+              "min_fit_days": "Minimaal aantal bruikbare dagen voor een fit"
+            },
+            "data_description": {
+              "outlier_threshold": "Dagen met een residu groter dan dit aantal maal de RMSE worden uitgesloten en de fit wordt eenmaal herhaald.",
+              "min_fit_days": "Onder dit aantal bruikbare dagen valt de huismethode terug op PBL."
+            }
+          }
+        }
+      }
+    },
+    "error": {
+      "invalid_month_day": "Gebruik het formaat MM-DD, bijvoorbeeld 06-01.",
+      "primary_not_enabled": "De primaire methode moet een van de ingeschakelde methodes zijn.",
+      "token_required": "Voor dagelijks pushen is een token nodig.",
+      "generator_required": "Kies de opwekker waarvan de stand gepusht moet worden."
+    }
+  },
+  "selector": {
+    "provider": {
+      "options": {
+        "knmi": "KNMI-daggegevens per station",
+        "open_meteo": "Open-Meteo",
+        "ha_sensors": "Home Assistant-sensoren"
+      }
+    },
+    "fallback": {
+      "options": {
+        "open_meteo": "Open-Meteo",
+        "none": "Geen"
+      }
+    },
+    "situation": {
+      "options": {
+        "gas": "CV-ketel op gas",
+        "hybrid": "Hybride (cv-ketel en warmtepomp)",
+        "all_electric": "All-electric (warmtepomp)",
+        "district_heat": "Warmtenet",
+        "custom": "Anders"
+      }
+    },
+    "generator_kind": {
+      "options": {
+        "gas_boiler": "CV-ketel op gas",
+        "heat_pump": "Warmtepomp (lucht-water of bodem)",
+        "electric_heater": "Elektrische verwarming",
+        "air_to_air": "Lucht-luchtwarmtepomp (airco)",
+        "district_heat": "Warmtenet",
+        "other": "Anders"
+      }
+    },
+    "generator_role": {
+      "options": {
+        "space": "Ruimteverwarming",
+        "dhw": "Tapwater",
+        "both": "Ruimteverwarming en tapwater"
+      }
+    },
+    "heating_value": {
+      "options": {
+        "hs": "Bovenwaarde Hs (8,792 kWh/m³)",
+        "hi": "Onderwaarde Hi (7,92 kWh/m³)",
+        "custom": "Eigen waarde"
+      }
+    },
+    "conversion_mode": {
+      "options": {
+        "auto": "Automatisch (gemeten als er een thermische teller is)",
+        "measured_thermal": "Gemeten thermische energie",
+        "cop_fixed": "Stroom maal SCOP (geschat)"
+      }
+    },
+    "dhw_mode": {
+      "options": {
+        "baseline": "Basislijn uit het zomervenster",
+        "fixed": "Vast bedrag per dag",
+        "measured": "Gemeten met een aparte teller",
+        "none": "Geen (alles is ruimteverwarming)"
+      }
+    },
+    "dhw_override": {
+      "options": {
+        "keep": "Instellingen per opwekker behouden",
+        "baseline": "Basislijn uit het zomervenster",
+        "fixed": "Vast bedrag per dag",
+        "measured": "Gemeten met een aparte teller",
+        "none": "Geen (alles is ruimteverwarming)"
+      }
+    },
+    "season_start": {
+      "options": {
+        "october": "1 oktober (gasjaar)",
+        "january": "1 januari (kalenderjaar)",
+        "july": "1 juli"
+      }
+    },
+    "method": {
+      "options": {
+        "classic": "Klassieke gewogen graaddagen (mindergas)",
+        "knmi14": "KNMI 14 °C gasjaar-graaddagen",
+        "pbl": "PBL 2022 / KEV-SJV",
+        "house": "Huisfit"
+      }
+    },
+    "pbl_parameter_set": {
+      "options": {
+        "practical": "Praktisch (temperatuur en wind)",
+        "optimal": "Optimaal (met zonnestraling)"
+      }
+    },
+    "pbl_wind_mode": {
+      "options": {
+        "linear": "Lineair (wind gedeeld door 1,5)",
+        "sqrt": "Wortel van de windsnelheid"
+      }
+    },
+    "measure_category": {
+      "options": {
+        "insulation": "Isolatie",
+        "installation": "Installatie",
+        "behaviour": "Gedrag",
+        "other": "Anders"
+      }
+    },
+    "import_unit": {
+      "options": {
+        "m3": "m³ (gas)",
+        "kwh": "kWh",
+        "gj": "GJ (warmtenet)"
+      }
+    },
+    "tac_preset": {
+      "options": {
+        "house": "Huis (gefit, aanbevolen)",
+        "pbl": "PBL (traagheidsweging, geen windterm)"
+      }
+    },
+    "compare_method": {
+      "options": {
+        "signature": "Energiekenlijn (genormaliseerd verbruik)",
+        "classic": "Klassieke graaddagen",
+        "knmi14": "KNMI 14 °C graaddagen",
+        "pbl": "PBL-graaddagen",
+        "house": "Huis-graaddagen"
+      }
+    },
+    "push_target": {
+      "options": {
+        "mindergas": "mindergas.nl"
+      }
+    }
+  },
+  "entity": {
+    "sensor": {
+      "effective_temperature": {
+        "name": "Effectieve temperatuur"
+      },
+      "degree_days_yesterday": {
+        "name": "Graaddagen gisteren"
+      },
+      "degree_days_season": {
+        "name": "Graaddagen seizoen"
+      },
+      "heat_space_yesterday": {
+        "name": "Ruimteverwarming gisteren"
+      },
+      "heat_space_season": {
+        "name": "Ruimteverwarming seizoen"
+      },
+      "heat_dhw_season": {
+        "name": "Tapwater seizoen"
+      },
+      "heat_per_degree_day": {
+        "name": "Warmte per graaddag"
+      },
+      "gas_per_degree_day": {
+        "name": "Gas per graaddag"
+      },
+      "heat_pump_share_season": {
+        "name": "Aandeel warmtepomp seizoen"
+      },
+      "cop_yesterday": {
+        "name": "COP gisteren"
+      },
+      "heat_loss_coefficient": {
+        "name": "Warmteverliescoëfficiënt"
+      },
+      "balance_temperature": {
+        "name": "Balanstemperatuur"
+      },
+      "fit_quality": {
+        "name": "Fitkwaliteit"
+      },
+      "forecast_heat_season": {
+        "name": "Prognose warmte seizoen"
+      },
+      "forecast_gas_season": {
+        "name": "Prognose gas seizoen"
+      },
+      "forecast_electric_season": {
+        "name": "Prognose stroom seizoen"
+      },
+      "dhw_baseline": {
+        "name": "Basislijn tapwater"
+      },
+      "data_quality": {
+        "name": "Datakwaliteit"
+      },
+      "last_weather_update": {
+        "name": "Laatste weerupdate"
+      },
+      "generator_heat_space_season": {
+        "name": "Ruimteverwarming seizoen"
+      },
+      "generator_heat_dhw_season": {
+        "name": "Tapwater seizoen"
+      },
+      "generator_share_season": {
+        "name": "Aandeel seizoen"
+      }
+    },
+    "binary_sensor": {
+      "data_gap": {
+        "name": "Datagat"
+      }
+    }
+  },
+  "services": {
+    "import_readings": {
+      "name": "Meterstanden importeren",
+      "description": "Importeert cumulatieve meterstanden uit CSV (bijvoorbeeld een export van mindergas.nl) voor dagen van vóór de Home Assistant-historie en herberekent vanaf de eerste geïmporteerde dag.",
+      "fields": {
+        "entry_id": {
+          "name": "Site",
+          "description": "De Heatprint-site."
+        },
+        "generator_id": {
+          "name": "Opwekker-id",
+          "description": "Id van de opwekker waar de standen bij horen (bijvoorbeeld cv_ketel)."
+        },
+        "csv": {
+          "name": "CSV-tekst",
+          "description": "De CSV-inhoud; dit of een pad."
+        },
+        "path": {
+          "name": "Bestandspad",
+          "description": "Bestand in de map heatprint van je configuratiemap."
+        },
+        "mapping": {
+          "name": "Kolomtoewijzing",
+          "description": "Kolomnamen, datumformaat, decimaalteken en scheidingsteken (standaard passend bij de export van mindergas.nl)."
+        },
+        "unit": {
+          "name": "Eenheid",
+          "description": "Eenheid van de standen; standaard de eenheid van de opwekker."
+        }
+      }
+    },
+    "recompute": {
+      "name": "Opnieuw berekenen",
+      "description": "Herberekent alle dagrecords van een datum tot gisteren en schrijft de statistieken opnieuw.",
+      "fields": {
+        "entry_id": {
+          "name": "Site",
+          "description": "De Heatprint-site."
+        },
+        "from_date": {
+          "name": "Vanaf datum",
+          "description": "Eerste dag die opnieuw wordt berekend."
+        }
+      }
+    },
+    "fit_signature": {
+      "name": "Energiekenlijn fitten",
+      "description": "Fit de energiekenlijn (balanstemperatuur, warmteverlies per K, windgevoeligheid) voor een periode en geeft de fit terug.",
+      "fields": {
+        "entry_id": {
+          "name": "Site",
+          "description": "De Heatprint-site."
+        },
+        "start": {
+          "name": "Begin",
+          "description": "Eerste dag van de periode (of gebruik seizoen)."
+        },
+        "end": {
+          "name": "Einde",
+          "description": "Laatste dag van de periode."
+        },
+        "season": {
+          "name": "Seizoen",
+          "description": "Seizoenslabel zoals 2024/2025 in plaats van begin en einde."
+        },
+        "tac_preset": {
+          "name": "Preset effectieve temperatuur",
+          "description": "Welke effectieve temperatuur als regressor wordt gebruikt."
+        },
+        "fit_wind": {
+          "name": "Wind fitten",
+          "description": "Schat de windgevoeligheid; standaard de site-instelling."
+        }
+      }
+    },
+    "compare_periods": {
+      "name": "Periodes vergelijken",
+      "description": "Vergelijkt de weergecorrigeerde warmtevraag van twee periodes en geeft de vergelijking terug.",
+      "fields": {
+        "entry_id": {
+          "name": "Site",
+          "description": "De Heatprint-site."
+        },
+        "base_start": {
+          "name": "Begin basisperiode",
+          "description": "Eerste dag van de basisperiode."
+        },
+        "base_end": {
+          "name": "Einde basisperiode",
+          "description": "Laatste dag van de basisperiode."
+        },
+        "target_start": {
+          "name": "Begin doelperiode",
+          "description": "Eerste dag van de doelperiode."
+        },
+        "target_end": {
+          "name": "Einde doelperiode",
+          "description": "Laatste dag van de doelperiode."
+        },
+        "method": {
+          "name": "Methode",
+          "description": "Energiekenlijn (genormaliseerd verbruik met betrouwbaarheidsinterval) of een graaddagmethode (k-waardevergelijking)."
+        }
+      }
+    },
+    "measure_effect": {
+      "name": "Maatregel-effect",
+      "description": "Vergelijkt het seizoen vóór een besparingsmaatregel met de periode erna en geeft het effect terug.",
+      "fields": {
+        "entry_id": {
+          "name": "Site",
+          "description": "De Heatprint-site."
+        },
+        "measure_id": {
+          "name": "Maatregel-id",
+          "description": "Id van de maatregel (slug van de naam)."
+        }
+      }
+    },
+    "forecast": {
+      "name": "Prognose",
+      "description": "Geeft de prognose van het lopende seizoen op basis van de klimatologie terug.",
+      "fields": {
+        "entry_id": {
+          "name": "Site",
+          "description": "De Heatprint-site."
+        }
+      }
+    },
+    "export_daily": {
+      "name": "Dagrecords exporteren",
+      "description": "Schrijft de dagrecords van een periode als CSV naar de map heatprint van je configuratiemap.",
+      "fields": {
+        "entry_id": {
+          "name": "Site",
+          "description": "De Heatprint-site."
+        },
+        "start": {
+          "name": "Begin",
+          "description": "Eerste dag."
+        },
+        "end": {
+          "name": "Einde",
+          "description": "Laatste dag."
+        },
+        "path": {
+          "name": "Bestandsnaam",
+          "description": "Bestandsnaam in de map heatprint; leeg geeft een standaardnaam."
+        }
+      }
+    },
+    "push_reading": {
+      "name": "Meterstand pushen",
+      "description": "Stuurt de meterstand aan het begin van een dag naar mindergas.nl (token uit de opties).",
+      "fields": {
+        "entry_id": {
+          "name": "Site",
+          "description": "De Heatprint-site."
+        },
+        "generator_id": {
+          "name": "Opwekker-id",
+          "description": "Opwekker waarvan de meterstand wordt verstuurd."
+        },
+        "target": {
+          "name": "Doel",
+          "description": "Voorlopig alleen mindergas.nl."
+        },
+        "date": {
+          "name": "Datum",
+          "description": "Datum van de stand (stand om middernacht aan het begin van deze dag); standaard vandaag."
+        }
+      }
+    }
+  },
+  "exceptions": {
+    "entry_not_found": {
+      "message": "Geen Heatprint-site met id {entry_id}."
+    },
+    "entry_not_loaded": {
+      "message": "De Heatprint-site {entry_id} is niet geladen."
+    },
+    "path_not_allowed": {
+      "message": "Pad {path} ligt buiten de toegestane map {base}."
+    },
+    "csv_invalid": {
+      "message": "De CSV kon niet worden gelezen: {error}."
+    },
+    "invalid_period": {
+      "message": "De periode is ongeldig: begin moet vóór einde liggen."
+    },
+    "period_required": {
+      "message": "Geef begin en einde op, of een seizoen."
+    },
+    "ha_too_old": {
+      "message": "Heatprint heeft Home Assistant 2025.3 of nieuwer nodig (config subentries)."
+    }
+  }
+}
