@@ -12,6 +12,7 @@ Handles both the pre-2025.4 ``has_mean`` metadata and the newer ``mean_type`` /
 
 from __future__ import annotations
 
+import asyncio
 import logging
 from collections.abc import Iterable, Mapping
 from datetime import datetime, tzinfo
@@ -192,7 +193,31 @@ async def async_write_daily_metrics(
             continue
         metadata = build_metadata(site_id, _metric_name(site_name, metric, generator_names), metric)
         async_add_external_statistics(hass, metadata, stats)
+    await _async_flush_recorder(hass)
     return running
+
+
+async def _async_flush_recorder(hass: HomeAssistant) -> None:
+    """Wait until queued statistic imports are committed.
+
+    Import jobs sit on the recorder thread. The next 90-day chunk (and a later
+    daily rewrite of the same window) reads the last stored sum before
+    continuing; without a flush that read often misses this batch and the
+    running total resets.
+
+    During startup the recorder commit can wait for integrations to finish
+    setup, so blocking there deadlocks first refresh. Skip until Home Assistant
+    is running, and time out if a commit stalls.
+    """
+    if not hass.is_running:
+        return
+    future = get_instance(hass).async_get_commit_future()
+    if future is None:
+        return
+    try:
+        await asyncio.wait_for(asyncio.shield(future), timeout=30)
+    except TimeoutError:
+        _LOGGER.debug("Recorder did not finish the Heatprint statistic import yet")
 
 
 async def async_clear_statistics(hass: HomeAssistant, statistic_ids: Iterable[str]) -> None:

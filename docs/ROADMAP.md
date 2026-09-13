@@ -2,7 +2,7 @@
 
 | Version | Goal | Main content | Status |
 |---|---|---|---|
-| 0.1.0 | Foundation + calculation core | Docs, `heatprint_core` with tests (providers, methods, heat, DHW, meter readings, fit, forecast), HA skeleton (config flow, sensors, services, statistics) | in progress |
+| 0.1.0 | Foundation + calculation core | Docs, `heatprint_core` with tests (providers, methods, heat, DHW, meter readings, fit, forecast), HA shell (config flow, coordinator, sensors, services, statistics) | done |
 | 0.2.0 | Runs on Nico's HA | Coordinator end-to-end, KNMI station 380, DSMR gas, Buienradar fallback, CSV import of mindergas export (4 gas years), reference case | planned |
 | 0.3.0 | Hybrid | Heat pump generator with thermal/electric meters, heat pump share, daily COP, season 2026/27 live | planned (when the heat pump is installed) |
 | 1.0.0 | HACS release | Measure effect with CI, mindergas bridge, cost/CO₂, COP curve, DHW monthly profile, repairs/diagnostics, HACS default | planned |
@@ -11,28 +11,41 @@
 ## Definition of done per release
 
 - Tests green (core ≥ 90% coverage), ruff/mypy clean, hassfest + HACS validation green.
+- Minimum Home Assistant 2026.9.0 (`hacs.json`).
 - CHANGELOG updated, version in `manifest.json` and `pyproject.toml` identical.
 - Docs updated (METHODS on every formula change).
 - Manual smoke test on an HA installation (config flow, backfill, sensors, one service).
 
 ## Open items from the v0.1 review (2026-09-13)
 
-1. `cost_eur` and `co2_kg` are computed but not yet written as a statistic/sensor;
-   price entities are not yet read (`core_api.build_daily_records`, v1.0).
-2. Baselines are only computed for `dhw_mode = baseline`; `measured` falls back to "no
-   baseline" on days without a measurement (`coordinator.py`).
-3. Statistics require local midnight to fall on a whole UTC hour; time zones with a
-   half-hour offset (e.g. India) are not yet supported. The recorder's daily buckets
+Closed in this pre-alpha:
+
+- `DHW_BASELINE_MISSING` flag (METHODS §6 / §10); coordinator also estimates a baseline
+  for `dhw_mode = measured` so days without a measurement can fall back.
+- `heatprint.clear_statistics` service (optional `generator_id`).
+- METHODS documents the COP-curve floor of 1.0, the bootstrap 0.5 K grid, and that
+  `compare_periods` raises `InsufficientDataError` when Σ dd is 0 (never NaN).
+- PBL 2022 daily wind term verified: `T - √W` (`c_sqrt = 1.0`) and optional `Q/480`.
+
+Deferred (not required for a coherent pre-alpha):
+
+1. `cost_eur` and `co2_kg` are computed in the core but not written as a statistic/sensor;
+   price entities are not read (`core_api.build_daily_records`, F18 / v1.0).
+2. Statistics require local midnight to fall on a whole UTC hour; time zones with a
+   half-hour offset (e.g. India) are not supported. The recorder's daily buckets
    follow the HA time zone, not the site time zone.
-4. `compare_periods` returns NaN with an explicit `min_dd=0`; the COP curve is clamped at 1.0;
-   the bootstrap uses a 0.5 K grid - none of the three is documented in METHODS yet.
-5. Add the `DHW_BASELINE_MISSING` flag (METHODS §6).
-6. Service `heatprint.clear_statistics` for cleaning up the statistics of a removed
-   generator.
+3. Real Heerlen reference case (KNMI 380 + four gas years of mindergas export) — needs
+   Nico's local export; the core reproduces the mindergas *formula* on fixture data
+   within 1%. Scheduled with the v0.2 live HA run.
+4. GitHub repository description and topics (`custom-integration`, `hacs-integration`,
+   `homeassistant`). HACS CI ignores those two checks until they are set on the repo.
+5. Strict mypy CI gate and `pytest-homeassistant-custom-component` for the HA shell (v0.2).
+6. Post-create "Compute effect" notification after adding a measure (service exists; v1.0 UI).
+7. PDF eq. 17 sun term *outside* inertia — Heatprint keeps sun inside `T_eff` (METHODS §3);
+   default practical model has `include_sun` off and therefore matches PDF eq. 20.
 
 ## Research items
 
-- Verify the exact PBL wind coefficient and solar term (pdf).
 - KNMI Data Platform (EDR/open data API) as a second NL provider with a key.
 - Which heat pump brands provide thermal energy via HA integrations (Vaillant, Viessmann,
   NIBE, Bosch/EMS-ESP, Remeha, Daikin, Mitsubishi, Panasonic) - matrix for the docs.

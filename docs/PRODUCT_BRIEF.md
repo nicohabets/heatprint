@@ -178,8 +178,8 @@ required in the core).
 See [METHODS.md](METHODS.md). Core: `T_eff = T - c_lin·V - c_sqrt·√V + c_sun·Q`,
 thermal inertia `TAC = 0.65·T_eff(d) + 0.35·T_eff(d-1)`, degree days per method, heat per
 generator, DHW split, fit `Q = a + b·max(0, T_b - TAC) + c·V`, normalized
-seasonal consumption via climatology, forecast. Open point: the exact PBL wind coefficient
-(placeholder, configurable; the house fit is independent of it).
+seasonal consumption via climatology, forecast. The authentic daily PBL wind term is
+`√V` with coefficient 1.0 (verified); `linear` remains the default preset.
 
 ## 9. Accuracy and honesty
 
@@ -241,9 +241,11 @@ Privacy: no data leaves the house except coordinates/station to the weather prov
    "stooklijn" = heating curve), Graadmeter (Dutch pun, not international).
 2. **Language of the documentation**: English only. Documentation, code and UI strings are
    English; Dutch exists only as a UI translation file (`translations/nl.json`).
-3. **PBL wind coefficient**: verify in the pdf (Nico supplies the pdf); until then
-   `linear` as default.
-4. **Subentries vs. options list**: subentries (HA ≥ 2025.3) chosen for management per
+3. **PBL wind coefficient**: verified against PBL 2022 eq. 17/20. The daily KEV-SJV
+   term is `T - √W` (`c_sqrt = 1.0`), plus optional `Q/480`. The hourly Informatiecode
+   term `√W/0.35` is a different formula and is not used. Default mode stays `linear`
+   (`T - V/1.5`); choose `sqrt` for the authentic daily KEV-SJV wind term.
+4. **Subentries vs. options list**: subentries (HA ≥ 2026.9) chosen for management per
    generator; older HA versions are not supported.
 5. **Publishing `heatprint-core` on PyPI vs. vendoring it in the integration**: PyPI (cleaner,
    reusable); vendoring as a last resort.

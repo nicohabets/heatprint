@@ -69,9 +69,9 @@ flowchart TB
         RS["recorder_source<br/>read statistics (daily sums, daily means)"]
         ST["statistics_writer<br/>external statistics heatprint:*"]
         SE["sensor / binary_sensor<br/>entity descriptions"]
-        SV["services<br/>import · recompute · fit · compare ·<br/>measure_effect · forecast · export · push"]
+        SV["services<br/>import · recompute · fit · compare ·<br/>measure_effect · forecast · export · push · clear"]
         SR["store<br/>JSON: climatology, fits, flags, baseline"]
-        DG["diagnostics · repairs"]
+        DG["diagnostics<br/>(repairs in v1.0)"]
     end
 
     CF --> CO
@@ -170,6 +170,7 @@ heatprint/
 │   ├── recorder_source.py  statistics_writer.py  store.py
 │   ├── sensor.py  binary_sensor.py  services.py  services.yaml
 │   ├── core_api.py  mindergas.py  diagnostics.py  manifest.json  strings.json
+│   ├── brand/icon.png            # HACS brand icon
 │   └── translations/{en,nl}.json
 ├── heatprint_core/                   # calculation core (PyPI: heatprint-core)
 │   ├── models.py  constants.py  flags.py  pipeline.py  readings.py  heat.py  dhw.py
@@ -190,8 +191,10 @@ development: `pip install -e .` in the devcontainer.
 ## 8. Quality and CI
 
 - `pytest` for the core (formulas, synthetic dwelling, Heerlen reference case).
-- `ruff` + `mypy` (strict for the core).
-- `hassfest` and `hacs/action` in GitHub Actions.
+- `ruff` in CI (`ruff check .`). `mypy` is in the `dev` extra for local checks of
+  the core; a strict mypy gate is scheduled with the HA shell tests in v0.2.
+- `hassfest` and `hacs/action` in GitHub Actions. Minimum Home Assistant is 2026.9.0
+  (`hacs.json`).
 - HA shell: `pytest-homeassistant-custom-component` for config flow and coordinator
   (snapshot tests of entities) from v0.2.
 

@@ -616,7 +616,7 @@
             },
             "data_description": {
               "pbl_top": "Not used in the degree days by default; hot water and cooking are handled separately.",
-              "pbl_wind_sqrt_coef": "Placeholder from the gas profile method (1/0.35) until the PBL value is verified."
+              "pbl_wind_sqrt_coef": "c_sqrt in T − c_sqrt · √W (PBL 2022 eq. 17/20). Default 1.0 for daily KEV-SJV."
             }
           },
           "fit": {
@@ -1022,6 +1022,20 @@
           "description": "Date of the reading (reading at midnight at the start of this day); defaults to today."
         }
       }
+    },
+    "clear_statistics": {
+      "name": "Clear statistics",
+      "description": "Deletes Heatprint long-term statistics of one generator or of the whole site. Use this after removing a generator if you also want the history gone.",
+      "fields": {
+        "entry_id": {
+          "name": "Site",
+          "description": "The Heatprint site."
+        },
+        "generator_id": {
+          "name": "Generator id",
+          "description": "Optional. When set, only the space-heating and DHW statistics of this generator are deleted. When empty, every Heatprint statistic of the site is deleted."
+        }
+      }
     }
   },
   "exceptions": {
@@ -1044,7 +1058,7 @@
       "message": "Give either start and end or a season."
     },
     "ha_too_old": {
-      "message": "Heatprint needs Home Assistant 2025.3 or newer (config subentries)."
+      "message": "Heatprint needs Home Assistant 2026.9 or newer (config subentries)."
     }
   }
 }

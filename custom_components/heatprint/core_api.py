@@ -1,8 +1,8 @@
 """Adapters between the Home Assistant shell and the pure-Python heatprint_core.
 
 Every call into heatprint_core lives in this module so the names and signatures
-of the core are reconciled in one place; the remaining uncertainties are marked
-``TODO(core-api)``. The rest of the integration works with the plain dataclasses
+of the core are reconciled in one place. The rest of the integration works with
+the plain dataclasses
 defined here (``WeatherDay``, ``DailyEnergyInput``, ``DayMetrics``, ...), with
 JSON-serialisable dicts (fits, forecasts, climatology) and with opaque core
 ``DailyRecord`` objects that are only passed back into core analyses.
@@ -903,8 +903,8 @@ def build_daily_records(
     """Run the core pipeline and return core DailyRecord objects for start..end."""
     fit = fit_from_dict(house_fit)
     outliers = [date.fromisoformat(str(day)) for day in (house_fit or {}).get("outliers", [])]
-    # TODO(core-api): per-day prices from price entities are not read from the recorder
-    # yet (prices=None), so cost_eur stays None in this version.
+    # Price entities are not read from the recorder yet (v1.0 / F18); cost_eur stays
+    # None here. CO2 still uses the configured per-generator factor.
     # The baselines are always passed (possibly empty): with None the core would
     # estimate them from this window alone, which for a 90-day winter chunk yields a
     # bogus "summer" baseline. Without a baseline all heat counts as space heating.

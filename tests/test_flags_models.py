@@ -36,7 +36,8 @@ from heatprint_core.models import (
 
 
 def test_flag_values_and_exclusion() -> None:
-    assert len(Flag) == 11
+    assert len(Flag) == 12
+    assert Flag.DHW_BASELINE_MISSING.value == "dhw_baseline_missing"
     assert Flag.WEATHER_MISSING.value == "weather_missing"
     assert Flag("outlier") is Flag.OUTLIER
     assert {
@@ -46,7 +47,9 @@ def test_flag_values_and_exclusion() -> None:
         Flag.METER_RESET,
         Flag.OUTLIER,
     } == EXCLUSION_FLAGS
+    assert Flag.DHW_BASELINE_MISSING not in EXCLUSION_FLAGS
     assert is_usable({Flag.WEATHER_PARTIAL, Flag.HEAT_ESTIMATED, Flag.INTERPOLATED})
+    assert is_usable({Flag.DHW_BASELINE_MISSING})
     assert not is_usable({Flag.PARTIAL_DAY})
 
 
@@ -56,6 +59,9 @@ def test_bitmask_round_trip() -> None:
     assert mask == (1 << 0) | (1 << 9) | (1 << 10)
     assert flags_from_bitmask(mask) == flags
     assert flags_from_bitmask(0) == set()
+    assert list(Flag).index(Flag.DHW_BASELINE_MISSING) == 11
+    assert flags_to_bitmask({Flag.DHW_BASELINE_MISSING}) == 1 << 11
+    assert flags_from_bitmask(1 << 11) == {Flag.DHW_BASELINE_MISSING}
 
 
 def test_parse_flags_case_insensitive() -> None:

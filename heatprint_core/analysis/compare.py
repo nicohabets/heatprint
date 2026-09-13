@@ -75,6 +75,12 @@ def _check(stats: PeriodStats, method: str, min_days: int, min_dd: float | None,
         raise InsufficientDataError(
             f"{name} period has {stats.n_days} usable days, at least {min_days} required"
         )
+    # k = Q / Σdd is undefined when there are no degree days, even if the caller
+    # lowered ``min_dd`` to 0 (METHODS section 8.3). Never return NaN.
+    if stats.degree_days <= 0:
+        raise InsufficientDataError(
+            f"{name} period has no degree days ({method}); cannot compute k"
+        )
     if stats.degree_days < threshold:
         raise InsufficientDataError(
             f"{name} period has {stats.degree_days:.1f} degree days ({method}), "

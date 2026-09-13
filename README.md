@@ -32,9 +32,16 @@ setup, electricity or district heat?"**
 
 ## Status
 
-Pre-alpha. The repository currently contains the product brief, data model, config flow spec,
-architecture, the calculation core with tests, and the skeleton of the Home Assistant
-integration. See [docs/ROADMAP.md](docs/ROADMAP.md).
+Pre-alpha **v0.1.0**. Requires Home Assistant **2026.9** or newer. The calculation core (`heatprint_core`) implements the documented
+pipeline end-to-end — heat conversion, DHW split, effective temperature, four degree-day
+methods, energy signature / PRISM, normalize / compare / forecast — and is covered by
+pytest on mock and synthetic data. The Home Assistant integration
+(`custom_components/heatprint`) is a thin shell around that core: config flow with
+subentries, daily coordinator, external statistics, sensors and the documented services.
+
+Not in this pre-alpha (see [docs/ROADMAP.md](docs/ROADMAP.md)): cost/CO₂ sensors and
+price-entity reads (v1.0), the live Heerlen four-year reference case (v0.2, needs local
+meter exports), and half-hour time-zone statistic buckets.
 
 ## Documentation
 
@@ -56,6 +63,10 @@ tests/                         pytest suite for the core
 examples/dashboards/           Dashboard YAML examples
 docs/                          Product and technical documentation
 ```
+
+HACS validation in CI ignores GitHub-only metadata (`topics`, `description`). Before a
+HACS default submission, set a repository description and topics such as
+`custom-integration`, `hacs-integration` and `homeassistant`.
 
 ## Development
 

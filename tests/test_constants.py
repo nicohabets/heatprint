@@ -24,6 +24,8 @@ def test_conversion_constants() -> None:
     assert constants.GAS_CO2_KG_PER_M3 == 1.78
     assert constants.ELEC_CO2_KG_PER_KWH == 0.30
     assert pytest.approx(41.6667, abs=1e-3) == constants.W_PER_K_FROM_KWH_PER_K_DAY
+    assert constants.PBL_WIND_SQRT_COEF == 1.0
+    assert pytest.approx(1 / 480) == constants.PBL_SUN_COEF
 
 
 def test_month_weights_mindergas() -> None:

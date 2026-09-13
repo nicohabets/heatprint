@@ -44,9 +44,10 @@ W_PER_K_FROM_KWH_PER_K_DAY: float = 1000 / 24
 #: KNMI "effective temperature" wind divisor: T_eff = T - wind / 1.5 (METHODS section 3).
 KNMI_WIND_DIVISOR: float = 1.5
 
-#: Placeholder square-root wind coefficient from the Dutch gas profile methodology
-#: (Informatiecode, appendix 3): sqrt(wind) / 0.35. See METHODS section 3 note.
-PBL_WIND_SQRT_COEF: float = 1 / 0.35
+#: Daily KEV-SJV square-root wind coefficient (PBL 2022 eq. 17/20): T - sqrt(wind).
+#: The hourly gas-profile term sqrt(wind)/0.35 (Informatiecode appendix 3) is a
+#: different formula and is not used here. See METHODS section 3.
+PBL_WIND_SQRT_COEF: float = 1.0
 
 #: PBL solar term: 1/480 degree per J/cm2 of daily global radiation (optional).
 PBL_SUN_COEF: float = 1 / 480

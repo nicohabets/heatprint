@@ -76,6 +76,14 @@ def test_compare_periods_excludes_flagged_days_and_checks_minimums() -> None:
     )
 
 
+def test_compare_periods_rejects_zero_degree_days() -> None:
+    """min_dd=0 must not return NaN; k is undefined when Σ dd is 0."""
+    period = Period(date(2025, 6, 1), date(2025, 7, 10))
+    records = _records(period.start, 40, 2.0, 0.0)
+    with pytest.raises(InsufficientDataError, match="no degree days"):
+        compare_periods(records, period, period, "pbl", min_dd=0)
+
+
 def test_measure_periods() -> None:
     before, after = measure_periods(date(2025, 6, 15), date(2026, 3, 1), SeasonConfig(10, 1))
     assert before.start == date(2023, 10, 1) and before.end == date(2025, 6, 14)

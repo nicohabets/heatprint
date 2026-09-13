@@ -142,6 +142,8 @@ def test_estimated_heat_pump_and_house_fit() -> None:
     assert Flag.OUTLIER in day2.flags and not day2.usable
     assert Flag.OUTLIER not in records[0].flags
     assert day2.cost_eur is None
+    # Boiler role=both, baseline mode, no baseline → DHW_BASELINE_MISSING.
+    assert Flag.DHW_BASELINE_MISSING in day2.flags
 
 
 def test_no_generator_data_is_energy_missing() -> None:

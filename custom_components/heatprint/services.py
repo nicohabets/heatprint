@@ -60,6 +60,7 @@ from .const import (
     METHODS,
     PUSH_TARGET_MINDERGAS,
     PUSH_TARGETS,
+    SERVICE_CLEAR_STATISTICS,
     SERVICE_COMPARE_PERIODS,
     SERVICE_EXPORT_DAILY,
     SERVICE_FIT_SIGNATURE,
@@ -145,6 +146,12 @@ PUSH_READING_SCHEMA = vol.Schema(
         vol.Required(ATTR_GENERATOR_ID): cv.string,
         vol.Optional(ATTR_TARGET, default=PUSH_TARGET_MINDERGAS): vol.In(PUSH_TARGETS),
         vol.Optional(ATTR_DATE): cv.date,
+    }
+)
+CLEAR_STATISTICS_SCHEMA = vol.Schema(
+    {
+        vol.Required(ATTR_ENTRY_ID): cv.string,
+        vol.Optional(ATTR_GENERATOR_ID): cv.string,
     }
 )
 
@@ -315,6 +322,11 @@ def async_setup_services(hass: HomeAssistant) -> None:
             raise HomeAssistantError(str(err)) from err
         return result if call.return_response else None
 
+    async def handle_clear_statistics(call: ServiceCall) -> ServiceResponse:
+        coordinator = _get_coordinator(hass, call.data[ATTR_ENTRY_ID])
+        result = await coordinator.async_clear_statistics(call.data.get(ATTR_GENERATOR_ID))
+        return result if call.return_response else None
+
     registrations: list[tuple[str, Any, vol.Schema, SupportsResponse]] = [
         (
             SERVICE_IMPORT_READINGS,
@@ -339,6 +351,12 @@ def async_setup_services(hass: HomeAssistant) -> None:
         (SERVICE_FORECAST, handle_forecast, FORECAST_SCHEMA, SupportsResponse.ONLY),
         (SERVICE_EXPORT_DAILY, handle_export_daily, EXPORT_DAILY_SCHEMA, SupportsResponse.OPTIONAL),
         (SERVICE_PUSH_READING, handle_push_reading, PUSH_READING_SCHEMA, SupportsResponse.OPTIONAL),
+        (
+            SERVICE_CLEAR_STATISTICS,
+            handle_clear_statistics,
+            CLEAR_STATISTICS_SCHEMA,
+            SupportsResponse.OPTIONAL,
+        ),
     ]
     for name, handler, schema, supports_response in registrations:
         if hass.services.has_service(DOMAIN, name):

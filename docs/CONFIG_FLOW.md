@@ -4,7 +4,7 @@ Goal: a user with gas, a heat pump, a hybrid system, all-electric heating or dis
 sets up Heatprint **within five minutes** without YAML, and can change everything later
 without reinstalling.
 
-Structure in Home Assistant (2025.3+):
+Structure in Home Assistant (2026.9+):
 
 - **Config entry** = one site (dwelling). Multiple sites are possible (second home).
 - **Subentries** of type `generator` (heat generator) and `measure` (energy-saving measure).
@@ -202,8 +202,8 @@ a repair/notification).
 Same steps as 4.1-4.5. Changing `energy_entity` triggers a recomputation from the earliest
 available date of the new sensor. Removing: the statistics of that generator are kept
 (history) but are no longer updated. Home Assistant has no removal flow for subentries with
-questions of its own, so "also clear statistics" becomes a separate service
-(`heatprint.clear_statistics`, v0.2) instead of a checkbox.
+questions of its own, so "also clear statistics" is a separate service
+(`heatprint.clear_statistics`) instead of a checkbox.
 
 ### `measure` (add / edit / remove)
 
@@ -214,8 +214,9 @@ questions of its own, so "also clear statistics" becomes a separate service
 | `category` | select: `insulation`, `installation`, `behaviour`, `other` |
 | `notes` | text (multiline) |
 
-After creation: button/notification "Compute effect" (service `heatprint.measure_effect`), only
-meaningful once there are ≥ 30 days after the date.
+After creation the service `heatprint.measure_effect` can be called (only meaningful
+once there are ≥ 30 days after the date). A dedicated "Compute effect" button after
+the subentry is created is a v1.0 UI polish; the service is already wired.
 
 ---
 
@@ -228,7 +229,8 @@ Sections (menu):
 3. **History** - backfill/climatology years; button "recompute from date".
 4. **Prices and CO₂** - default factors, CO₂ sensor.
 5. **Integrations** - mindergas.nl bridge: API token (password field), generator choice,
-   daily push on/off. The token is stored encrypted in the entry; never logged.
+   daily push on/off. The token lives in the config entry (Home Assistant does not
+   encrypt `.storage`); it is never logged and is redacted from diagnostics (ARCHITECTURE §9).
 6. **Advanced** - override PBL parameters (TST/RER/TOP per month group) and wind
    coefficient; outlier threshold; minimum number of days for a fit.
 
@@ -241,7 +243,7 @@ again and recompute all daily records (with confirmation).
 
 ## Migrations and versions
 
-- `version = 1`, `minor_version = 0`. Subentries require HA 2025.3+; on older HA the
+- `version = 1`, `minor_version = 0`. Subentries require HA 2026.9+; on older HA the
   integration refuses to load with a clear repair notification (the HACS minimum is in
   `hacs.json`).
 - Future fields get default values in `async_migrate_entry`.

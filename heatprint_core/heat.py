@@ -32,7 +32,11 @@ def cop_day(
 
 
 def cop_from_curve(generator: Generator, t_mean: float | None) -> float:
-    """COP of a ``cop_curve`` heat pump: ``a + b * t_mean`` (falls back to SCOP)."""
+    """COP of a ``cop_curve`` heat pump: ``a + b * t_mean`` (falls back to SCOP).
+
+    The result is clamped at 1.0 so a very cold outdoor temperature cannot
+    produce a COP below a resistive heater (METHODS section 5).
+    """
     conversion = generator.conversion
     if t_mean is None:
         return conversion.scop
