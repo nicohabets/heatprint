@@ -5,6 +5,7 @@ from __future__ import annotations
 import ast
 import importlib
 import json
+import re
 import sys
 from pathlib import Path
 
@@ -24,6 +25,16 @@ def test_manifest_has_no_unpublished_pypi_requirement() -> None:
     requirements = manifest.get("requirements", [])
     assert requirements == []
     assert not any("heatprint-core" in item for item in requirements)
+
+
+def test_integration_and_core_versions_match() -> None:
+    manifest = _load_json(INTEGRATION / "manifest.json")
+    pyproject = (REPO / "pyproject.toml").read_text(encoding="utf-8")
+    core_init = (CORE / "__init__.py").read_text(encoding="utf-8")
+    project_version = re.search(r'(?m)^version = "([^"]+)"', pyproject)
+    core_version = re.search(r'(?m)^__version__ = "([^"]+)"', core_init)
+    assert project_version and core_version
+    assert manifest["version"] == project_version.group(1) == core_version.group(1)
 
 
 def test_hacs_json_matches_ha_minimum_and_domain_folder() -> None:

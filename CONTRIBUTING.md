@@ -26,3 +26,7 @@ pytest
 ```
 
 Open an issue before large changes. Use conventional commit messages (`feat:`, `fix:`, `docs:`).
+
+Each mergeable PR bumps the version: `custom_components/heatprint/manifest.json`,
+`pyproject.toml` `[project].version`, and `heatprint_core.__version__` stay identical,
+and `CHANGELOG.md` gets a section for that version.
