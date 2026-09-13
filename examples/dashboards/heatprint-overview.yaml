@@ -5,8 +5,11 @@
 # dashboard with the same cards. Recreate it with the action
 # heatprint.create_dashboard if you deleted or heavily edited it.
 #
-# Entity ids follow the English translated names (has_entity_name), e.g.
-# heat_space_yesterday becomes sensor.<site>_space_heating_yesterday.
+# Object ids depend on the Home Assistant UI language (has_entity_name). This
+# file shows English ids (sensor.home_space_heating_yesterday). A Dutch UI
+# uses sensor.thuis_ruimteverwarming_gisteren, binary_sensor.thuis_datagat,
+# and so on. The auto-dashboard resolves entity_ids from the entity registry
+# by unique_id ({config_entry.entry_id}_{key}) and does not guess English slugs.
 # Statistic ids stay on the metric keys (heatprint:<site>_<metric>).
 # Custom cards (apexcharts) are omitted on purpose so the dashboard loads
 # without HACS frontend extras.

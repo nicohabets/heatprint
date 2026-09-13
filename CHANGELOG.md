@@ -5,6 +5,18 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.1.4] - 2026-09-13
+
+### Fixed
+- Auto-created Lovelace dashboard no longer hardcodes English `has_entity_name`
+  object ids. Entity cards resolve `entity_id` from the entity registry by
+  `unique_id` (`{config_entry.entry_id}_{key}`), so a Dutch (or any non-English)
+  UI language works — `sensor.thuis_ruimteverwarming_gisteren` instead of
+  `sensor.thuis_space_heating_yesterday`. Sensors that are not registered yet
+  are omitted (or replaced by a markdown note) instead of a dead id.
+  Statistic-graph cards are unchanged (`heatprint:<site>_<metric>`). Recreate
+  an existing dashboard with `heatprint.create_dashboard`.
+
 ## [0.1.3] - 2026-09-13
 
 ### Added

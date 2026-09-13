@@ -93,7 +93,7 @@ Responsibilities per HA module:
 |---|---|---|
 | `config_flow.py` | Wizard, validations, subentries, options (incl. CSV import), reconfigure | Calculations |
 | `site_defaults.py` | HA home → lat/lon, time zone, country | UI |
-| `dashboard.py` / `dashboard_config.py` | Create/refresh the stock Lovelace overview | Custom cards |
+| `dashboard.py` / `dashboard_config.py` | Create/refresh the stock Lovelace overview; entity cards resolve `entity_id` via unique_id | Custom cards, English object-id guesses |
 | `coordinator.py` | Schedules runs, fetches weather (via the core providers with HA's aiohttp session), reads the recorder, calls `pipeline.build_daily_records`, writes statistics/store, updates entities | Formulas |
 | `recorder_source.py` | `statistics_during_period` per day for energy (sum/change) and weather (mean) | Interpretation |
 | `statistics_writer.py` | `async_add_external_statistics` with idempotent daily records; rewrites on recomputation | Reading |
