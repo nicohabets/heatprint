@@ -14,10 +14,17 @@ whole integration.
 
 from __future__ import annotations
 
+import sys
 from collections.abc import Iterable, Mapping
 from dataclasses import asdict, dataclass, is_dataclass
 from datetime import date, datetime, timedelta, tzinfo
+from pathlib import Path
 from typing import TYPE_CHECKING, Any
+
+# HACS only copies this folder; heatprint_core is bundled here, not on PyPI.
+_INTEGRATION_DIR = str(Path(__file__).resolve().parent)
+if _INTEGRATION_DIR not in sys.path:
+    sys.path.insert(0, _INTEGRATION_DIR)
 
 from aiohttp import ClientError, ClientSession
 

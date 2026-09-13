@@ -52,7 +52,7 @@ flowchart LR
 
 ```mermaid
 flowchart TB
-    subgraph core["heatprint_core (pure Python, PyPI: heatprint-core)"]
+    subgraph core["heatprint_core (pure Python, bundled in the HACS integration)"]
         M["models<br/>Site, Generator, DailyWeather,<br/>DailyEnergy, DailyRecord, Fit, ..."]
         W["weather<br/>base · knmi · open_meteo · climatology"]
         E["methods<br/>effective_temperature · degree_days<br/>(classic, knmi14, pbl, house)"]
@@ -170,23 +170,29 @@ heatprint/
 │   ├── recorder_source.py  statistics_writer.py  store.py
 │   ├── sensor.py  binary_sensor.py  services.py  services.yaml
 │   ├── core_api.py  mindergas.py  diagnostics.py  manifest.json  strings.json
+│   ├── _bundle.py                # sys.path bootstrap for the nested core
 │   ├── brand/icon.png            # HACS brand icon
-│   └── translations/{en,nl}.json
-├── heatprint_core/                   # calculation core (PyPI: heatprint-core)
-│   ├── models.py  constants.py  flags.py  pipeline.py  readings.py  heat.py  dhw.py
-│   ├── weather/{base,knmi,open_meteo,climatology}.py
-│   ├── methods/{effective_temperature,degree_days,pbl_params}.py
-│   ├── analysis/{signature,normalize,compare,forecast}.py
-│   └── importers/csv_readings.py
+│   ├── translations/{en,nl}.json
+│   └── heatprint_core/           # calculation core (bundled; HA-free)
+│       ├── models.py  constants.py  flags.py  pipeline.py  readings.py  heat.py  dhw.py
+│       ├── weather/{base,knmi,open_meteo,climatology}.py
+│       ├── methods/{effective_temperature,degree_days,pbl_params}.py
+│       ├── analysis/{signature,normalize,compare,forecast}.py
+│       └── importers/csv_readings.py
 ├── tests/                            # pytest (core) + fixtures
 ├── examples/dashboards/              # apexcharts/statistics-graph YAML
 ├── docs/                             # this documentation + ADRs
 └── .github/workflows/                # tests, ruff, hassfest, HACS validate
 ```
 
-Vendoring: HA loads `heatprint_core` as `requirements` in `manifest.json`
-(`heatprint-core==x.y.z`, the same repo, published to PyPI with every release). During
-development: `pip install -e .` in the devcontainer.
+Packaging: HACS copies only `custom_components/heatprint/` onto Home Assistant OS.
+`heatprint_core` is nested in that folder so the config flow can import
+`from heatprint_core import ...` without a PyPI wheel. The integration adds its own
+directory to `sys.path` on load (`_bundle.py`, and the same insert in `__init__.py`
+and `core_api.py`). The core stays free of Home Assistant imports (ADR 0001).
+Development still uses `pip install -e .` (setuptools discovers the nested package).
+Publishing `heatprint-core` to PyPI remains a later option; it is not required to
+install the integration.
 
 ## 8. Quality and CI
 
