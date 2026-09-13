@@ -1,9 +1,9 @@
 {
   "domain": "heatprint",
   "name": "Heatprint",
+  "after_dependencies": ["file_upload", "lovelace"],
   "codeowners": ["@nicohabets"],
   "config_flow": true,
-  "after_dependencies": ["file_upload", "lovelace"],
   "dependencies": ["recorder"],
   "documentation": "https://github.com/nicohabets/heatprint",
   "integration_type": "service",
