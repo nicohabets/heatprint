@@ -125,21 +125,34 @@ NL-calibrated, the house fit is universal.
 - Repairs/diagnostics, extended tests (`pytest-homeassistant-custom-component`).
 - Apply for the HACS default repository; documentation site.
 
-### 6.3 v2.0 - "visual insight"
+### 6.3 Rooms (v1.1 - "per-room insight")
+
+- Per-room heat allocation from a room heating-demand signal (Tado/`tado_ce` or a compatible
+  thermostat/TRV integration), reusing the site's `heat_space_kwh` split by weighted daily
+  demand (METHODS §12).
+- Per-room apparent heat loss (energy-signature fit, same method as the site-level fit) and
+  balance temperature, clearly labelled as an apparent/allocation-based estimate, not a design
+  heat-loss calculation.
+- Per-room and total heating cost, reusing generator prices; DHW and fixed charges excluded.
+- An "unallocated" bucket so the per-room breakdown always reconciles against the site total.
+- Depends on F18 (cost/CO₂ actually written as a statistic) landing first - see ROADMAP.
+
+### 6.4 v2.0 - "visual insight"
 
 - Custom Lovelace card: energy signature scatter plot with fit line per season, measure
   markers, comparison table per method.
 - Weekend/holiday/presence as a regressor (occupancy correction).
-- Heat demand per zone with Tado/thermostat "heating power" as a carrier-less proxy.
 - Anonymous benchmark (opt-in): W/K per m² and year of construction, aggregated only.
 - Export to notebook (Parquet/CSV) and a CLI in `heatprint-core`.
 
-### 6.4 Out of scope
+### 6.5 Out of scope
 
 - Controlling the installation (no thermostat or heat pump control).
 - Billing/energy supplier integrations.
 - Cooling (degree days for cooling) - possibly later, same model with reversed H.
 - Own cloud or accounts.
+- A design (EN 12831-style) heat-loss calculation per room - rooms (§6.3) give an apparent,
+  allocation-based estimate for relative comparison within one house, not a certified figure.
 
 ## 7. Functional requirements (all proposed options)
 
@@ -164,10 +177,12 @@ NL-calibrated, the house fit is universal.
 | F17 | mindergas bridge (daily push) | v1 |
 | F18 | Cost and CO₂ per kWh of heat, price entities | v1 |
 | F19 | COP curve and DHW monthly profile | v1 |
-| F20 | Custom card, occupancy regressor, zone proxy, benchmark | v2 |
+| F20 | Custom card, occupancy regressor, benchmark | v2 |
 | F21 | Data quality flags on every daily record and in the UI | MVP |
 | F22 | Translations NL/EN; explanation for every field | MVP |
 | F23 | Diagnostics without secrets; repairs on data gaps | v1 |
+| F24 | Per-room heat allocation from a configurable demand signal (Tado/compatible integrations), with an unallocated bucket | v1.1 |
+| F25 | Per-room apparent heat loss (energy-signature fit) and per-room/total heating cost | v1.1 |
 
 Non-functional: no telemetry; ≤ 1 external call per day per site in normal operation;
 daily run < 5 s; 10-year backfill < 2 min; runs on HA Green/Yellow (no numpy
@@ -232,7 +247,8 @@ Privacy: no data leaves the house except coordinates/station to the weather prov
 | 2 - HA shell MVP | Config flow, coordinator, statistics, sensors, services; run on own HA | 2-3 weeks |
 | 3 - Winter 2026/27 | Run live alongside mindergas; connect the hybrid heat pump; bugs; docs | ongoing |
 | 4 - v1.0 | Measure effect, bridge, cost/CO₂, tests, HACS default | 3-4 weeks |
-| 5 - v2.0 | Card, occupancy, zone proxy, benchmark | later |
+| 4a - v1.1 | Rooms: per-room heat allocation, apparent heat loss, cost | 1-2 weeks |
+| 5 - v2.0 | Card, occupancy, benchmark | later |
 
 ## 14. Open questions and decisions
 
@@ -251,6 +267,9 @@ Privacy: no data leaves the house except coordinates/station to the weather prov
    different; but credits and a migration path for those users (same `classic` figures).
 7. **Benchmark (opt-in)**: only once there are enough users; requires a small
    backend and a privacy design.
+8. **Default emitter output per m² (rooms, METHODS §12.2)**: placeholder values pending a
+   verified source (manufacturer data or a published NL heat-loss guideline); until then,
+   configurable and every room using a default is flagged as an estimate.
 
 ## 15. Sources
 

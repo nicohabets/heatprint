@@ -6,7 +6,8 @@
 | 0.2.0 | Runs on Nico's HA | Coordinator end-to-end, KNMI station 380, DSMR gas, Buienradar fallback, CSV import of mindergas export (4 gas years), reference case | planned |
 | 0.3.0 | Hybrid | Heat pump generator with thermal/electric meters, heat pump share, daily COP, season 2026/27 live | planned (when the heat pump is installed) |
 | 1.0.0 | HACS release | Measure effect with CI, mindergas bridge, cost/CO₂, COP curve, DHW monthly profile, repairs/diagnostics, HACS default | planned |
-| 2.0.0 | Visual insight | Custom card (energy signature), occupancy regressor, zone proxy (Tado), export/CLI, opt-in benchmark | idea |
+| 1.1.0 | Rooms | Per-room heat allocation from a demand signal (Tado/`tado_ce` or compatible integration), room energy signature (apparent per-room heat loss), per-room and total heating cost, unallocated bucket | planned |
+| 2.0.0 | Visual insight | Custom card (energy signature), occupancy regressor, export/CLI, opt-in benchmark | idea |
 
 ## Definition of done per release
 
@@ -37,3 +38,9 @@
 - Which heat pump brands provide thermal energy via HA integrations (Vaillant, Viessmann,
   NIBE, Bosch/EMS-ESP, Remeha, Daikin, Mitsubishi, Panasonic) - matrix for the docs.
 - Occupancy: presence/workday as a regressor (HA `person`, `workday`).
+- Rooms (1.1.0): default heat output per m² by emitter kind (radiator/underfloor), for the
+  weight defaults in METHODS §12.2 - verify against manufacturer data or a published NL
+  heat-loss guideline rather than shipping unverified placeholders.
+- Rooms (1.1.0): confirm the exact semantics of the Tado "heating power" percentage
+  (controller demand vs. valve opening vs. duty cycle) and build an entity/attribute matrix
+  for the other thermostat/TRV integrations mentioned in METHODS §12.6.

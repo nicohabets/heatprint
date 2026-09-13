@@ -320,3 +320,199 @@ CSV import). Output: consumption per local day.
   insulation step must lie within the bootstrap interval.
 - Reference case "Heerlen": real KNMI data from station 380 plus exported meter readings
   (mindergas) from four gas years; `classic` must reproduce mindergas.nl within 1%.
+
+---
+
+## 12. Per-room heat allocation and heat loss (rooms)
+
+Goal: split the site's daily `heat_space_kwh` (§5-6) across rooms, and estimate an apparent
+per-room heat loss and balance temperature, using whatever room-level heating-demand signal
+the user's thermostat integration exposes (Tado/`tado_ce`, Zigbee TRVs, and others - §12.6).
+This is an **allocation and estimate**, not a substitute for a design heat-loss calculation
+(such as EN 12831): rooms exchange heat with each other and with unheated spaces, so the
+apparent per-room UA below includes that exchange and is systematically different from an
+isolated-room figure. §12.9 states this explicitly wherever a per-room number is shown.
+
+### 12.1 Room demand signal and daily demand integral
+
+A `Room` (§DATA_MODEL §1.6) is optionally linked to one **demand entity** of one **kind**:
+
+| `demand_kind` | Example source | Native range | Daily integral `D_r(d)` |
+|---|---|---|---|
+| `percentage` | Tado zone heating-power sensor (`sensor.<room>_verwarming`, `%`, `state_class measurement`) | 0-100 | mean(%) × 24 h → `%·h`, then ÷ 2400 to a 0-1 fraction of a fully-heated day |
+| `valve_position` | Zigbee/Z-Wave TRV valve-opening or demand attribute exposed as a sensor | 0-100 | same as `percentage` |
+| `binary` | `climate.<room>` `hvac_action` (`heating`/`idle`), or a pump/relay switch | on/off | fraction of the day in the "on" state (hours ÷ 24) |
+| `metered_energy` | A dedicated electric emitter on a metered plug/circuit (e.g. an electric floor-heating plug) | kWh/day | not integrated - the kWh *is* `heat_room_kwh` directly (§12.3) |
+
+For `percentage`/`valve_position`/`binary`, `D_r(d)` is read preferentially from **long-term
+statistics** (`mean` × hours, matching how Heatprint already reads HA-sensor weather inputs,
+§2) when the entity has `state_class: measurement`; if it does not, or no statistics exist yet
+for the requested date, the recorder's raw history (~10 days) is used instead and the day gets
+flag `ROOM_DEMAND_FROM_HISTORY`. Days before the entity had recorded data get `ROOM_DEMAND_MISSING`
+and are excluded from allocation and from the room's fit (§12.4). This means a room's history
+starts wherever the demand entity's statistics start - **it cannot be backfilled** the way KNMI
+weather can (§DATA_MODEL notes the same limit for HA-sensor weather sources).
+
+### 12.2 Room weight
+
+To turn a relative demand signal into a share of the site's total heat, each room with an
+`emitter_kind` other than `metered_energy` gets a weight `w_r` approximating its emitter's
+rated output:
+
+```
+w_r = rated_output_w                                    (if the user supplies it)
+w_r = floor_area_m2 * DEFAULT_OUTPUT_W_PER_M2[emitter_kind]   (otherwise)
+w_r = 1                                                  (if neither is set - flag ROOM_WEIGHT_ASSUMED)
+```
+
+`DEFAULT_OUTPUT_W_PER_M2` is a small configurable table keyed by `emitter_kind`
+(`radiator`, `underfloor`, `electric`, `other`), seeded with indicative Dutch-housing figures.
+**These defaults are placeholders**, in the same spirit as the PBL wind coefficient in §3: until
+verified against a published source they are configurable and every room using them is flagged
+`ROOM_WEIGHT_ASSUMED` so the UI can say plainly "this room's share is an estimate." See the
+ROADMAP research item "default emitter output per m²".
+
+A more detailed emitter law (rated output scaling with the flow/room temperature difference,
+as radiator output is known to do non-linearly) is **not** modelled in v1: the demand signal
+already reflects the thermostat's own modulation, and adding a second, unverified non-linear
+correction on top would create false precision. This is a documented simplification, not an
+oversight - revisit if a validated coefficient set becomes available.
+
+### 12.3 Allocation
+
+For each day `d`, before allocating, subtract every room's directly metered heat:
+
+```
+heat_metered(d)   = Σ_{r: metered_energy} heat_room_kwh_r(d)
+heat_to_allocate(d) = max(0, heat_space_kwh(d) - heat_metered(d))
+```
+
+Then, over the remaining rooms (those with a `percentage`/`valve_position`/`binary` demand
+entity and `D_r(d)` available that day):
+
+```
+share_r(d)      = w_r * D_r(d) / Σ_r' w_r' * D_r'(d)
+heat_room_kwh_r(d) = share_r(d) * heat_to_allocate(d)      (r not metered_energy)
+```
+
+Rooms without any demand entity, or without `D_r(d)` for that day, get no allocation for that
+day. What is left over -
+
+```
+heat_unallocated_kwh(d) = heat_to_allocate(d) - Σ_{r allocated} heat_room_kwh_r(d)
+```
+
+- is stored as a site-level series (`heatprint:<site>_heat_unallocated`, §DATA_MODEL §2.2) so the
+per-room breakdown is always reconcilable against the site total: it covers rooms without a
+configured room, distribution losses, and any day where every configured room lacked data.
+
+### 12.4 Per-room heat loss (room energy signature)
+
+Primary method, reusing the site-level fit machinery of §7 per room instead of per site:
+
+```
+heat_room_kwh_r(d) = a_r + b_r * max(0, T_b,r - TAC(d)) [+ c_r * wind_mean(d)]
+```
+
+Same procedure as §7 (grid search over `T_b,r`, OLS, outlier refit, `n >= 30` with at least 15
+heating days, `UA_r = b_r * 1000/24` in W/K, `r2`, `rmse`, `ci95_slope`, `ci95_balance`). Uses
+site TAC (not a room-specific effective temperature - a single house has one outdoor climate).
+Days with `ROOM_DEMAND_MISSING` for that room are excluded, same as `ENERGY_MISSING` at site
+level. Before a room has 30 qualifying days, `sensor.<site>_room_<room>_heat_loss_coefficient`
+is unavailable and the room carries flag `ROOM_NOT_FITTED`.
+
+Secondary, indicative-only cross-check (available immediately, before 30 days of data exist):
+
+```
+UA_r_indicative = heat_room_kwh_r(heating hours, kWh) / (T_room_mean - t_mean) / heating_hours * 1000
+```
+
+computed only over hours where the room's demand signal is non-zero and a room temperature
+reading is available (`temperature_entity`, optional per room - most thermostat integrations,
+including Tado, already report current room temperature on the `climate` entity, but that value
+is a live attribute, not itself in long-term statistics; Heatprint reads it the same way it
+reads a `binary` demand signal, via history/statistics on a dedicated temperature entity if one
+is configured, falling back to the `climate` entity's own recorded state changes otherwise).
+This indicative estimate is shown labelled as such and is **not** used for cost or for the
+season total; it exists only so a new install shows *something* before a season's worth of
+data has accumulated for the regression.
+
+A third method - identifying the room's thermal time constant from its temperature decay while
+unheated (RC identification) - is a plausible v2 refinement and is listed as a roadmap research
+item rather than specified here; it needs validation against Heatprint's synthetic-house
+approach (§12.8) before being trusted.
+
+### 12.5 Per-room and total cost
+
+`cost_eur` is already computed per site per day from each generator's `price_entity` (§DATA_MODEL
+§2.1, currently not yet written as a statistic - ROADMAP open item 1). Once that lands, room cost
+follows the same allocation as heat:
+
+```
+cost_space_eur(d) = Σ_generators cost_eur(d) restricted to that generator's space-heating share
+cost_room_eur_r(d) = share_r(d) * cost_space_eur(d)              (r not metered_energy)
+cost_room_eur_r(d) = heat_room_kwh_r(d) * price(d)                (r metered_energy, its own price_entity or the site default)
+```
+
+DHW cost is excluded (rooms only cover space heating). Fixed standing charges (gas connection
+fee, standing charge on a supply contract) are **out of scope**, consistent with §6.5 of
+PRODUCT_BRIEF ("no billing/energy supplier integrations") - Heatprint estimates relative usage
+cost, not a bill. For a hybrid site, a day's `cost_space_eur` already blends both carriers'
+prices at the site level (via each generator's own `cost_eur`); room allocation does not need to
+know which carrier heated which room. Season and total-to-date sums follow the existing pattern
+(`sensor.<site>_room_<room>_cost_season`, §DATA_MODEL §4).
+
+### 12.6 Demand-signal sources (non-exhaustive)
+
+Verified on Nico's own instance (HA core 2026.9.2, `tado_ce` by hiall-fyi, 18 zones each a
+distinct HA area with one `climate.<room>` entity): every zone has a heating-power sensor
+`sensor.<room>_<room>_verwarming` (`%`, `state_class: measurement`) - this is the primary
+`percentage` source and is already recorded to long-term statistics going forward. The same hub
+also exposes a boiler flow/output temperature (`°C`, `state_class: measurement`) that is useful
+context but is not itself a per-room signal. Four of Nico's zones report `no_heating_circuit` on
+`select.<room>_heating_circuit` (Keldertrap, Overloop, Sauna, Toilet) - rooms on those zones may
+have a Tado presence without an active radiator circuit and should default to no room configured
+rather than a guessed weight. Two underfloor-heating pump automations exist for Woonkamer and
+Serre (their exact trigger logic was not inspected for this design) confirming at least those two
+rooms use `emitter_kind: underfloor`, not `radiator`; smart plugs feeding electric floor heating
+in the Garage and Wasruimte areas are a likely `metered_energy` room and should be checked
+during implementation for their actual energy-sensor entity id.
+
+Other integrations that plausibly expose a compatible `percentage`/`valve_position`/`binary`
+signal and should map onto the same abstraction (unverified specifics - confirm entity/attribute
+names against each integration's current docs before implementing that adapter): the core `tado`
+integration's own heating-power sensor; Zigbee TRVs via Zigbee2MQTT or ZHA that expose a valve
+position or PI heating-demand percentage; Homematic IP and Plugwise climate valve-position
+sensors; any `climate` entity's `hvac_action` as a last-resort `binary` fallback when nothing
+finer-grained is available. Heatprint should treat this as an open, per-integration adapter list
+rather than hard-coding Tado - see ROADMAP for the research item to build that matrix.
+
+### 12.7 Data quality flags (rooms)
+
+| Flag | Meaning | Effect |
+|---|---|---|
+| `ROOM_DEMAND_MISSING` | no demand-entity data for that room on that day | excluded from allocation and fit |
+| `ROOM_DEMAND_FROM_HISTORY` | demand integral read from raw history, not statistics | allowed, informational |
+| `ROOM_WEIGHT_ASSUMED` | no `rated_output_w`/`floor_area_m2`, weight defaulted to 1 | allowed, labelled |
+| `ROOM_NOT_FITTED` | fewer than 30 qualifying days | `heat_loss_coefficient` unavailable; indicative estimate (§12.4) shown instead |
+| `ROOM_TEMPERATURE_MISSING` | no room temperature available | indicative UA estimate unavailable |
+
+### 12.8 Validation
+
+Synthetic multi-room house: generate a site with `N` rooms of known `(UA_r, T_b,r)`, a known
+site-level `heat_space_kwh(d)` consistent with `Σ UA_r`, and a controller that turns each room's
+synthetic demand signal roughly proportional to that room's own instantaneous deficit
+(`T_b,r - TAC(d)`) plus noise. The room fit (§12.4) must recover each `UA_r` within a **looser**
+tolerance than the site-level fit's 5% (proposed: 20%, since the demand signal is a noisier proxy
+than a direct meter) and the allocated shares must sum to the known input shares within a stated
+tolerance. This bound is a starting proposal, to be tightened once real multi-season data exists.
+
+### 12.9 Interpretation and honesty (extends §9 of PRODUCT_BRIEF)
+
+Every room-level number shown in the UI carries the caveat that it is an **apparent** figure: a
+room's fitted UA includes heat exchanged with neighbouring rooms and with unheated spaces (attic,
+crawl space), not just the losses through its own external envelope, and depends on how well the
+demand signal tracks actual delivered heat (a thermostat's percentage output is a control-loop
+output, not a calibrated flow measurement). Rooms are for **relative comparison within one house**
+(which room loses more, which room got cheaper after a measure) - they are not a substitute for
+an EN 12831-style design heat-loss calculation and Heatprint does not claim that precision.

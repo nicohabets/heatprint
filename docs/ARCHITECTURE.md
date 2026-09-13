@@ -156,6 +156,7 @@ ERA5 gap.
 | Open-Meteo archive/forecast | HTTPS GET JSON | none (non-commercial) | 10,000 calls/day | KNMI (NL) or HA sensors |
 | HA sensors | recorder | n/a | only as long as statistics exist | - |
 | mindergas.nl API | HTTPS POST JSON | API token | not retroactive | - |
+| Room demand signal (Tado/`tado_ce` or compatible) | recorder (statistics/history of an existing entity) | n/a | only from when the entity's statistics/history begin | none - room omitted from allocation for that day |
 
 Network errors: exponential backoff, `UpdateFailed` while keeping the last data;
 `binary_sensor.<site>_data_gap` turns on after 3 days without usable data (a repair
@@ -176,6 +177,7 @@ heatprint/
 │   ├── weather/{base,knmi,open_meteo,climatology}.py
 │   ├── methods/{effective_temperature,degree_days,pbl_params}.py
 │   ├── analysis/{signature,normalize,compare,forecast}.py
+│   ├── rooms/{allocation,signature}.py
 │   └── importers/csv_readings.py
 ├── tests/                            # pytest (core) + fixtures
 ├── examples/dashboards/              # apexcharts/statistics-graph YAML

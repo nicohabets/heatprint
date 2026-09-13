@@ -32,12 +32,14 @@ flowchart TD
     subgraph Later
         O[Subentry: add/edit generator]
         P[Subentry: add measure]
-        Q[Options: methods, DHW, backfill,<br/>mindergas bridge, prices/CO2]
+        T[Subentry: add room]
+        Q[Options: methods, DHW, backfill,<br/>mindergas bridge, prices/CO2, rooms]
         R[Reconfigure: location, weather source]
         S[Service: CSV import of meter readings]
     end
     M -.-> O
     M -.-> P
+    M -.-> T
     M -.-> Q
     M -.-> R
     M -.-> S
@@ -217,6 +219,30 @@ questions of its own, so "also clear statistics" becomes a separate service
 After creation: button/notification "Compute effect" (service `heatprint.measure_effect`), only
 meaningful once there are ≥ 30 days after the date.
 
+### `room` (add / edit / remove)
+
+Optional and not part of the main wizard (site setup stays a five-minute flow without it);
+added afterwards the same way `measure` is, and auto-suggested from HA areas that already
+contain a `climate` entity from a recognised thermostat integration.
+
+| Field | Selector | Default | Notes |
+|---|---|---|---|
+| `area_id` | area selector | - | Prefills `name` and suggests `demand_entity` from entities in that area |
+| `name` | text | area name | |
+| `demand_entity` | entity | - | Filtered to sensors/attributes plausible for the chosen `demand_kind` |
+| `demand_kind` | select: `percentage`, `valve_position`, `binary`, `metered_energy` | auto-detected from `demand_entity`'s unit/device_class where possible | See METHODS §12.1 |
+| `temperature_entity` | entity (sensor, device_class temperature), optional | area's `climate` entity's own state, if one exists | |
+| `emitter_kind` | select: `radiator`, `underfloor`, `electric`, `other` | `radiator` | |
+| `rated_output_w` | number, optional | - | |
+| `floor_area_m2` | number, optional | - | |
+| `price_entity` | entity, optional | site default | Only shown when `demand_kind = metered_energy` |
+
+Validation: `demand_entity` exists and its unit/device_class is plausible for `demand_kind`
+(errors `entity_not_found`, `demand_kind_mismatch`); with `metered_energy`, the same
+cumulative-sensor validation as a `generator`'s `carrier.energy_entity` applies. Removing a room
+keeps its statistics (history) but stops daily updates, same convention as removing a
+`generator`.
+
 ---
 
 ## Options flow
@@ -229,7 +255,10 @@ Sections (menu):
 4. **Prices and CO₂** - default factors, CO₂ sensor.
 5. **Integrations** - mindergas.nl bridge: API token (password field), generator choice,
    daily push on/off. The token is stored encrypted in the entry; never logged.
-6. **Advanced** - override PBL parameters (TST/RER/TOP per month group) and wind
+6. **Rooms** - default output per m² per `emitter_kind` (METHODS §12.2, shown as a clearly
+   labelled placeholder/estimate); minimum days for a room fit; allocation on/off (site still
+   computes `heat_space_kwh` normally when off, just skips the per-room breakdown).
+7. **Advanced** - override PBL parameters (TST/RER/TOP per month group) and wind
    coefficient; outlier threshold; minimum number of days for a fit.
 
 ## Reconfigure flow
