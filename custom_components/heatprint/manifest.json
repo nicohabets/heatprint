@@ -3,7 +3,7 @@
   "name": "Heatprint",
   "codeowners": ["@nicohabets"],
   "config_flow": true,
-  "after_dependencies": ["lovelace"],
+  "after_dependencies": ["file_upload", "lovelace"],
   "dependencies": ["recorder"],
   "documentation": "https://github.com/nicohabets/heatprint",
   "integration_type": "service",

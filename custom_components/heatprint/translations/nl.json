@@ -576,7 +576,7 @@
       },
       "import_preview": {
         "title": "Import controleren",
-        "description": "{count} standen voor {generator} ({unit}). Herkend: datumkolom {date_column}, standkolom {reading_column}, scheiding '{delimiter}', decimaal '{decimal}'. Eerste rijen: {preview}. Bevestig om te importeren en vanaf de vroegste dag te herberekenen."
+        "description": "{count} standen voor {generator} ({unit}). Herkend: datumkolom {date_column}, standkolom {reading_column}, scheiding {delimiter}, decimaal {decimal}. Eerste rijen: {preview}. Bevestig om te importeren en vanaf de vroegste dag te herberekenen."
       },
       "import_done": {
         "title": "Import voltooid",

@@ -576,7 +576,7 @@
       },
       "import_preview": {
         "title": "Preview import",
-        "description": "{count} readings for {generator} ({unit}). Detected date column {date_column}, reading column {reading_column}, delimiter '{delimiter}', decimal '{decimal}'. First rows: {preview}. Confirm to import and recompute from the earliest day."
+        "description": "{count} readings for {generator} ({unit}). Detected date column {date_column}, reading column {reading_column}, delimiter {delimiter}, decimal {decimal}. First rows: {preview}. Confirm to import and recompute from the earliest day."
       },
       "import_done": {
         "title": "Import finished",
