@@ -1022,6 +1022,20 @@
           "description": "Datum van de stand (stand om middernacht aan het begin van deze dag); standaard vandaag."
         }
       }
+    },
+    "clear_statistics": {
+      "name": "Statistieken wissen",
+      "description": "Verwijdert de Heatprint-statistieken van één opwekker of van de hele site. Gebruik dit na het verwijderen van een opwekker als je ook de geschiedenis wilt wissen.",
+      "fields": {
+        "entry_id": {
+          "name": "Site",
+          "description": "De Heatprint-site."
+        },
+        "generator_id": {
+          "name": "Opwekker-id",
+          "description": "Optioneel. Met een id worden alleen de ruimteverwarming- en tapwaterstatistieken van die opwekker gewist. Leeg wist alle Heatprint-statistieken van de site."
+        }
+      }
     }
   },
   "exceptions": {

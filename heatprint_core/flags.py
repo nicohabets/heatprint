@@ -36,6 +36,10 @@ class Flag(StrEnum):
     OUTLIER = "outlier"
     #: Imported from CSV: informational.
     IMPORTED = "imported"
+    #: DHW baseline could not be estimated (fewer than 30 summer/rolling days):
+    #: all heat of that generator counts as space heating. Informational, allowed
+    #: in fits.
+    DHW_BASELINE_MISSING = "dhw_baseline_missing"
 
 
 #: Flags that exclude a day from the signature fit and from k calculations

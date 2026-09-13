@@ -96,6 +96,17 @@ def _forecast_value(key: str) -> Callable[[HeatprintData], StateType]:
     return _value
 
 
+def _forecast_heat_season(data: HeatprintData) -> StateType:
+    """Season total = remaining space heating + remaining DHW (DATA_MODEL 3.3)."""
+    if not data.forecast:
+        return None
+    space = data.forecast.get("heat_space_forecast")
+    if space is None:
+        return None
+    dhw = data.forecast.get("heat_dhw_forecast") or 0.0
+    return float(space) + float(dhw)
+
+
 def _percent(value: float | None) -> StateType:
     return round(value * 100, 1) if value is not None else None
 
@@ -175,11 +186,17 @@ def _forecast_attributes(data: HeatprintData) -> dict[str, Any]:
     forecast = data.forecast
     return {
         "season": forecast.get("season"),
+        "method": forecast.get("method") or data.primary_method,
+        "k_ytd": forecast.get("k_ytd"),
+        "days_ytd": forecast.get("days_ytd"),
+        "days_remaining": forecast.get("days_remaining"),
         "heat_space_ytd": forecast.get("heat_space_ytd"),
+        "heat_space_forecast": forecast.get("heat_space_forecast"),
+        "heat_space_forecast_fit": forecast.get("heat_space_forecast_fit"),
+        "heat_dhw_forecast": forecast.get("heat_dhw_forecast"),
         "dd_ytd": forecast.get("dd_ytd"),
         "dd_remaining_clim": forecast.get("dd_remaining_clim"),
         "per_generator": forecast.get("per_generator"),
-        "method": data.primary_method,
     }
 
 
@@ -330,7 +347,7 @@ SITE_SENSORS: tuple[HeatprintSensorDescription, ...] = (
         native_unit_of_measurement=UnitOfEnergy.KILO_WATT_HOUR,
         device_class=SensorDeviceClass.ENERGY,
         suggested_display_precision=0,
-        value_fn=_forecast_value("heat_space_forecast"),
+        value_fn=_forecast_heat_season,
         attributes_fn=_forecast_attributes,
     ),
     HeatprintSensorDescription(

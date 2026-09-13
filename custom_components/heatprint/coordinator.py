@@ -51,6 +51,7 @@ from .const import (
     DAILY_RUN_TIME,
     DATA_QUALITY_WINDOW_DAYS,
     DHW_BASELINE,
+    DHW_MEASURED,
     DOMAIN,
     EXCLUSION_FLAGS,
     FALLBACK_METHOD_PRIMARY,
@@ -113,7 +114,7 @@ from .recorder_source import (
     async_daily_sums,
     async_meter_reading_at,
 )
-from .statistics_writer import async_write_daily_metrics
+from .statistics_writer import async_clear_statistics, async_write_daily_metrics
 from .store import (
     META_BACKFILL_DONE,
     META_CLIMATOLOGY_SIGNATURE,
@@ -564,7 +565,7 @@ class HeatprintCoordinator(DataUpdateCoordinator[HeatprintData]):
         needed = [
             generator
             for generator in self.generators
-            if generator.role == ROLE_BOTH and generator.dhw_mode == DHW_BASELINE
+            if generator.role == ROLE_BOTH and generator.dhw_mode in (DHW_BASELINE, DHW_MEASURED)
         ]
         if not needed:
             return baselines
@@ -1049,6 +1050,27 @@ class HeatprintCoordinator(DataUpdateCoordinator[HeatprintData]):
             row["flags"] = "|".join(flags.get(day, []))
             rows.append(row)
         return rows
+
+    def statistic_ids_for(self, generator_id: str | None = None) -> list[str]:
+        """Return the external statistic ids of the site, or of one generator."""
+        if generator_id:
+            generator = self.generator(generator_id)
+            return [
+                statistic_id(self.site_id, generator_metric(generator.generator_id)),
+                statistic_id(self.site_id, generator_dhw_metric(generator.generator_id)),
+            ]
+        ids = list(self._sum_ids())
+        ids.extend(
+            statistic_id(self.site_id, metric)
+            for metric in (METRIC_T_MEAN, METRIC_TAC_PBL, METRIC_TAC_HOUSE)
+        )
+        return ids
+
+    async def async_clear_statistics(self, generator_id: str | None = None) -> dict[str, Any]:
+        """Delete Heatprint external statistics for a generator or the whole site."""
+        ids = self.statistic_ids_for(generator_id)
+        await async_clear_statistics(self.hass, ids)
+        return {"cleared": ids, "generator_id": generator_id}
 
     def generator(self, generator_id: str) -> GeneratorConfig:
         """Return the generator config or raise."""

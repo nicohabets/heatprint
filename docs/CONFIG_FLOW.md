@@ -202,8 +202,8 @@ a repair/notification).
 Same steps as 4.1-4.5. Changing `energy_entity` triggers a recomputation from the earliest
 available date of the new sensor. Removing: the statistics of that generator are kept
 (history) but are no longer updated. Home Assistant has no removal flow for subentries with
-questions of its own, so "also clear statistics" becomes a separate service
-(`heatprint.clear_statistics`, v0.2) instead of a checkbox.
+questions of its own, so "also clear statistics" is a separate service
+(`heatprint.clear_statistics`) instead of a checkbox.
 
 ### `measure` (add / edit / remove)
 

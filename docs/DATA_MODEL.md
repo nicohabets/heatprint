@@ -258,7 +258,7 @@ classDiagram
 | `classic.weighted` | true | mindergas weighting |
 | `classic.t_ref` | `t_mean` | or preset |
 | `pbl.parameter_set` | `practical` | or `optimal` |
-| `pbl.wind_mode` | `linear` | or `sqrt` (see METHODS §3) |
+| `pbl.wind_mode` | `linear` | or `sqrt` (authentic daily KEV-SJV: `T - √W`, coefficient 1.0; see METHODS §3) |
 | `pbl.include_sun` | false | |
 | `pbl.include_top` | false | |
 | `house.fit_wind` | true | |
@@ -390,6 +390,7 @@ Per generator: `sensor.<site>_<generator>_heat_space_season`, `..._heat_dhw_seas
 | `heatprint.forecast` | `entry_id` | `Forecast` |
 | `heatprint.export_daily` | `entry_id`, `start`, `end`, `path` | CSV file |
 | `heatprint.push_reading` | `entry_id`, `generator_id`, `target: mindergas`, `date` | bridge to the mindergas.nl API (optional, token in options) |
+| `heatprint.clear_statistics` | `entry_id`, optional `generator_id` | delete Heatprint external statistics of one generator or the whole site |
 
 ---
 
