@@ -247,8 +247,9 @@ Privacy: no data leaves the house except coordinates/station to the weather prov
    (`T - V/1.5`); choose `sqrt` for the authentic daily KEV-SJV wind term.
 4. **Subentries vs. options list**: subentries (HA ≥ 2026.9) chosen for management per
    generator; older HA versions are not supported.
-5. **Publishing `heatprint-core` on PyPI vs. vendoring it in the integration**: PyPI (cleaner,
-   reusable); vendoring as a last resort.
+5. **Publishing `heatprint-core` on PyPI vs. vendoring it in the integration**: vendored
+   inside `custom_components/heatprint/heatprint_core/` so a HACS install on HA OS works
+   without PyPI. PyPI publication stays a later option for notebooks/CLI.
 6. **Contributing to Ernst79/degree-days instead of a separate project**: no, the scope is too
    different; but credits and a migration path for those users (same `classic` figures).
 7. **Benchmark (opt-in)**: only once there are enough users; requires a small
