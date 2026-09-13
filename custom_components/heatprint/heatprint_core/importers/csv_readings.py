@@ -11,6 +11,7 @@ from __future__ import annotations
 import csv
 import io
 import logging
+from dataclasses import dataclass, field
 from datetime import datetime
 
 _LOGGER = logging.getLogger(__name__)
@@ -182,3 +183,167 @@ def parse_readings_csv(
         _LOGGER.debug("CSV import: %d row(s) skipped", skipped)
     result.sort(key=lambda item: item[0])
     return result
+
+
+@dataclass
+class CsvInspection:
+    """Result of auto-detecting a meter-reading CSV (wizard + tests)."""
+
+    delimiter: str
+    decimal: str
+    date_format: str | None
+    date_column: str | None
+    reading_column: str | None
+    headers: list[str] = field(default_factory=list)
+    headerless: bool = False
+    ambiguous: bool = False
+    readings: list[tuple[datetime, float]] = field(default_factory=list)
+    skipped: int = 0
+    error: str | None = None
+
+    @property
+    def preview(self) -> list[tuple[str, str]]:
+        """First five readings as ``(ISO date, reading)`` display pairs."""
+        rows: list[tuple[str, str]] = []
+        for stamp, value in self.readings[:5]:
+            rows.append((stamp.isoformat(sep=" "), f"{value:.6f}".rstrip("0").rstrip(".")))
+        return rows
+
+
+def detect_date_format(samples: list[str]) -> str | None:
+    """Return the first DATE_FORMATS entry that parses every sample, if any."""
+    cleaned = [sample.strip() for sample in samples if sample.strip()]
+    if not cleaned:
+        return None
+    for fmt in DATE_FORMATS:
+        try:
+            for sample in cleaned:
+                datetime.strptime(sample, fmt)
+        except ValueError:
+            continue
+        else:
+            return fmt
+    return None
+
+
+def inspect_readings_csv(
+    text: str,
+    *,
+    date_col: str | None = None,
+    value_col: str | None = None,
+    date_format: str | None = None,
+    delimiter: str | None = None,
+    decimal: str | None = None,
+) -> CsvInspection:
+    """Auto-detect delimiter, decimal, date format and columns; parse readings.
+
+    ``ambiguous`` is True when headers exist but date/reading columns are not
+    uniquely recognised (more than two columns and no known header names).
+    mindergas ``datum;stand`` is never ambiguous.
+    """
+    text = text.lstrip(BOM)
+    if not text.strip():
+        return CsvInspection(
+            delimiter=";",
+            decimal=",",
+            date_format=None,
+            date_column=None,
+            reading_column=None,
+            error="empty",
+        )
+    if delimiter is None:
+        delimiter = detect_delimiter(text)
+    rows = [
+        row
+        for row in csv.reader(io.StringIO(text), delimiter=delimiter)
+        if any(cell.strip() for cell in row)
+    ]
+    if not rows:
+        return CsvInspection(
+            delimiter=delimiter,
+            decimal=decimal or ",",
+            date_format=date_format,
+            date_column=date_col,
+            reading_column=value_col,
+            error="empty",
+        )
+
+    header = [cell.strip() for cell in rows[0]]
+    date_index = _find_column(header, date_col, DATE_HEADERS)
+    value_index = _find_column(header, value_col, VALUE_HEADERS)
+    matched_date = date_index is not None
+    matched_value = value_index is not None
+    headerless = False
+    ambiguous = False
+    data_rows: list[list[str]]
+    headers = header
+
+    if matched_date and matched_value:
+        data_rows = rows[1:]
+    elif not matched_date and not matched_value and date_col is None and value_col is None:
+        try:
+            parse_date(rows[0][0], date_format)
+            headerless = True
+            data_rows = rows
+            headers = [f"column_{index + 1}" for index in range(len(rows[0]))]
+        except (ValueError, IndexError):
+            data_rows = rows[1:]
+        date_index, value_index = 0, 1
+        ambiguous = len(rows[0]) > 2
+    else:
+        data_rows = rows[1:]
+        if date_index is None:
+            date_index = 0 if value_index != 0 else 1
+        if value_index is None:
+            value_index = 1 if date_index != 1 else 0
+        ambiguous = True
+
+    if decimal is None:
+        samples = [
+            row[value_index]
+            for row in data_rows
+            if len(row) > value_index and row[value_index].strip()
+        ]
+        decimal = detect_decimal(samples, delimiter)
+
+    date_samples = [
+        row[date_index] for row in data_rows if len(row) > date_index and row[date_index].strip()
+    ][:8]
+    if date_format is None:
+        date_format = detect_date_format(date_samples)
+
+    readings: list[tuple[datetime, float]] = []
+    skipped = 0
+    for row in data_rows:
+        if len(row) <= max(date_index, value_index):
+            skipped += 1
+            continue
+        date_text, value_text = row[date_index], row[value_index]
+        if not date_text.strip() or not value_text.strip():
+            skipped += 1
+            continue
+        try:
+            stamp = parse_date(date_text, date_format)
+            value = parse_number(value_text, decimal)
+        except ValueError:
+            skipped += 1
+            continue
+        readings.append((stamp, value))
+    readings.sort(key=lambda item: item[0])
+
+    date_column = headers[date_index] if date_index < len(headers) else None
+    reading_column = headers[value_index] if value_index < len(headers) else None
+    error = "no_rows" if not readings else None
+    return CsvInspection(
+        delimiter=delimiter,
+        decimal=decimal,
+        date_format=date_format,
+        date_column=date_column,
+        reading_column=reading_column,
+        headers=headers,
+        headerless=headerless,
+        ambiguous=ambiguous and error is None,
+        readings=readings,
+        skipped=skipped,
+        error=error,
+    )

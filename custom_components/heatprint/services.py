@@ -62,6 +62,7 @@ from .const import (
     PUSH_TARGETS,
     SERVICE_CLEAR_STATISTICS,
     SERVICE_COMPARE_PERIODS,
+    SERVICE_CREATE_DASHBOARD,
     SERVICE_EXPORT_DAILY,
     SERVICE_FIT_SIGNATURE,
     SERVICE_FORECAST,
@@ -154,6 +155,7 @@ CLEAR_STATISTICS_SCHEMA = vol.Schema(
         vol.Optional(ATTR_GENERATOR_ID): cv.string,
     }
 )
+CREATE_DASHBOARD_SCHEMA = vol.Schema({vol.Required(ATTR_ENTRY_ID): cv.string})
 
 
 @callback
@@ -327,6 +329,13 @@ def async_setup_services(hass: HomeAssistant) -> None:
         result = await coordinator.async_clear_statistics(call.data.get(ATTR_GENERATOR_ID))
         return result if call.return_response else None
 
+    async def handle_create_dashboard(call: ServiceCall) -> ServiceResponse:
+        from .dashboard import async_ensure_overview_dashboard
+
+        coordinator = _get_coordinator(hass, call.data[ATTR_ENTRY_ID])
+        result = await async_ensure_overview_dashboard(hass, coordinator.entry, recreate=True)
+        return result if call.return_response else None
+
     registrations: list[tuple[str, Any, vol.Schema, SupportsResponse]] = [
         (
             SERVICE_IMPORT_READINGS,
@@ -355,6 +364,12 @@ def async_setup_services(hass: HomeAssistant) -> None:
             SERVICE_CLEAR_STATISTICS,
             handle_clear_statistics,
             CLEAR_STATISTICS_SCHEMA,
+            SupportsResponse.OPTIONAL,
+        ),
+        (
+            SERVICE_CREATE_DASHBOARD,
+            handle_create_dashboard,
+            CREATE_DASHBOARD_SCHEMA,
             SupportsResponse.OPTIONAL,
         ),
     ]

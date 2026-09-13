@@ -295,9 +295,11 @@ class HeatprintCoordinator(DataUpdateCoordinator[HeatprintData]):
             self.store.set_meta("import_hint_shown", True)
             persistent_notification.async_create(
                 self.hass,
-                "Meter readings from before your Home Assistant history can be imported with "
-                "the action `heatprint.import_readings` (CSV, for example the export of "
-                "mindergas.nl). See the Heatprint documentation for the column mapping.",
+                "Meter readings from before your Home Assistant history can be imported from "
+                "Settings → Devices & services → Heatprint → Configure → Import meter readings "
+                "(paste a CSV or pick a file under /config). A mindergas.nl export "
+                "(datum;stand) needs no extra questions. The action "
+                "`heatprint.import_readings` remains available for automations.",
                 title=f"Heatprint {self.site_name}: import meter readings",
                 notification_id=NOTIFICATION_IMPORT_HINT.format(entry_id=self.entry.entry_id),
             )
@@ -884,9 +886,7 @@ class HeatprintCoordinator(DataUpdateCoordinator[HeatprintData]):
         end = date(self.today.year, 1, 1) - timedelta(days=1)
         weather_cfg = self.entry.data.get(CONF_WEATHER, {})
         if weather_cfg.get(CONF_PROVIDER) == PROVIDER_HA_SENSORS:
-            history = await self._async_weather(
-                date(end.year - years + 1, 1, 1), end
-            )
+            history = await self._async_weather(date(end.year - years + 1, 1, 1), end)
         else:
             session = async_get_clientsession(self.hass)
             history: list[WeatherDay] = []

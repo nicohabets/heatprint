@@ -14,6 +14,7 @@ import re
 import zoneinfo
 from collections.abc import Mapping
 from datetime import date
+from pathlib import Path
 from typing import Any
 
 import voluptuous as vol
@@ -37,6 +38,8 @@ from homeassistant.helpers.selector import (
     DateSelector,
     EntitySelector,
     EntitySelectorConfig,
+    FileSelector,
+    FileSelectorConfig,
     LocationSelector,
     LocationSelectorConfig,
     NumberSelector,
@@ -54,6 +57,10 @@ from homeassistant.util import dt as dt_util
 from homeassistant.util import slugify
 
 from .const import (
+    ATTR_CSV,
+    ATTR_DATE_COLUMN,
+    ATTR_PATH,
+    ATTR_READING_COLUMN,
     CONF_BACKFILL_YEARS,
     CONF_CATEGORY,
     CONF_CLASSIC_BASE_TEMP,
@@ -152,7 +159,6 @@ from .const import (
     DEFAULT_PBL_TST,
     DEFAULT_PBL_WIND_SQRT_COEF,
     DEFAULT_SCOP,
-    DEFAULT_SITE_NAME,
     DEFAULT_SUMMER_END,
     DEFAULT_SUMMER_START,
     DHW_BASELINE,
@@ -165,10 +171,12 @@ from .const import (
     FALLBACKS,
     GAS_UNITS,
     GENERATOR_KINDS,
+    GJ_TO_KWH,
     HEAT_PUMP_CONVERSION_MODES,
     HEAT_UNITS,
     HEATING_VALUE_HS,
     HEATING_VALUE_OPTIONS,
+    IMPORT_UNITS,
     KIND_AIR_TO_AIR,
     KIND_DEFAULTS,
     KIND_DISTRICT_HEAT,
@@ -182,6 +190,7 @@ from .const import (
     OPT_ADVANCED,
     OPT_DHW,
     OPT_HISTORY,
+    OPT_IMPORT,
     OPT_INTEGRATIONS,
     OPT_METHODS,
     OPT_PRICING,
@@ -214,8 +223,10 @@ from .core_api import (
     WeatherCannotConnect,
     WeatherNoData,
     async_test_weather,
+    inspect_readings_csv,
     weather_signature_from_data,
 )
+from .site_defaults import site_defaults_from_hass
 
 STATE_CLASS_CUMULATIVE = {"total", "total_increasing"}
 MONTH_DAY_RE = re.compile(r"^(0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01])$")
@@ -777,46 +788,10 @@ class HeatprintConfigFlow(ConfigFlow, domain=DOMAIN):
 
     # --- step 1: site ------------------------------------------------------------------
 
-    async def _async_site_schema(self, defaults: Mapping[str, Any]) -> vol.Schema:
-        """Return the site schema with HA home location as defaults."""
-        timezones = await _async_timezones(self.hass)
-        default_tz = defaults.get(CONF_TIMEZONE, self.hass.config.time_zone)
-        if default_tz not in timezones:
-            timezones = sorted([*timezones, default_tz])
-        location = defaults.get(CONF_LOCATION) or {
-            CONF_LATITUDE: self.hass.config.latitude,
-            CONF_LONGITUDE: self.hass.config.longitude,
-        }
-        return vol.Schema(
-            {
-                vol.Required(
-                    CONF_NAME,
-                    default=defaults.get(
-                        CONF_NAME, self.hass.config.location_name or DEFAULT_SITE_NAME
-                    ),
-                ): TextSelector(),
-                vol.Required(
-                    CONF_LOCATION,
-                    default={
-                        CONF_LATITUDE: location[CONF_LATITUDE],
-                        CONF_LONGITUDE: location[CONF_LONGITUDE],
-                    },
-                ): LocationSelector(LocationSelectorConfig(radius=False)),
-                vol.Required(CONF_TIMEZONE, default=default_tz): SelectSelector(
-                    SelectSelectorConfig(
-                        options=timezones, mode=SelectSelectorMode.DROPDOWN, sort=False
-                    )
-                ),
-                vol.Required(
-                    CONF_COUNTRY,
-                    default=defaults.get(CONF_COUNTRY, self.hass.config.country or "NL"),
-                ): CountrySelector(),
-            }
-        )
-
     async def async_step_user(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
-        """Step 1: site name, location, time zone and country."""
+        """Step 1: site name only. Location, time zone and country come from HA home."""
         errors: dict[str, str] = {}
+        defaults = site_defaults_from_hass(self.hass)
         if user_input is not None:
             name = str(user_input[CONF_NAME]).strip()
             site_id = slugify(name)
@@ -827,24 +802,34 @@ class HeatprintConfigFlow(ConfigFlow, domain=DOMAIN):
                 for entry in self._async_current_entries()
             ):
                 errors[CONF_NAME] = "name_exists"
-            elif dt_util.get_time_zone(user_input[CONF_TIMEZONE]) is None:
-                errors[CONF_TIMEZONE] = "invalid_timezone"
             if not errors:
                 await self.async_set_unique_id(site_id)
                 self._abort_if_unique_id_configured()
-                location = user_input[CONF_LOCATION]
                 self._site = {
                     CONF_SITE_ID: site_id,
                     CONF_NAME: name,
-                    CONF_LATITUDE: float(location[CONF_LATITUDE]),
-                    CONF_LONGITUDE: float(location[CONF_LONGITUDE]),
-                    CONF_TIMEZONE: user_input[CONF_TIMEZONE],
-                    CONF_COUNTRY: user_input[CONF_COUNTRY],
+                    CONF_LATITUDE: defaults.latitude,
+                    CONF_LONGITUDE: defaults.longitude,
+                    CONF_TIMEZONE: defaults.timezone,
+                    CONF_COUNTRY: defaults.country,
                 }
                 return await self._async_step_weather()
         return self.async_show_form(
             step_id="user",
-            data_schema=await self._async_site_schema(user_input or {}),
+            data_schema=vol.Schema(
+                {
+                    vol.Required(
+                        CONF_NAME,
+                        default=user_input.get(CONF_NAME) if user_input else defaults.name,
+                    ): TextSelector()
+                }
+            ),
+            description_placeholders={
+                "latitude": f"{defaults.latitude:.4f}",
+                "longitude": f"{defaults.longitude:.4f}",
+                "timezone": defaults.timezone,
+                "country": defaults.country or "—",
+            },
             errors=errors,
         )
 
@@ -1204,9 +1189,10 @@ class HeatprintConfigFlow(ConfigFlow, domain=DOMAIN):
     async def async_step_reconfigure(
         self, user_input: dict[str, Any] | None = None
     ) -> ConfigFlowResult:
-        """Reconfigure location and time zone, then the weather source."""
+        """Reconfigure location, time zone and country, then the weather source."""
         entry = self._get_reconfigure_entry()
         errors: dict[str, str] = {}
+        defaults = site_defaults_from_hass(self.hass)
         if user_input is not None:
             if dt_util.get_time_zone(user_input[CONF_TIMEZONE]) is None:
                 errors[CONF_TIMEZONE] = "invalid_timezone"
@@ -1217,11 +1203,12 @@ class HeatprintConfigFlow(ConfigFlow, domain=DOMAIN):
                     CONF_LATITUDE: float(location[CONF_LATITUDE]),
                     CONF_LONGITUDE: float(location[CONF_LONGITUDE]),
                     CONF_TIMEZONE: user_input[CONF_TIMEZONE],
+                    CONF_COUNTRY: user_input[CONF_COUNTRY],
                 }
                 return await self._async_step_weather()
         self._site = dict(entry.data)
         timezones = await _async_timezones(self.hass)
-        current_tz = entry.data.get(CONF_TIMEZONE, self.hass.config.time_zone)
+        current_tz = entry.data.get(CONF_TIMEZONE, defaults.timezone)
         if current_tz not in timezones:
             timezones = sorted([*timezones, current_tz])
         schema = vol.Schema(
@@ -1229,8 +1216,8 @@ class HeatprintConfigFlow(ConfigFlow, domain=DOMAIN):
                 vol.Required(
                     CONF_LOCATION,
                     default={
-                        CONF_LATITUDE: entry.data[CONF_LATITUDE],
-                        CONF_LONGITUDE: entry.data[CONF_LONGITUDE],
+                        CONF_LATITUDE: entry.data.get(CONF_LATITUDE, defaults.latitude),
+                        CONF_LONGITUDE: entry.data.get(CONF_LONGITUDE, defaults.longitude),
                     },
                 ): LocationSelector(LocationSelectorConfig(radius=False)),
                 vol.Required(CONF_TIMEZONE, default=current_tz): SelectSelector(
@@ -1238,6 +1225,10 @@ class HeatprintConfigFlow(ConfigFlow, domain=DOMAIN):
                         options=timezones, mode=SelectSelectorMode.DROPDOWN, sort=False
                     )
                 ),
+                vol.Required(
+                    CONF_COUNTRY,
+                    default=entry.data.get(CONF_COUNTRY, defaults.country or "NL"),
+                ): CountrySelector(),
             }
         )
         return self.async_show_form(step_id="reconfigure", data_schema=schema, errors=errors)
@@ -1268,7 +1259,16 @@ class HeatprintConfigFlow(ConfigFlow, domain=DOMAIN):
 
 
 class HeatprintOptionsFlow(OptionsFlow):
-    """Options: methods, DHW, history, pricing, integrations, advanced."""
+    """Options: methods, DHW, history, import, pricing, integrations, advanced."""
+
+    def __init__(self) -> None:
+        """Initialise import-wizard state."""
+        super().__init__()
+        self._import_text = ""
+        self._import_generator = ""
+        self._import_unit = UNIT_M3
+        self._import_inspection: Any = None
+        self._import_result: dict[str, Any] = {}
 
     async def async_step_init(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
         """Show the options menu."""
@@ -1278,6 +1278,7 @@ class HeatprintOptionsFlow(OptionsFlow):
                 OPT_METHODS,
                 OPT_DHW,
                 OPT_HISTORY,
+                OPT_IMPORT,
                 OPT_PRICING,
                 OPT_INTEGRATIONS,
                 OPT_ADVANCED,
@@ -1291,6 +1292,200 @@ class HeatprintOptionsFlow(OptionsFlow):
     def _save(self, key: str, values: Mapping[str, Any]) -> ConfigFlowResult:
         """Store one options section and finish."""
         return self.async_create_entry(data={**self.config_entry.options, key: dict(values)})
+
+    def _generator_choices(self) -> list[SelectOptionDict]:
+        """Return generator subentries as select options."""
+        return [
+            SelectOptionDict(value=subentry.data[CONF_GENERATOR_ID], label=subentry.title)
+            for subentry in self.config_entry.subentries.values()
+            if subentry.subentry_type == SUBENTRY_TYPE_GENERATOR
+            and subentry.data.get(CONF_GENERATOR_ID)
+        ]
+
+    def _generator_unit(self, generator_id: str) -> str:
+        """Return the stored carrier unit of a generator, defaulting to m³."""
+        for subentry in self.config_entry.subentries.values():
+            if (
+                subentry.subentry_type == SUBENTRY_TYPE_GENERATOR
+                and subentry.data.get(CONF_GENERATOR_ID) == generator_id
+            ):
+                return str(subentry.data.get(CONF_UNIT, UNIT_M3))
+        return UNIT_M3
+
+    async def _async_read_csv_source(self, user_input: Mapping[str, Any]) -> tuple[str, str | None]:
+        """Return CSV text from paste, uploaded file or a path under /config."""
+        pasted = str(user_input.get(ATTR_CSV) or "").strip()
+        if pasted:
+            return pasted, None
+        file_id = user_input.get("file")
+        if file_id:
+            try:
+                from homeassistant.components.file_upload import process_uploaded_file
+            except ImportError:
+                return "", "csv_unreadable"
+            try:
+                with process_uploaded_file(self.hass, file_id) as path:
+                    return path.read_text(encoding="utf-8-sig"), None
+            except OSError:
+                return "", "csv_unreadable"
+        path_value = str(user_input.get(ATTR_PATH) or "").strip()
+        if not path_value:
+            return "", "no_source"
+        base = Path(self.hass.config.config_dir).resolve()
+        candidate = Path(path_value)
+        resolved = (candidate if candidate.is_absolute() else base / candidate).resolve()
+        if resolved != base and base not in resolved.parents:
+            return "", "path_not_allowed"
+        try:
+            return await self.hass.async_add_executor_job(resolved.read_text, "utf-8-sig"), None
+        except OSError:
+            return "", "csv_unreadable"
+
+    def _preview_text(self) -> str:
+        """Format the first parsed rows for the confirm step."""
+        inspection = self._import_inspection
+        if inspection is None or not inspection.preview:
+            return "—"
+        lines = [f"{stamp} → {value}" for stamp, value in inspection.preview]
+        extra = len(inspection.readings) - len(inspection.preview)
+        if extra > 0:
+            lines.append(f"… +{extra} more")
+        return "; ".join(lines)
+
+    async def async_step_import_readings(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
+        """Paste or load a CSV, pick generator and unit; auto-detect columns."""
+        errors: dict[str, str] = {}
+        generators = self._generator_choices()
+        if not generators:
+            return self.async_abort(reason="no_generators")
+        if user_input is not None:
+            text, error = await self._async_read_csv_source(user_input)
+            if error:
+                errors["base"] = error
+            else:
+                inspection = inspect_readings_csv(text)
+                if inspection.error == "empty":
+                    errors["base"] = "csv_empty"
+                elif inspection.error == "no_rows":
+                    errors["base"] = "csv_invalid"
+                else:
+                    self._import_text = text
+                    self._import_inspection = inspection
+                    self._import_generator = user_input[CONF_GENERATOR_ID]
+                    self._import_unit = user_input[CONF_UNIT]
+                    if inspection.ambiguous:
+                        return await self.async_step_import_columns()
+                    return await self.async_step_import_preview()
+        default_generator = generators[0]["value"]
+        schema_fields: dict[Any, Any] = {
+            vol.Optional(ATTR_CSV): TextSelector(TextSelectorConfig(multiline=True)),
+            vol.Optional(ATTR_PATH): TextSelector(),
+            vol.Optional("file"): FileSelector(
+                FileSelectorConfig(accept=".csv,text/csv,text/plain")
+            ),
+            vol.Required(CONF_GENERATOR_ID, default=default_generator): SelectSelector(
+                SelectSelectorConfig(options=generators, mode=SelectSelectorMode.DROPDOWN)
+            ),
+            vol.Required(CONF_UNIT, default=self._generator_unit(default_generator)): _select(
+                IMPORT_UNITS, "import_unit"
+            ),
+        }
+        return self.async_show_form(
+            step_id="import_readings",
+            data_schema=vol.Schema(schema_fields),
+            errors=errors,
+        )
+
+    async def async_step_import_columns(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
+        """Ask which header is the date and which is the reading (ambiguous CSV)."""
+        errors: dict[str, str] = {}
+        inspection = self._import_inspection
+        headers = list(inspection.headers) if inspection is not None else []
+        options = [SelectOptionDict(value=header, label=header) for header in headers]
+        if user_input is not None:
+            inspection = inspect_readings_csv(
+                self._import_text,
+                date_col=user_input[ATTR_DATE_COLUMN],
+                value_col=user_input[ATTR_READING_COLUMN],
+            )
+            if inspection.error or not inspection.readings:
+                errors["base"] = "csv_invalid"
+            else:
+                self._import_inspection = inspection
+                return await self.async_step_import_preview()
+        suggested_date = inspection.date_column if inspection else (headers[0] if headers else "")
+        suggested_reading = (
+            inspection.reading_column if inspection else (headers[1] if len(headers) > 1 else "")
+        )
+        schema = vol.Schema(
+            {
+                vol.Required(ATTR_DATE_COLUMN, default=suggested_date): SelectSelector(
+                    SelectSelectorConfig(options=options, mode=SelectSelectorMode.DROPDOWN)
+                ),
+                vol.Required(ATTR_READING_COLUMN, default=suggested_reading): SelectSelector(
+                    SelectSelectorConfig(options=options, mode=SelectSelectorMode.DROPDOWN)
+                ),
+            }
+        )
+        return self.async_show_form(
+            step_id="import_columns",
+            data_schema=schema,
+            errors=errors,
+            description_placeholders={"headers": ", ".join(headers) or "—"},
+        )
+
+    async def async_step_import_preview(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
+        """Show a preview and import + recompute on confirm."""
+        inspection = self._import_inspection
+        if user_input is not None and inspection is not None:
+            readings = list(inspection.readings)
+            if self._import_unit == UNIT_GJ:
+                readings = [(stamp, value * GJ_TO_KWH) for stamp, value in readings]
+            coordinator = self.config_entry.runtime_data
+            self._import_result = await coordinator.async_import_readings(
+                self._import_generator, readings
+            )
+            return await self.async_step_import_done()
+        return self.async_show_form(
+            step_id="import_preview",
+            data_schema=vol.Schema({}),
+            description_placeholders={
+                "count": str(len(inspection.readings) if inspection else 0),
+                "preview": self._preview_text(),
+                "date_column": (inspection.date_column if inspection else "—") or "—",
+                "reading_column": (inspection.reading_column if inspection else "—") or "—",
+                "delimiter": inspection.delimiter if inspection else ";",
+                "decimal": inspection.decimal if inspection else ",",
+                "generator": self._import_generator,
+                "unit": self._import_unit,
+            },
+            last_step=False,
+        )
+
+    async def async_step_import_done(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
+        """Show the import result; options are unchanged."""
+        if user_input is not None:
+            return self.async_create_entry(data=self.config_entry.options)
+        result = self._import_result
+        return self.async_show_form(
+            step_id="import_done",
+            data_schema=vol.Schema({}),
+            description_placeholders={
+                "imported_days": str(result.get("imported_days", 0)),
+                "first_day": str(result.get("first_day", "—")),
+                "last_day": str(result.get("last_day", "—")),
+                "gaps": str(len(result.get("gaps") or [])),
+            },
+            last_step=True,
+        )
 
     async def async_step_methods(
         self, user_input: dict[str, Any] | None = None

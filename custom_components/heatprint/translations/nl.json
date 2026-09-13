@@ -3,18 +3,12 @@
     "step": {
       "user": {
         "title": "Site",
-        "description": "Eén site is één woning. Heatprint leest je bestaande energiemeters uit de recorder, haalt dagelijks het weer op en berekent per dag de weergecorrigeerde warmtevraag.",
+        "description": "Eén site is één woning. Locatie ({latitude}, {longitude}), tijdzone ({timezone}) en land ({country}) komen uit deze Home Assistant-installatie. Wijzig ze later via Opnieuw configureren als deze site niet het HA-thuis is.",
         "data": {
-          "name": "Naam",
-          "location": "Locatie",
-          "timezone": "Tijdzone",
-          "country": "Land"
+          "name": "Naam"
         },
         "data_description": {
-          "name": "Wordt gebruikt voor de apparaatnaam, de entiteits-id's en de statistiek-id's (heatprint:thuis_...). Later hernoemen verandert die id's niet.",
-          "location": "Alleen gebruikt om het dichtstbijzijnde weerstation of het Open-Meteo-rasterpunt te kiezen. Coördinaten verlaten je huis alleen in weerverzoeken.",
-          "timezone": "Dagen lopen van middernacht tot middernacht in deze tijdzone, zodat meter en weer op elkaar aansluiten.",
-          "country": "In Nederland worden standaard de KNMI-stationsgegevens gebruikt; elders Open-Meteo."
+          "name": "Wordt gebruikt voor de apparaatnaam, de entiteits-id's en de statistiek-id's (heatprint:thuis_...). Later hernoemen verandert die id's niet."
         }
       },
       "weather_nl": {
@@ -207,7 +201,7 @@
       },
       "history": {
         "title": "Historie",
-        "description": "Weerhistorie wordt op de achtergrond opgehaald. Meterstanden van vóór je Home Assistant-historie importeer je daarna met de actie Meterstanden importeren (CSV, bijvoorbeeld de export van mindergas.nl).",
+        "description": "Weerhistorie wordt op de achtergrond opgehaald. Meterstanden van vóór je Home Assistant-historie importeer je daarna via Configureren → Meterstanden importeren (plak een CSV of kies een bestand; een mindergas.nl-export vraagt niets extra's).",
         "data": {
           "backfill_years": "Jaren historie om terug te halen",
           "climatology_years": "Referentiejaren voor de klimatologie",
@@ -225,14 +219,16 @@
       },
       "reconfigure": {
         "title": "Locatie en weerbron",
-        "description": "Pas hier de locatie of tijdzone aan; de weerbron volgt in de volgende stap.",
+        "description": "De eerste setup gebruikte deze Home Assistant-installatie. Pas hier locatie, tijdzone of land aan als deze site niet het HA-thuis is; de weerbron volgt in de volgende stap.",
         "data": {
           "location": "Locatie",
-          "timezone": "Tijdzone"
+          "timezone": "Tijdzone",
+          "country": "Land"
         },
         "data_description": {
           "location": "Gebruikt voor het dichtstbijzijnde station of het Open-Meteo-rasterpunt.",
-          "timezone": "Daggrenzen van de meters en het weer."
+          "timezone": "Daggrenzen van de meters en het weer.",
+          "country": "Nederland gebruikt standaard KNMI; elders Open-Meteo."
         }
       },
       "reconfigure_confirm": {
@@ -494,6 +490,7 @@
           "methods": "Methodes en seizoen",
           "dhw": "Tapwater en koken",
           "history": "Historie",
+          "import_readings": "Meterstanden importeren",
           "pricing": "Prijzen en CO2",
           "integrations": "Integraties",
           "advanced": "Geavanceerd"
@@ -550,6 +547,40 @@
           "summer_start": "Kies een venster waarin helemaal niet wordt gestookt, normaal 06-01.",
           "summer_end": "Normaal 08-31."
         }
+      },
+      "import_readings": {
+        "title": "Meterstanden importeren",
+        "description": "Plak een CSV of kies een bestand onder /config. Kolommen, scheidingsteken, decimaalteken en datumformaat worden automatisch herkend. Een mindergas.nl-export (datum;stand) vraagt niets extra's.",
+        "data": {
+          "csv": "CSV-tekst",
+          "path": "Bestandspad onder /config",
+          "file": "CSV uploaden",
+          "generator_id": "Opwekker",
+          "unit": "Eenheid van de standen"
+        },
+        "data_description": {
+          "csv": "Plak de export hier. Laat leeg als je een bestand uploadt of een pad opgeeft.",
+          "path": "Relatief ten opzichte van de Home Assistant-configuratiemap, bijvoorbeeld heatprint/mindergas.csv.",
+          "file": "Optionele upload. Een geplakte CSV gaat voor als beide zijn ingevuld.",
+          "generator_id": "De warmteopwekker waar deze cumulatieve standen bij horen.",
+          "unit": "Hoe de getallen in het bestand worden gelezen. Standaard de dragereenheid van de opwekker."
+        }
+      },
+      "import_columns": {
+        "title": "Kolommen kiezen",
+        "description": "De koppen ({headers}) zijn niet automatisch herkend. Kies welke kolom de datum is en welke de meterstand. Je typt nooit een JSON-mapping.",
+        "data": {
+          "date_column": "Datumkolom",
+          "reading_column": "Standkolom"
+        }
+      },
+      "import_preview": {
+        "title": "Import controleren",
+        "description": "{count} standen voor {generator} ({unit}). Herkend: datumkolom {date_column}, standkolom {reading_column}, scheiding {delimiter}, decimaal {decimal}. Eerste rijen: {preview}. Bevestig om te importeren en vanaf de vroegste dag te herberekenen."
+      },
+      "import_done": {
+        "title": "Import voltooid",
+        "description": "{imported_days} dagen geïmporteerd ({first_day} – {last_day}). Hiaten: {gaps}. De herberekening vanaf de eerste geïmporteerde dag draait op de achtergrond."
       },
       "history": {
         "title": "Historie",
@@ -638,7 +669,15 @@
       "invalid_month_day": "Gebruik het formaat MM-DD, bijvoorbeeld 06-01.",
       "primary_not_enabled": "De primaire methode moet een van de ingeschakelde methodes zijn.",
       "token_required": "Voor dagelijks pushen is een token nodig.",
-      "generator_required": "Kies de opwekker waarvan de stand gepusht moet worden."
+      "generator_required": "Kies de opwekker waarvan de stand gepusht moet worden.",
+      "no_source": "Plak een CSV, upload een bestand, of geef een pad onder /config.",
+      "csv_empty": "De CSV is leeg.",
+      "csv_invalid": "Er zijn geen leesbare datum- en standparen gevonden.",
+      "csv_unreadable": "Het bestand kon niet worden gelezen.",
+      "path_not_allowed": "Het pad moet binnen de Home Assistant-configuratiemap blijven."
+    },
+    "abort": {
+      "no_generators": "Voeg eerst een warmteopwekker toe voordat je meterstanden importeert."
     }
   },
   "selector": {
@@ -853,7 +892,7 @@
   "services": {
     "import_readings": {
       "name": "Meterstanden importeren",
-      "description": "Importeert cumulatieve meterstanden uit CSV (bijvoorbeeld een export van mindergas.nl) voor dagen van vóór de Home Assistant-historie en herberekent vanaf de eerste geïmporteerde dag.",
+      "description": "Actie voor gevorderden. Gebruik liever Configureren → Meterstanden importeren. Importeert cumulatieve meterstanden uit CSV (bijvoorbeeld een mindergas.nl-export) en herberekent vanaf de eerste geïmporteerde dag.",
       "fields": {
         "entry_id": {
           "name": "Site",
@@ -1020,6 +1059,16 @@
         "date": {
           "name": "Datum",
           "description": "Datum van de stand (stand om middernacht aan het begin van deze dag); standaard vandaag."
+        }
+      }
+    },
+    "create_dashboard": {
+      "name": "Heatprint-dashboard maken",
+      "description": "Maakt of vernieuwt het standaard Heatprint-Lovelace-dashboard in de zijbalk (alleen standaardkaarten; geen custom apexcharts-kaart).",
+      "fields": {
+        "entry_id": {
+          "name": "Site",
+          "description": "De Heatprint-site."
         }
       }
     },

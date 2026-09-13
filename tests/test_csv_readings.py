@@ -9,6 +9,7 @@ import pytest
 from heatprint_core.importers.csv_readings import (
     detect_decimal,
     detect_delimiter,
+    inspect_readings_csv,
     parse_number,
     parse_readings_csv,
 )
@@ -56,6 +57,30 @@ def test_bom_and_unknown_header_skipped() -> None:
     unknown = "foo;bar\n01-10-2022;1,0\nnot a date;2,0\n"
     assert parse_readings_csv(unknown) == [(datetime(2022, 10, 1), 1.0)]
     assert parse_readings_csv("") == []
+
+
+def test_inspect_mindergas_is_unambiguous() -> None:
+    inspection = inspect_readings_csv(MINDERGAS)
+    assert inspection.error is None
+    assert inspection.ambiguous is False
+    assert inspection.delimiter == ";"
+    assert inspection.decimal == ","
+    assert inspection.date_format == "%d-%m-%Y"
+    assert inspection.date_column == "datum"
+    assert inspection.reading_column == "stand"
+    assert len(inspection.readings) == 3
+    assert inspection.preview[0] == ("2022-10-01 00:00:00", "1234.567")
+
+
+def test_inspect_ambiguous_when_unknown_headers() -> None:
+    text = "foo;bar;baz\n01-10-2022;1234,5;note\n02-10-2022;1236,1;x\n"
+    inspection = inspect_readings_csv(text)
+    assert inspection.ambiguous is True
+    assert inspection.headers == ["foo", "bar", "baz"]
+    chosen = inspect_readings_csv(text, date_col="foo", value_col="bar")
+    assert chosen.ambiguous is False
+    assert chosen.date_column == "foo"
+    assert len(chosen.readings) == 2
 
 
 def test_helpers() -> None:

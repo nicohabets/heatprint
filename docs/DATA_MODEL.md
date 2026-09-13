@@ -234,9 +234,9 @@ classDiagram
 |---|---|---|---|
 | `id` | slug | from name | Used in statistic ids: `heatprint:<id>_...` |
 | `name` | str | "Home" | |
-| `latitude`, `longitude` | float | HA home | For station selection and Open-Meteo |
-| `timezone` | str | HA time zone | Day boundaries |
-| `country` | ISO-2 | from HA | Determines the default provider (NL → KNMI) |
+| `latitude`, `longitude` | float | HA home (not asked on first setup) | For station selection and Open-Meteo |
+| `timezone` | str | HA time zone (not asked on first setup) | Day boundaries |
+| `country` | ISO-2 | HA country, else tz/coords (not asked on first setup) | Determines the default provider (NL → KNMI) |
 | `season.start_month`, `season.start_day` | int | 10, 1 | Heating season/gas year; 1 January possible (mindergas-style calendar year) |
 | `methods` | MethodConfig | see 1.5 | |
 | `backfill_years` | int 0-10 | 3 | How many years of weather + climatology to fetch at setup |
@@ -509,7 +509,7 @@ Site-level additions for the rooms feature:
 
 | Service | Input | Output |
 |---|---|---|
-| `heatprint.import_readings` | `entry_id`, `generator_id`, `csv` (text) or `path`, `mapping` (date/reading columns, date format, decimal separator), `unit` | number of imported days, gaps |
+| `heatprint.import_readings` | `entry_id`, `generator_id`, `csv` (text) or `path`, `mapping` (optional; power users), `unit` | number of imported days, gaps. Humans should use **Configure → Import meter readings** (auto-detect + preview). |
 | `heatprint.recompute` | `entry_id`, `from_date` | number of days recalculated |
 | `heatprint.fit_signature` | `entry_id`, `start`, `end` or `season`, `tac_preset` (`house` or `pbl`), `fit_wind` | `SignatureFit` as response |
 | `heatprint.compare_periods` | `entry_id`, `base` (start,end), `target` (start,end), `method` | `Comparison` as response |
@@ -519,6 +519,7 @@ Site-level additions for the rooms feature:
 | `heatprint.push_reading` | `entry_id`, `generator_id`, `target: mindergas`, `date` | bridge to the mindergas.nl API (optional, token in options) |
 | `heatprint.clear_statistics` | `entry_id`, optional `generator_id` | delete Heatprint external statistics of one generator or the whole site |
 | `heatprint.fit_room_signature` | `entry_id`, `room_id`, `start`, `end` or `season` | `RoomSignatureFit` as response |
+| `heatprint.create_dashboard` | `entry_id` | create or recreate the stock Heatprint Lovelace dashboard in the sidebar |
 
 ---
 
@@ -527,5 +528,6 @@ Site-level additions for the rooms feature:
 - `site.id`, `generator.id` and `room.id` are slugs, unique within the installation; used in
   statistic ids and entity ids. Renaming `name` does not change `id`.
 - Version field in the JSON store and config entry (`version`, `minor_version`) for migrations.
-- CSV import format (mindergas export and generic): `datum;stand` (the mindergas column names)
-  with configurable column names, date format (`%d-%m-%Y`, ISO) and decimal separator.
+- CSV import: humans use **Configure → Import meter readings** (auto-detect). The
+  mindergas export `datum;stand` needs no questions. The service still accepts an
+  optional `mapping` (column names, date format `%d-%m-%Y` / ISO, decimal separator).

@@ -207,3 +207,11 @@ clear_statistics:
       example: boiler
       selector:
         text:
+
+create_dashboard:
+  fields:
+    entry_id:
+      required: true
+      selector:
+        config_entry:
+          integration: heatprint

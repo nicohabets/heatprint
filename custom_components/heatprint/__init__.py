@@ -24,6 +24,7 @@ from homeassistant.helpers.typing import ConfigType
 
 from .const import DOMAIN, PLATFORMS
 from .coordinator import HeatprintCoordinator
+from .dashboard import async_setup_entry_dashboard
 from .services import async_setup_services
 from .store import HeatprintStore
 
@@ -53,6 +54,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: HeatprintConfigEntry) ->
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
     entry.async_on_unload(entry.add_update_listener(_async_update_listener))
     coordinator.async_start()
+    await async_setup_entry_dashboard(hass, entry)
     return True
 
 

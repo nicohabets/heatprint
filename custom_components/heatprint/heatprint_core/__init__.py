@@ -20,7 +20,7 @@ from .analysis import (
 from .dhw import estimate_baseline, split_dhw
 from .flags import Flag
 from .heat import carrier_to_heat, cop_day
-from .importers import parse_readings_csv
+from .importers import CsvInspection, inspect_readings_csv, parse_readings_csv
 from .methods import compute_all, compute_day, preset, t_eff, tac_series
 from .models import (
     CarrierInput,
@@ -66,7 +66,7 @@ from .weather import (
     remaining_season_dd,
 )
 
-__version__ = "0.1.2"
+__version__ = "0.1.3"
 
 __all__ = [
     "CarrierInput",
@@ -76,6 +76,7 @@ __all__ = [
     "Comparison",
     "Conversion",
     "ConversionMode",
+    "CsvInspection",
     "DailyEnergy",
     "DailyRecord",
     "DailyWeather",
@@ -114,6 +115,7 @@ __all__ = [
     "estimate_baselines",
     "fit_signature",
     "forecast_season",
+    "inspect_readings_csv",
     "measure_effect",
     "merge_weather",
     "normalized_consumption",

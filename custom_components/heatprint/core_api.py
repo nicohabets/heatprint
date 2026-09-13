@@ -1273,6 +1273,26 @@ def parse_readings_csv(text: str, mapping: Mapping[str, Any]) -> list[tuple[date
     )
 
 
+def inspect_readings_csv(
+    text: str,
+    *,
+    date_col: str | None = None,
+    value_col: str | None = None,
+    date_format: str | None = None,
+    delimiter: str | None = None,
+    decimal: str | None = None,
+) -> core_csv.CsvInspection:
+    """Auto-detect CSV columns and parse readings for the import wizard."""
+    return core_csv.inspect_readings_csv(
+        text,
+        date_col=date_col,
+        value_col=value_col,
+        date_format=date_format,
+        delimiter=delimiter,
+        decimal=decimal,
+    )
+
+
 def daily_consumption_from_readings(
     readings: Iterable[tuple[datetime, float]], tz: tzinfo
 ) -> tuple[dict[date, float], dict[date, list[str]]]:

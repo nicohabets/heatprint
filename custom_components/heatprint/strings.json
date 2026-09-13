@@ -3,18 +3,12 @@
     "step": {
       "user": {
         "title": "Site",
-        "description": "One site is one home. Heatprint reads your existing energy meters from the recorder, fetches daily weather and computes weather-corrected heat demand per day.",
+        "description": "One site is one home. Location ({latitude}, {longitude}), time zone ({timezone}) and country ({country}) are taken from this Home Assistant installation. Change them later with Reconfigure if this site is not the HA home.",
         "data": {
-          "name": "Name",
-          "location": "Location",
-          "timezone": "Time zone",
-          "country": "Country"
+          "name": "Name"
         },
         "data_description": {
-          "name": "Used for the device name, the entity ids and the statistic ids (heatprint:home_...). Renaming later does not change those ids.",
-          "location": "Only used to pick the nearest weather station or the Open-Meteo grid point. Coordinates never leave your home except in weather requests.",
-          "timezone": "Days are counted from midnight to midnight in this time zone, so the meter and the weather line up.",
-          "country": "In the Netherlands the KNMI station data is used by default; elsewhere Open-Meteo."
+          "name": "Used for the device name, the entity ids and the statistic ids (heatprint:home_...). Renaming later does not change those ids."
         }
       },
       "weather_nl": {
@@ -207,7 +201,7 @@
       },
       "history": {
         "title": "History",
-        "description": "Weather history is fetched in the background. Meter readings from before your Home Assistant history can be imported afterwards with the action Import meter readings (CSV, for example the export of mindergas.nl).",
+        "description": "Weather history is fetched in the background. Meter readings from before your Home Assistant history can be imported afterwards from Configure → Import meter readings (paste a CSV or pick a file; a mindergas.nl export needs no extra questions).",
         "data": {
           "backfill_years": "Years of history to backfill",
           "climatology_years": "Reference years for the climatology",
@@ -225,14 +219,16 @@
       },
       "reconfigure": {
         "title": "Location and weather source",
-        "description": "Change the location or time zone here; the weather source follows in the next step.",
+        "description": "First setup used this Home Assistant installation. Change the location, time zone or country here if this site is not the HA home; the weather source follows in the next step.",
         "data": {
           "location": "Location",
-          "timezone": "Time zone"
+          "timezone": "Time zone",
+          "country": "Country"
         },
         "data_description": {
           "location": "Used for the nearest station or the Open-Meteo grid point.",
-          "timezone": "Day boundaries of the meters and the weather."
+          "timezone": "Day boundaries of the meters and the weather.",
+          "country": "The Netherlands uses KNMI by default; elsewhere Open-Meteo."
         }
       },
       "reconfigure_confirm": {
@@ -494,6 +490,7 @@
           "methods": "Methods and season",
           "dhw": "Hot water and cooking",
           "history": "History",
+          "import_readings": "Import meter readings",
           "pricing": "Prices and CO2",
           "integrations": "Integrations",
           "advanced": "Advanced"
@@ -550,6 +547,40 @@
           "summer_start": "Pick a window with no heating at all, normally 06-01.",
           "summer_end": "Normally 08-31."
         }
+      },
+      "import_readings": {
+        "title": "Import meter readings",
+        "description": "Paste a CSV or choose a file under /config. Columns, delimiter, decimal and date format are detected automatically. A mindergas.nl export (datum;stand) needs no extra questions.",
+        "data": {
+          "csv": "CSV text",
+          "path": "File path under /config",
+          "file": "Upload CSV",
+          "generator_id": "Generator",
+          "unit": "Unit of the readings"
+        },
+        "data_description": {
+          "csv": "Paste the export here. Leave empty when you upload a file or give a path.",
+          "path": "Relative to the Home Assistant config folder, for example heatprint/mindergas.csv.",
+          "file": "Optional upload. A pasted CSV is used when both are given.",
+          "generator_id": "The heat generator these cumulative readings belong to.",
+          "unit": "How the numbers in the file are interpreted. Defaults to the generator's carrier unit."
+        }
+      },
+      "import_columns": {
+        "title": "Choose columns",
+        "description": "The headers ({headers}) were not recognised automatically. Choose which column is the date and which is the meter reading. You never type a JSON mapping.",
+        "data": {
+          "date_column": "Date column",
+          "reading_column": "Reading column"
+        }
+      },
+      "import_preview": {
+        "title": "Preview import",
+        "description": "{count} readings for {generator} ({unit}). Detected date column {date_column}, reading column {reading_column}, delimiter {delimiter}, decimal {decimal}. First rows: {preview}. Confirm to import and recompute from the earliest day."
+      },
+      "import_done": {
+        "title": "Import finished",
+        "description": "Imported {imported_days} days ({first_day} – {last_day}). Gaps: {gaps}. Recompute from the first imported day is running in the background."
       },
       "history": {
         "title": "History",
@@ -638,7 +669,15 @@
       "invalid_month_day": "Use the format MM-DD, for example 06-01.",
       "primary_not_enabled": "The primary method must be one of the enabled methods.",
       "token_required": "A token is required for the daily push.",
-      "generator_required": "Choose the generator whose reading should be pushed."
+      "generator_required": "Choose the generator whose reading should be pushed.",
+      "no_source": "Paste a CSV, upload a file, or give a path under /config.",
+      "csv_empty": "The CSV is empty.",
+      "csv_invalid": "No readable date and reading pairs were found.",
+      "csv_unreadable": "The file could not be read.",
+      "path_not_allowed": "The path must stay inside the Home Assistant config folder."
+    },
+    "abort": {
+      "no_generators": "Add a heat generator before importing meter readings."
     }
   },
   "selector": {
@@ -853,7 +892,7 @@
   "services": {
     "import_readings": {
       "name": "Import meter readings",
-      "description": "Imports cumulative meter readings from CSV (for example a mindergas.nl export) for days before the Home Assistant history and recomputes from the first imported day.",
+      "description": "Power-user action. Prefer Configure → Import meter readings. Imports cumulative meter readings from CSV (for example a mindergas.nl export) and recomputes from the first imported day.",
       "fields": {
         "entry_id": {
           "name": "Site",
@@ -1020,6 +1059,16 @@
         "date": {
           "name": "Date",
           "description": "Date of the reading (reading at midnight at the start of this day); defaults to today."
+        }
+      }
+    },
+    "create_dashboard": {
+      "name": "Create Heatprint dashboard",
+      "description": "Creates or recreates the standard Heatprint Lovelace dashboard in the sidebar (stock cards only; no custom apexcharts card).",
+      "fields": {
+        "entry_id": {
+          "name": "Site",
+          "description": "The Heatprint site."
         }
       }
     },

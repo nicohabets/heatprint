@@ -5,6 +5,25 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.1.3] - 2026-09-13
+
+### Added
+- First-run config flow takes location, time zone and country from the Home
+  Assistant home (`hass.config`, with `zone.home` / time zone / coordinates as
+  fallbacks). Step 1 only asks for a site name. Reconfigure can still change
+  these values.
+- After setup, a stock Heatprint Lovelace dashboard is created and shown in the
+  sidebar (`heatprint-<site>`). It uses built-in cards only (no apexcharts).
+  Recreate with `heatprint.create_dashboard`.
+- Options-flow **Import meter readings** wizard: paste CSV or pick a file,
+  auto-detect delimiter / decimal / date format / columns, preview the first
+  rows, ask with dropdowns only when headers are ambiguous, then import and
+  recompute. A mindergas `datum;stand` export needs zero extra questions.
+
+### Changed
+- Humans are pointed at the import wizard; `heatprint.import_readings` stays
+  for automations and power users.
+
 ## [0.1.2] - 2026-09-13
 
 ### Added
