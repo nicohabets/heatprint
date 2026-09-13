@@ -616,7 +616,7 @@
             },
             "data_description": {
               "pbl_top": "Not used in the degree days by default; hot water and cooking are handled separately.",
-              "pbl_wind_sqrt_coef": "Placeholder from the gas profile method (1/0.35) until the PBL value is verified."
+              "pbl_wind_sqrt_coef": "c_sqrt in T − c_sqrt · √W (PBL 2022 eq. 17/20). Default 1.0 for daily KEV-SJV."
             }
           },
           "fit": {

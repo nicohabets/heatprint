@@ -18,7 +18,6 @@ from heatprint_core.analysis.forecast import forecast_season
 from heatprint_core.analysis.signature import fit_signature
 from heatprint_core.constants import MONTH_WEIGHTS
 from heatprint_core.flags import Flag
-from heatprint_core.methods.degree_days import dd_classic
 from heatprint_core.models import (
     DailyWeather,
     Generator,
@@ -120,8 +119,31 @@ def test_prealpha_pipeline_four_methods_fit_compare_forecast() -> None:
     assert "boiler" in forecast.per_generator
 
 
+def test_classic_week_hand_checked_without_library_helper() -> None:
+    """METHODS 4.1: one January week of classic WDD, computed from the published formula.
+
+    Does not call ``dd_classic`` so a regression in that helper cannot hide here.
+    Jan weight = 1.1; T_base = T_limit = 18 °C; t_mean = 8 °C → WDD = 11.0 / day.
+    """
+    start = date(2026, 1, 5)
+    weather = {
+        start + timedelta(days=i): DailyWeather(start + timedelta(days=i), 8.0, 0.0)
+        for i in range(7)
+    }
+    site = Site(
+        id="mindergas-week",
+        generators=[Generator.for_kind("boiler", "CV", GeneratorKind.GAS_BOILER)],
+    )
+    gas = {day: (2.0, set()) for day in weather}
+    records = build_daily_records(site, weather, {"boiler": gas}, baselines={"boiler": 0.4})
+    assert MONTH_WEIGHTS[1] == 1.1
+    hand_wdd = 11.0  # max(0, 18 - 8) * 1.1
+    assert all(record.dd["classic"] == pytest.approx(hand_wdd) for record in records)
+    assert sum(record.dd["classic"] for record in records) == pytest.approx(77.0)
+
+
 def test_classic_reproduces_independent_mindergas_sum() -> None:
-    """METHODS 11: classic weighted degree days match the mindergas formula within 1%."""
+    """METHODS 11: classic weighted degree days match the published mindergas formula."""
     rng = random.Random(3)
     weather = _weather(date(2021, 10, 1), 365, rng)
     site = Site(
@@ -134,7 +156,9 @@ def test_classic_reproduces_independent_mindergas_sum() -> None:
     actual = 0.0
     for record in records:
         weather_day = weather[record.date]
-        weighted, _unweighted = dd_classic(weather_day.t_mean, record.date.month)
+        t_ref = weather_day.t_mean
+        unweighted = max(0.0, 18.0 - t_ref) if t_ref < 18.0 else 0.0
+        weighted = unweighted * MONTH_WEIGHTS[record.date.month]
         expected += weighted
         actual += record.dd["classic"]
         assert record.dd["classic"] == pytest.approx(weighted)

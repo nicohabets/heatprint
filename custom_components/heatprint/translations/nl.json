@@ -616,7 +616,7 @@
             },
             "data_description": {
               "pbl_top": "Standaard niet in de graaddagen gebruikt; tapwater en koken worden apart behandeld.",
-              "pbl_wind_sqrt_coef": "Plaatsvervanger uit de profielenmethodiek aardgas (1/0,35) totdat de PBL-waarde is geverifieerd."
+              "pbl_wind_sqrt_coef": "c_sqrt in T − c_sqrt · √W (PBL 2022 vgl. 17/20). Standaard 1.0 voor dagelijkse KEV-SJV."
             }
           },
           "fit": {

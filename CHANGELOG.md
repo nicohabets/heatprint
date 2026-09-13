@@ -26,9 +26,15 @@ All notable changes to this project are documented here. The format follows
 ### Changed
 - PBL daily wind coefficient verified against PBL 2022 eq. 17/20: `sqrt` mode uses
   `c_sqrt = 1.0` (`T - √W`), not the hourly Informatiecode `√W/0.35`.
+- Config-flow copy for the PBL wind sqrt coefficient now states the verified daily
+  default of 1.0 (no longer a "placeholder until verified").
 - Forecast heat-season sensor is space heating + DHW, as specified in DATA_MODEL 3.3.
 - Coordinator also estimates a DHW baseline for `dhw_mode = measured` (fallback on
   days without a measurement).
+- Docs aligned with ADR 0004: all four degree-day methods are always stored; `enabled`
+  / `primary` only choose the main sensors and forecast. METHODS documents that an
+  enabled sun term is applied inside `T_eff` (generic family), not outside inertia
+  as in PBL 2022 eq. 17.
 
 ### Fixed
 - `compare_periods` with `min_dd=0` no longer returns NaN; it raises

@@ -38,6 +38,10 @@ Deferred (not required for a coherent pre-alpha):
    within 1%. Scheduled with the v0.2 live HA run.
 4. GitHub repository description and topics (`custom-integration`, `hacs-integration`,
    `homeassistant`). HACS CI ignores those two checks until they are set on the repo.
+5. Strict mypy CI gate and `pytest-homeassistant-custom-component` for the HA shell (v0.2).
+6. Post-create "Compute effect" notification after adding a measure (service exists; v1.0 UI).
+7. PDF eq. 17 sun term *outside* inertia — Heatprint keeps sun inside `T_eff` (METHODS §3);
+   default practical model has `include_sun` off and therefore matches PDF eq. 20.
 
 ## Research items
 

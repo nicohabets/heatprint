@@ -76,8 +76,22 @@ the gas-profile methodology and is a different formula). Heatprint exposes both 
 - `pbl_wind_mode = "sqrt"` (authentic daily KEV-SJV): `c_lin = 0`, `c_sqrt = PBL_WIND_SQRT_COEF`
   (default `1.0`, configurable)
 
-`include_sun` adds `c_sun = 1/480` (PBL 2022, "1/480ste van de zoninstraling"); it is off
-by default because the practical model uses temperature + wind only.
+`include_sun` is **off by default** (the practical PBL model is temperature + wind only —
+PDF eq. 20). When enabled, `c_sun = 1/480` (PBL 2022, "1/480ste van de zoninstraling")
+and the generic `T_eff` family folds radiation into each day's `T_eff` *before* the
+0.65 / 0.35 inertia:
+
+```
+T_eff,d = T_d − f_wind(W_d) + Q_d / 480
+TAC     = 0.65 · T_eff,d + 0.35 · T_eff,d−1
+```
+
+PDF eq. 17 instead adds `Q/480` **outside** the inertia (today's radiation only).
+Heatprint keeps the generic family (sun inside `T_eff`) because that is how this
+document defines the four-method stack and because `include_sun` is off in the
+default practical model. Enabling sun therefore also weights yesterday's
+radiation — a documented deviation from eq. 17. With `include_sun` off and
+`wind_mode = sqrt`, TAC matches PDF eq. 20 exactly.
 
 The house-specific fit (§7) estimates the wind sensitivity itself and is therefore the recommended
 method for a single house; the PBL preset is a nationally calibrated reference.

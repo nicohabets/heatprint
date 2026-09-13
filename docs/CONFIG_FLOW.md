@@ -214,8 +214,9 @@ questions of its own, so "also clear statistics" is a separate service
 | `category` | select: `insulation`, `installation`, `behaviour`, `other` |
 | `notes` | text (multiline) |
 
-After creation: button/notification "Compute effect" (service `heatprint.measure_effect`), only
-meaningful once there are ≥ 30 days after the date.
+After creation the service `heatprint.measure_effect` can be called (only meaningful
+once there are ≥ 30 days after the date). A dedicated "Compute effect" button after
+the subentry is created is a v1.0 UI polish; the service is already wired.
 
 ---
 
@@ -228,7 +229,8 @@ Sections (menu):
 3. **History** - backfill/climatology years; button "recompute from date".
 4. **Prices and CO₂** - default factors, CO₂ sensor.
 5. **Integrations** - mindergas.nl bridge: API token (password field), generator choice,
-   daily push on/off. The token is stored encrypted in the entry; never logged.
+   daily push on/off. The token lives in the config entry (Home Assistant does not
+   encrypt `.storage`); it is never logged and is redacted from diagnostics (ARCHITECTURE §9).
 6. **Advanced** - override PBL parameters (TST/RER/TOP per month group) and wind
    coefficient; outlier threshold; minimum number of days for a fit.
 

@@ -68,8 +68,20 @@ def test_mindergas_weights_every_month(month: int) -> None:
     assert weighted == pytest.approx(10.0 * MINDERGAS_WEIGHTS[month])
 
 
+def test_compute_day_pbl_sqrt_without_sun_matches_pdf_eq_20() -> None:
+    """PBL 2022 eq. 20 (practical, no sun): TAC = 0.65*(T-√W) + 0.35*(T-1-√W-1)."""
+    yesterday = DailyWeather(date(2026, 1, 9), t_mean=2.0, wind_mean=9.0, radiation=240.0)
+    today = DailyWeather(date(2026, 1, 10), t_mean=6.0, wind_mean=4.0, radiation=480.0)
+    config = MethodConfig(pbl=PblParams(wind_mode="sqrt", include_sun=False))
+    result = compute_day(today, yesterday, config)
+    tac = 0.65 * (6.0 - math.sqrt(4.0)) + 0.35 * (2.0 - math.sqrt(9.0))
+    assert result.tac_pbl == pytest.approx(tac)
+    assert result.dd["pbl"] == pytest.approx(1.00 * (17.01 - tac))
+    assert Flag.WEATHER_PARTIAL not in result.flags
+
+
 def test_compute_day_pbl_sqrt_wind_mode_with_sun_and_inertia() -> None:
-    """PBL 2022 eq. 17/20: TAC = 0.65*(T-√W+Q/480) + 0.35*(T-1-√W-1+Q-1/480)."""
+    """Generic T_eff family with sun inside each day (METHODS §3; not PDF eq. 17)."""
     yesterday = DailyWeather(date(2026, 1, 9), t_mean=2.0, wind_mean=9.0, radiation=240.0)
     today = DailyWeather(date(2026, 1, 10), t_mean=6.0, wind_mean=4.0, radiation=480.0)
     config = MethodConfig(pbl=PblParams(wind_mode="sqrt", include_sun=True))

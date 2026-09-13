@@ -252,7 +252,7 @@ classDiagram
 
 | Field | Default | Notes |
 |---|---|---|
-| `enabled` | `["classic","pbl","house"]` | `knmi14` optional; all methods are always calculated, `enabled` determines which sensors/statistics are created |
+| `enabled` | `["classic","pbl","house"]` | `knmi14` optional in the UI. All four methods are always calculated **and** stored (ADR 0004); `enabled` plus `primary` choose which method the main sensors and forecast use. Degree-day attributes and statistics still include every method. |
 | `classic.base_temp` | 18.0 | |
 | `classic.heating_limit` | 18.0 | |
 | `classic.weighted` | true | mindergas weighting |
