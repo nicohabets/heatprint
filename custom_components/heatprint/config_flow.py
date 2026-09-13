@@ -33,6 +33,8 @@ from homeassistant.core import HomeAssistant, callback
 from homeassistant.data_entry_flow import section
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers.selector import (
+    AreaSelector,
+    AreaSelectorConfig,
     BooleanSelector,
     CountrySelector,
     DateSelector,
@@ -61,6 +63,7 @@ from .const import (
     ATTR_DATE_COLUMN,
     ATTR_PATH,
     ATTR_READING_COLUMN,
+    CONF_AREA_ID,
     CONF_BACKFILL_YEARS,
     CONF_CATEGORY,
     CONF_CLASSIC_BASE_TEMP,
@@ -73,6 +76,8 @@ from .const import (
     CONF_COP,
     CONF_COUNTRY,
     CONF_DATE,
+    CONF_DEMAND_ENTITY,
+    CONF_DEMAND_KIND,
     CONF_DHW_ELECTRIC_ENTITY,
     CONF_DHW_ENTITY,
     CONF_DHW_FIXED_PER_DAY,
@@ -82,7 +87,10 @@ from .const import (
     CONF_EFFICIENCY,
     CONF_ELECTRIC_CO2_FACTOR,
     CONF_ELECTRIC_ENTITY,
+    CONF_EMITTER_KIND,
+    CONF_ENABLED,
     CONF_ENERGY_ENTITY,
+    CONF_FLOOR_AREA_M2,
     CONF_FACTOR,
     CONF_FALLBACK,
     CONF_GAS_CO2_FACTOR,
@@ -105,6 +113,10 @@ from .const import (
     CONF_MINDERGAS_TOKEN,
     CONF_NAME,
     CONF_NOTES,
+    CONF_OUTPUT_W_PER_M2_ELECTRIC,
+    CONF_OUTPUT_W_PER_M2_OTHER,
+    CONF_OUTPUT_W_PER_M2_RADIATOR,
+    CONF_OUTPUT_W_PER_M2_UNDERFLOOR,
     CONF_OUTLIER_THRESHOLD,
     CONF_PBL_INCLUDE_SUN,
     CONF_PBL_PARAMETER_SET,
@@ -121,7 +133,12 @@ from .const import (
     CONF_PBL_WIND_SQRT_COEF,
     CONF_PRICE_ENTITY,
     CONF_PROVIDER,
+    CONF_RATED_OUTPUT_W,
     CONF_RADIATION_ENTITY,
+    CONF_ROOM_ID,
+    CONF_ROOM_TEMPERATURE_ENTITY,
+    CONF_ROOMS_ALLOCATION,
+    CONF_ROOMS_MIN_FIT_DAYS,
     CONF_RECOMPUTE_FROM,
     CONF_ROLE,
     CONF_SCOP,
@@ -135,6 +152,7 @@ from .const import (
     CONF_THERMAL_ENTITY,
     CONF_TIMEZONE,
     CONF_UNIT,
+    CONF_VOLUME_M3,
     CONF_WEATHER,
     CONF_WIND_ENTITY,
     CONVERSION_AUTO,
@@ -154,6 +172,9 @@ from .const import (
     DEFAULT_METHODS_ENABLED,
     DEFAULT_MIN_FIT_DAYS,
     DEFAULT_OUTLIER_THRESHOLD,
+    DEFAULT_OUTPUT_W_PER_M2,
+    DEFAULT_ROOMS_ALLOCATION,
+    DEFAULT_ROOMS_MIN_FIT_DAYS,
     DEFAULT_PBL_RER,
     DEFAULT_PBL_TOP,
     DEFAULT_PBL_TST,
@@ -166,7 +187,14 @@ from .const import (
     DHW_MODES,
     DHW_OVERRIDE_KEEP,
     DHW_OVERRIDE_OPTIONS,
+    DEMAND_KIND_BINARY,
+    DEMAND_KIND_METERED,
+    DEMAND_KIND_PERCENTAGE,
+    DEMAND_KIND_VALVE,
+    DEMAND_KINDS,
     DOMAIN,
+    EMITTER_KIND_RADIATOR,
+    EMITTER_KINDS,
     ENERGY_UNITS,
     FALLBACKS,
     GAS_UNITS,
@@ -194,6 +222,7 @@ from .const import (
     OPT_INTEGRATIONS,
     OPT_METHODS,
     OPT_PRICING,
+    OPT_ROOMS,
     PBL_PARAMETER_SETS,
     PBL_WIND_MODES,
     PROVIDER_HA_SENSORS,
@@ -215,6 +244,7 @@ from .const import (
     SITUATIONS,
     SUBENTRY_TYPE_GENERATOR,
     SUBENTRY_TYPE_MEASURE,
+    SUBENTRY_TYPE_ROOM,
     UNIT_GJ,
     UNIT_KWH,
     UNIT_M3,
@@ -784,6 +814,7 @@ class HeatprintConfigFlow(ConfigFlow, domain=DOMAIN):
         return {
             SUBENTRY_TYPE_GENERATOR: GeneratorSubentryFlowHandler,
             SUBENTRY_TYPE_MEASURE: MeasureSubentryFlowHandler,
+            SUBENTRY_TYPE_ROOM: RoomSubentryFlowHandler,
         }
 
     # --- step 1: site ------------------------------------------------------------------
@@ -1281,6 +1312,7 @@ class HeatprintOptionsFlow(OptionsFlow):
                 OPT_IMPORT,
                 OPT_PRICING,
                 OPT_INTEGRATIONS,
+                OPT_ROOMS,
                 OPT_ADVANCED,
             ],
         )
@@ -1712,6 +1744,67 @@ class HeatprintOptionsFlow(OptionsFlow):
         )
         return self.async_show_form(step_id="advanced", data_schema=schema)
 
+    async def async_step_rooms(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
+        """Default emitter output, room-fit days and allocation on/off."""
+        current = self._section(OPT_ROOMS)
+        if user_input is not None:
+            return self._save(
+                OPT_ROOMS,
+                {
+                    CONF_ROOMS_ALLOCATION: bool(user_input[CONF_ROOMS_ALLOCATION]),
+                    CONF_ROOMS_MIN_FIT_DAYS: int(user_input[CONF_ROOMS_MIN_FIT_DAYS]),
+                    CONF_OUTPUT_W_PER_M2_RADIATOR: float(
+                        user_input[CONF_OUTPUT_W_PER_M2_RADIATOR]
+                    ),
+                    CONF_OUTPUT_W_PER_M2_UNDERFLOOR: float(
+                        user_input[CONF_OUTPUT_W_PER_M2_UNDERFLOOR]
+                    ),
+                    CONF_OUTPUT_W_PER_M2_ELECTRIC: float(
+                        user_input[CONF_OUTPUT_W_PER_M2_ELECTRIC]
+                    ),
+                    CONF_OUTPUT_W_PER_M2_OTHER: float(user_input[CONF_OUTPUT_W_PER_M2_OTHER]),
+                },
+            )
+        schema = vol.Schema(
+            {
+                vol.Required(
+                    CONF_ROOMS_ALLOCATION,
+                    default=current.get(CONF_ROOMS_ALLOCATION, DEFAULT_ROOMS_ALLOCATION),
+                ): BooleanSelector(),
+                vol.Required(
+                    CONF_ROOMS_MIN_FIT_DAYS,
+                    default=current.get(CONF_ROOMS_MIN_FIT_DAYS, DEFAULT_ROOMS_MIN_FIT_DAYS),
+                ): _number(15, 120, 1),
+                vol.Required(
+                    CONF_OUTPUT_W_PER_M2_RADIATOR,
+                    default=current.get(
+                        CONF_OUTPUT_W_PER_M2_RADIATOR, DEFAULT_OUTPUT_W_PER_M2["radiator"]
+                    ),
+                ): _number(10, 200, 1, "W/m²"),
+                vol.Required(
+                    CONF_OUTPUT_W_PER_M2_UNDERFLOOR,
+                    default=current.get(
+                        CONF_OUTPUT_W_PER_M2_UNDERFLOOR, DEFAULT_OUTPUT_W_PER_M2["underfloor"]
+                    ),
+                ): _number(10, 200, 1, "W/m²"),
+                vol.Required(
+                    CONF_OUTPUT_W_PER_M2_ELECTRIC,
+                    default=current.get(
+                        CONF_OUTPUT_W_PER_M2_ELECTRIC, DEFAULT_OUTPUT_W_PER_M2["electric"]
+                    ),
+                ): _number(10, 200, 1, "W/m²"),
+                vol.Required(
+                    CONF_OUTPUT_W_PER_M2_OTHER,
+                    default=current.get(
+                        CONF_OUTPUT_W_PER_M2_OTHER, DEFAULT_OUTPUT_W_PER_M2["other"]
+                    ),
+                ): _number(10, 200, 1, "W/m²"),
+            }
+        )
+        return self.async_show_form(step_id="rooms", data_schema=schema)
+
 
 # --------------------------------------------------------------------------------
 # Subentry flows
@@ -1887,5 +1980,185 @@ class MeasureSubentryFlowHandler(_SubentryFlowBase):
         return self.async_show_form(
             step_id="reconfigure",
             data_schema=measure_schema(user_input or subentry.data),
+            errors=errors,
+        )
+
+
+def _detect_demand_kind(hass: HomeAssistant, entity_id: str | None) -> str:
+    """Guess demand_kind from the entity's domain and unit (CONFIG_FLOW room)."""
+    if not entity_id or (state := hass.states.get(entity_id)) is None:
+        return DEMAND_KIND_PERCENTAGE
+    domain = entity_id.split(".", 1)[0]
+    if domain in ("binary_sensor", "climate", "switch"):
+        return DEMAND_KIND_BINARY
+    unit = str(state.attributes.get(ATTR_UNIT_OF_MEASUREMENT) or "")
+    device_class = state.attributes.get("device_class")
+    state_class = state.attributes.get("state_class")
+    if device_class == "energy" or unit in ENERGY_UNITS or state_class in STATE_CLASS_CUMULATIVE:
+        return DEMAND_KIND_METERED
+    if unit in ("%", "percent"):
+        return DEMAND_KIND_PERCENTAGE
+    if "valve" in f"{state.name} {entity_id}".lower():
+        return DEMAND_KIND_VALVE
+    return DEMAND_KIND_PERCENTAGE
+
+
+@callback
+def validate_room(hass: HomeAssistant, data: Mapping[str, Any]) -> dict[str, str]:
+    """Validate a room subentry (CONFIG_FLOW room)."""
+    errors: dict[str, str] = {}
+    entity_id = data.get(CONF_DEMAND_ENTITY)
+    if not entity_id:
+        errors[CONF_DEMAND_ENTITY] = "entity_not_found"
+        return errors
+    state = hass.states.get(entity_id)
+    if state is None:
+        errors[CONF_DEMAND_ENTITY] = "entity_not_found"
+        return errors
+    kind = data.get(CONF_DEMAND_KIND, DEMAND_KIND_PERCENTAGE)
+    domain = entity_id.split(".", 1)[0]
+    unit = state.attributes.get(ATTR_UNIT_OF_MEASUREMENT)
+    if kind == DEMAND_KIND_METERED:
+        if error := _validate_cumulative_entity(hass, entity_id, ENERGY_UNITS):
+            errors[CONF_DEMAND_ENTITY] = (
+                "demand_kind_mismatch" if error == "unit_mismatch" else error
+            )
+    elif kind == DEMAND_KIND_BINARY:
+        if domain not in ("binary_sensor", "climate", "switch", "sensor"):
+            errors[CONF_DEMAND_ENTITY] = "demand_kind_mismatch"
+    elif kind in (DEMAND_KIND_PERCENTAGE, DEMAND_KIND_VALVE):
+        if domain == "binary_sensor":
+            errors[CONF_DEMAND_ENTITY] = "demand_kind_mismatch"
+        elif unit and unit in ENERGY_UNITS:
+            # Percent/valve may be unitless or %; an energy meter is the wrong kind.
+            errors[CONF_DEMAND_ENTITY] = "demand_kind_mismatch"
+    temperature = data.get(CONF_ROOM_TEMPERATURE_ENTITY)
+    if temperature and hass.states.get(temperature) is None:
+        errors[CONF_ROOM_TEMPERATURE_ENTITY] = "entity_not_found"
+    return errors
+
+
+def room_schema(defaults: Mapping[str, Any], *, show_price: bool) -> vol.Schema:
+    """Schema for a room subentry."""
+    fields: dict[Any, Any] = {
+        vol.Optional(CONF_AREA_ID, description=_suggested(defaults.get(CONF_AREA_ID))): AreaSelector(
+            AreaSelectorConfig()
+        ),
+        vol.Required(CONF_NAME, default=defaults.get(CONF_NAME, "")): TextSelector(),
+        vol.Required(
+            CONF_DEMAND_ENTITY, description=_suggested(defaults.get(CONF_DEMAND_ENTITY))
+        ): EntitySelector(
+            EntitySelectorConfig(domain=["sensor", "binary_sensor", "climate", "switch"])
+        ),
+        vol.Required(
+            CONF_DEMAND_KIND, default=defaults.get(CONF_DEMAND_KIND, DEMAND_KIND_PERCENTAGE)
+        ): _select(DEMAND_KINDS, "demand_kind"),
+        vol.Optional(
+            CONF_ROOM_TEMPERATURE_ENTITY,
+            description=_suggested(defaults.get(CONF_ROOM_TEMPERATURE_ENTITY)),
+        ): _entity(["temperature"]),
+        vol.Required(
+            CONF_EMITTER_KIND, default=defaults.get(CONF_EMITTER_KIND, EMITTER_KIND_RADIATOR)
+        ): _select(EMITTER_KINDS, "emitter_kind"),
+        vol.Optional(
+            CONF_RATED_OUTPUT_W, description=_suggested(defaults.get(CONF_RATED_OUTPUT_W))
+        ): _number(50, 20000, 10, "W"),
+        vol.Optional(
+            CONF_FLOOR_AREA_M2, description=_suggested(defaults.get(CONF_FLOOR_AREA_M2))
+        ): _number(1, 200, 0.1, "m²"),
+        vol.Optional(
+            CONF_VOLUME_M3, description=_suggested(defaults.get(CONF_VOLUME_M3))
+        ): _number(1, 800, 0.1, "m³"),
+        vol.Required(CONF_ENABLED, default=defaults.get(CONF_ENABLED, True)): BooleanSelector(),
+    }
+    if show_price:
+        fields[
+            vol.Optional(CONF_PRICE_ENTITY, description=_suggested(defaults.get(CONF_PRICE_ENTITY)))
+        ] = _entity()
+    return vol.Schema(fields)
+
+
+def normalize_room(
+    data: Mapping[str, Any], existing_ids: set[str], keep_id: str | None = None
+) -> dict[str, Any]:
+    """Build flat room subentry data."""
+    name = str(data.get(CONF_NAME) or "").strip() or "Room"
+    room_id = keep_id or _unique_slug(name, existing_ids, "room")
+    result: dict[str, Any] = {
+        CONF_ROOM_ID: room_id,
+        CONF_NAME: name,
+        CONF_DEMAND_ENTITY: data[CONF_DEMAND_ENTITY],
+        CONF_DEMAND_KIND: data.get(CONF_DEMAND_KIND, DEMAND_KIND_PERCENTAGE),
+        CONF_EMITTER_KIND: data.get(CONF_EMITTER_KIND, EMITTER_KIND_RADIATOR),
+        CONF_ENABLED: bool(data.get(CONF_ENABLED, True)),
+    }
+    for key in (
+        CONF_AREA_ID,
+        CONF_ROOM_TEMPERATURE_ENTITY,
+        CONF_PRICE_ENTITY,
+    ):
+        if data.get(key):
+            result[key] = data[key]
+    for key in (CONF_RATED_OUTPUT_W, CONF_FLOOR_AREA_M2, CONF_VOLUME_M3):
+        if data.get(key) is not None:
+            result[key] = float(data[key])
+    return result
+
+
+class RoomSubentryFlowHandler(_SubentryFlowBase):
+    """Add or reconfigure a room (CONFIG_FLOW room)."""
+
+    async def async_step_user(self, user_input: dict[str, Any] | None = None) -> SubentryFlowResult:
+        """Add a room."""
+        errors: dict[str, str] = {}
+        defaults: dict[str, Any] = dict(user_input or {})
+        if user_input is None:
+            defaults[CONF_DEMAND_KIND] = DEMAND_KIND_PERCENTAGE
+        elif user_input.get(CONF_DEMAND_ENTITY) and CONF_DEMAND_KIND not in (
+            user_input or {}
+        ):
+            defaults[CONF_DEMAND_KIND] = _detect_demand_kind(
+                self.hass, user_input.get(CONF_DEMAND_ENTITY)
+            )
+        if user_input is not None:
+            name = str(user_input.get(CONF_NAME) or "").strip()
+            if not name:
+                errors[CONF_NAME] = "invalid_name"
+            errors.update(validate_room(self.hass, user_input))
+            if not errors:
+                existing = self._existing_ids(SUBENTRY_TYPE_ROOM, CONF_ROOM_ID)
+                room = normalize_room(user_input, existing)
+                return self.async_create_entry(
+                    title=room[CONF_NAME], data=room, unique_id=room[CONF_ROOM_ID]
+                )
+        show_price = (user_input or {}).get(CONF_DEMAND_KIND) == DEMAND_KIND_METERED
+        return self.async_show_form(
+            step_id="user",
+            data_schema=room_schema(defaults, show_price=show_price or True),
+            errors=errors,
+        )
+
+    async def async_step_reconfigure(
+        self, user_input: dict[str, Any] | None = None
+    ) -> SubentryFlowResult:
+        """Change a room."""
+        subentry = self._get_reconfigure_subentry()
+        errors: dict[str, str] = {}
+        defaults: Mapping[str, Any] = user_input or subentry.data
+        if user_input is not None:
+            name = str(user_input.get(CONF_NAME) or "").strip()
+            if not name:
+                errors[CONF_NAME] = "invalid_name"
+            errors.update(validate_room(self.hass, user_input))
+            if not errors:
+                room = normalize_room(
+                    user_input, set(), keep_id=str(subentry.data[CONF_ROOM_ID])
+                )
+                return self.async_update_and_abort(
+                    self._config_entry, subentry, data=room, title=room[CONF_NAME]
+                )
+        return self.async_show_form(
+            step_id="reconfigure",
+            data_schema=room_schema(defaults, show_price=True),
             errors=errors,
         )

@@ -54,6 +54,8 @@ OVERVIEW_ENTITY_SPECS: tuple[tuple[str, str], ...] = (
     ("sensor", "forecast_heat_season"),
     ("sensor", "forecast_gas_season"),
     ("sensor", "forecast_electric_season"),
+    ("sensor", "heat_unallocated_season"),
+    ("sensor", "most_expensive_room"),
 )
 
 _TODAY_KEYS: tuple[str, ...] = (
@@ -73,6 +75,8 @@ _SEASON_KEYS: tuple[str, ...] = (
     "gas_per_degree_day",
     "heat_pump_share_season",
     "dhw_baseline",
+    "heat_unallocated_season",
+    "most_expensive_room",
 )
 _FIT_KEYS: tuple[str, ...] = (
     "heat_loss_coefficient",
@@ -302,4 +306,217 @@ def _overview_cards(
                 },
             ],
         },
+    ]
+
+
+# --- Rooms dashboard (sidebar path /heatprint-<site>-rooms) -------------------------------------
+
+_METRIC_HEAT_UNALLOCATED = "heat_unallocated"
+
+ROOMS_DASHBOARD_ICON = "mdi:floor-plan"
+ROOMS_DASHBOARD_VIEW_PATH = "rooms"
+
+# Site-level sensors that appear on the rooms dashboard.
+ROOMS_SITE_ENTITY_SPECS: tuple[tuple[str, str], ...] = (
+    ("sensor", "heat_unallocated_season"),
+    ("sensor", "most_expensive_room"),
+)
+
+# Per-room description.keys. unique_id is ``{entry_id}_{room_id}_{key}``.
+ROOM_ENTITY_KEYS: tuple[str, ...] = (
+    "room_heat_yesterday",
+    "room_heat_season",
+    "room_share_season",
+    "room_heat_loss_coefficient",
+    "room_specific_heat_loss",
+    "room_balance_temperature",
+    "room_fit_quality",
+    "room_heat_per_m2_season",
+    "room_data_quality",
+)
+
+_ROOM_SUMMARY_KEYS: tuple[str, ...] = (
+    "room_heat_yesterday",
+    "room_heat_season",
+    "room_share_season",
+    "room_heat_loss_coefficient",
+    "room_specific_heat_loss",
+    "room_balance_temperature",
+    "room_data_quality",
+)
+
+MISSING_ROOMS_NOTE = (
+    "No rooms are configured yet. Add a Room subentry on the Heatprint site, "
+    "reload, then recreate the dashboard with `heatprint.create_dashboard`."
+)
+
+
+def rooms_dashboard_url_path(site_id: str) -> str:
+    """Return the Lovelace url_path of the rooms dashboard (contains a hyphen)."""
+    return f"{dashboard_url_path(site_id)}-rooms"
+
+
+def rooms_dashboard_title(site_name: str) -> str:
+    """Return the sidebar title of the rooms dashboard."""
+    name = (site_name or "").strip()
+    return f"Heatprint Rooms ({name})" if name else "Heatprint Rooms"
+
+
+def room_entity_unique_id(entry_id: str, room_id: str, key: str) -> str:
+    """Return ``{entry_id}_{room_id}_{description.key}`` used by room sensors."""
+    return f"{entry_id}_{room_id}_{key}"
+
+
+def _room_heat_metric(room_id: str) -> str:
+    return f"room_{room_id}_heat"
+
+
+def _room_t_mean_metric(room_id: str) -> str:
+    return f"room_{room_id}_t_mean"
+
+
+def resolve_rooms_entity_ids(
+    lookup: EntityIdLookup,
+    entry_id: str,
+    rooms: Iterable[Mapping[str, Any]] | None = None,
+) -> dict[str, Any]:
+    """Map site and per-room description keys to current ``entity_id``s.
+
+    Site keys live at the top level. Per-room keys live under
+    ``rooms[room_id][key]``. Missing registry rows are omitted.
+    """
+    resolved: dict[str, Any] = {"rooms": {}}
+    for domain, key in ROOMS_SITE_ENTITY_SPECS:
+        entity_id = lookup(domain, _DOMAIN, site_entity_unique_id(entry_id, key))
+        if entity_id:
+            resolved[key] = entity_id
+    for room in rooms or []:
+        room_id = str(room.get("room_id") or room.get("id") or "")
+        if not room_id:
+            continue
+        per_room: dict[str, str] = {}
+        for key in ROOM_ENTITY_KEYS:
+            entity_id = lookup("sensor", _DOMAIN, room_entity_unique_id(entry_id, room_id, key))
+            if entity_id:
+                per_room[key] = entity_id
+        if per_room:
+            resolved["rooms"][room_id] = per_room
+    return resolved
+
+
+def build_rooms_config(
+    site_id: str,
+    *,
+    site_name: str = "Home",
+    rooms: Iterable[Mapping[str, Any]] | None = None,
+    entity_ids: Mapping[str, Any] | None = None,
+) -> dict[str, Any]:
+    """Return a Lovelace storage config for the Rooms dashboard.
+
+    ``entity_ids`` is the map from :func:`resolve_rooms_entity_ids`. Statistic
+    graphs use language-independent ``heatprint:<site>_room_<id>_heat`` ids.
+    """
+    return {
+        "views": [
+            {
+                "title": "Rooms",
+                "path": ROOMS_DASHBOARD_VIEW_PATH,
+                "icon": ROOMS_DASHBOARD_ICON,
+                "cards": _rooms_cards(site_id, site_name, list(rooms or []), entity_ids or {}),
+            }
+        ]
+    }
+
+
+def _rooms_cards(
+    site_id: str,
+    site_name: str,
+    rooms: list[Mapping[str, Any]],
+    entity_ids: Mapping[str, Any],
+) -> list[dict[str, Any]]:
+    """Return the masonry cards of the rooms view."""
+    per_room_ids = entity_ids.get("rooms") if isinstance(entity_ids.get("rooms"), Mapping) else {}
+    site_keys = ("heat_unallocated_season", "most_expensive_room")
+    left: list[dict[str, Any]] = [
+        {
+            "type": "markdown",
+            "content": (
+                f"**Per-room space heating — {site_name}.** "
+                "Heat is allocated from the site total using each room's demand "
+                "signal (METHODS §12). Apparent UA includes interzonal exchange "
+                "and is not an EN 12831 design figure. "
+                "`most_expensive_room` is ranked by allocated heat until site "
+                "cost statistics land (METHODS §13). After adding rooms, run "
+                "`heatprint.create_dashboard` so this view picks up new sensors."
+            ),
+        },
+        _entities_or_note("Site rooms summary", site_keys, entity_ids),
+    ]
+    if not rooms:
+        left.append({"type": "markdown", "content": MISSING_ROOMS_NOTE})
+    else:
+        for room in rooms:
+            room_id = str(room.get("room_id") or room.get("id") or "")
+            if not room_id:
+                continue
+            name = str(room.get("name") or room_id)
+            room_map = per_room_ids.get(room_id) if isinstance(per_room_ids, Mapping) else {}
+            left.append(
+                _entities_or_note(name, _ROOM_SUMMARY_KEYS, room_map if isinstance(room_map, Mapping) else {})
+            )
+
+    heat_stats: list[dict[str, str]] = [
+        {
+            "entity": _statistic_id(site_id, _METRIC_HEAT_SPACE),
+            "name": "Space heating (site)",
+        },
+        {
+            "entity": _statistic_id(site_id, _METRIC_HEAT_UNALLOCATED),
+            "name": "Unallocated",
+        },
+    ]
+    temp_stats: list[dict[str, str]] = []
+    for room in rooms:
+        room_id = str(room.get("room_id") or room.get("id") or "")
+        if not room_id:
+            continue
+        name = str(room.get("name") or room_id)
+        heat_stats.append(
+            {
+                "entity": _statistic_id(site_id, _room_heat_metric(room_id)),
+                "name": name,
+            }
+        )
+        temp_stats.append(
+            {
+                "entity": _statistic_id(site_id, _room_t_mean_metric(room_id)),
+                "name": f"{name} temperature",
+            }
+        )
+    right: list[dict[str, Any]] = [
+        {
+            "type": "statistics-graph",
+            "title": "Room heat and unallocated per day (kWh)",
+            "chart_type": "bar",
+            "period": "day",
+            "days_to_show": 60,
+            "stat_types": ["change"],
+            "entities": heat_stats,
+        }
+    ]
+    if temp_stats:
+        right.append(
+            {
+                "type": "statistics-graph",
+                "title": "Room temperature per day (°C)",
+                "chart_type": "line",
+                "period": "day",
+                "days_to_show": 60,
+                "stat_types": ["mean"],
+                "entities": temp_stats,
+            }
+        )
+    return [
+        {"type": "vertical-stack", "cards": left},
+        {"type": "vertical-stack", "cards": right},
     ]

@@ -7,10 +7,11 @@
 | 0.1.2 | Rooms/cost/health-check specs | Per-room heat allocation & cost design (METHODS §12), cost/CO₂ formula + dynamic tariffs (§13), data-source health checks (§14) - documentation only, no implementation | done |
 | 0.1.3 | HA home defaults + auto dashboard | First-run site from HA home, stock Lovelace overview, CSV import wizard | done |
 | 0.1.4 | Dashboard entity ids | Auto-dashboard resolves Lovelace entity cards by unique_id (Dutch / non-English UI) | done |
-| 0.2.0 | Runs on Nico's HA | Coordinator end-to-end, KNMI station 380, DSMR gas, Buienradar fallback, CSV import of mindergas export (4 gas years), reference case | planned |
+| 0.2.0 | Rooms MVP | Room subentry, demand-weighted allocation of `heat_space_kwh`, unallocated bucket, room energy signature (site TAC), room sensors + Rooms Lovelace dashboard | done |
+| 0.2.1 | Runs on Nico's HA | Coordinator end-to-end, KNMI station 380, DSMR gas, Buienradar fallback, CSV import of mindergas export (4 gas years), reference case | planned |
 | 0.3.0 | Hybrid | Heat pump generator with thermal/electric meters, heat pump share, daily COP, season 2026/27 live | planned (when the heat pump is installed) |
 | 1.0.0 | HACS release | Measure effect with CI, mindergas bridge, cost/CO₂, COP curve, DHW monthly profile, repairs/diagnostics, HACS default | planned |
-| 1.1.0 | Rooms | Per-room heat allocation from a demand signal (Tado/`tado_ce` or compatible integration), room energy signature (apparent per-room heat loss), per-room and total heating cost, unallocated bucket | planned |
+| 1.1.0 | Room cost | Per-room and total heating cost (needs site `cost_eur` statistics, METHODS §13) plus cost ranking for `most_expensive_room` | planned |
 | 2.0.0 | Visual insight | Custom card (energy signature), occupancy regressor, export/CLI, opt-in benchmark | idea |
 
 ## Definition of done per release
@@ -49,10 +50,12 @@ Deferred (not required for a coherent pre-alpha):
 6. Post-create "Compute effect" notification after adding a measure (service exists; v1.0 UI).
 7. PDF eq. 17 sun term *outside* inertia — Heatprint keeps sun inside `T_eff` (METHODS §3);
    default practical model has `include_sun` off and therefore matches PDF eq. 20.
-8. Rooms (METHODS §12), cost/CO₂ dynamic tariffs (§13) and data-source health checks (§14)
-   are specified but not implemented — no `room` subentry, no allocation/fit code, no
-   `price_mode: dynamic` handling, and no `STUCK_VALUE`/`IMPLAUSIBLE_VALUE`/`SCALE_DRIFT`/
-   `WEATHER_STALLED` checks or repairs yet.
+8. Rooms **heat** side shipped in 0.2.0 (subentry, allocation, room fit, sensors,
+   Rooms dashboard). Room **cost** sensors are skipped until site `cost_eur` is
+   written as a statistic (item 1 / METHODS §13). Cost/CO₂ dynamic tariffs (§13)
+   and data-source health checks (§14) are still specified only — no
+   `price_mode: dynamic` handling, and no `STUCK_VALUE`/`IMPLAUSIBLE_VALUE`/
+   `SCALE_DRIFT`/`WEATHER_STALLED` checks or repairs yet.
 
 ## Research items
 
@@ -60,10 +63,11 @@ Deferred (not required for a coherent pre-alpha):
 - Which heat pump brands provide thermal energy via HA integrations (Vaillant, Viessmann,
   NIBE, Bosch/EMS-ESP, Remeha, Daikin, Mitsubishi, Panasonic) - matrix for the docs.
 - Occupancy: presence/workday as a regressor (HA `person`, `workday`).
-- Rooms (1.1.0): default heat output per m² by emitter kind (radiator/underfloor), for the
+- Rooms: default heat output per m² by emitter kind (radiator/underfloor), for the
   weight defaults in METHODS §12.2 - verify against manufacturer data or a published NL
-  heat-loss guideline rather than shipping unverified placeholders.
-- Rooms (1.1.0): confirm the exact semantics of the Tado "heating power" percentage
+  heat-loss guideline rather than shipping unverified placeholders (0.2.0 ships the
+  flagged placeholders).
+- Rooms: confirm the exact semantics of the Tado "heating power" percentage
   (controller demand vs. valve opening vs. duty cycle) and build an entity/attribute matrix
   for the other thermostat/TRV integrations mentioned in METHODS §12.6.
 - Dynamic tariff (METHODS §13.2): confirm which NL day-ahead price integrations expose hourly

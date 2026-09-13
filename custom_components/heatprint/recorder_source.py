@@ -172,6 +172,101 @@ async def async_meter_reading_at(
     return None
 
 
+_HEATING_STATES = frozenset({"on", "heat", "heating", "1", "true", "yes"})
+
+
+def _state_numeric(state: Any) -> float | None:
+    """Parse a recorder state into a float, treating heating states as 1."""
+    if state is None:
+        return None
+    text = str(getattr(state, "state", state)).strip().lower()
+    if text in ("unknown", "unavailable", ""):
+        return None
+    if text in _HEATING_STATES:
+        return 1.0
+    if text in ("off", "idle", "false", "no", "0"):
+        return 0.0
+    try:
+        return float(text)
+    except ValueError:
+        hvac = getattr(state, "attributes", {}) or {}
+        action = str(hvac.get("hvac_action", "")).strip().lower()
+        if action in _HEATING_STATES:
+            return 1.0
+        if action in ("idle", "off", ""):
+            return 0.0
+        return None
+
+
+async def async_daily_from_history(
+    hass: HomeAssistant, entity_ids: Iterable[str], start: date, end: date, tz: tzinfo
+) -> dict[str, dict[date, float]]:
+    """Time-weighted daily mean from raw recorder history (~10 days typically).
+
+    Used when a demand entity has no long-term statistics yet (METHODS 12.1).
+    """
+    ids = [entity_id for entity_id in entity_ids if entity_id]
+    if not ids:
+        return {}
+    try:
+        from homeassistant.components.recorder import history
+    except ImportError:
+        return {entity_id: {} for entity_id in ids}
+
+    start_dt = _day_start(start, tz)
+    end_dt = _day_start(end + timedelta(days=1), tz)
+
+    def _load() -> dict[str, list[Any]]:
+        return history.get_significant_states(
+            hass, start_dt, end_dt, ids, None, True, False, False, True
+        )
+
+    try:
+        states = await get_instance(hass).async_add_executor_job(_load)
+    except Exception:  # noqa: BLE001 - history is a fallback
+        return {entity_id: {} for entity_id in ids}
+
+    result: dict[str, dict[date, float]] = {entity_id: {} for entity_id in ids}
+    for entity_id in ids:
+        samples = list(states.get(entity_id) or [])
+        if not samples:
+            continue
+        weighted: dict[date, list[tuple[float, float]]] = {}
+        for index, item in enumerate(samples):
+            value = _state_numeric(item)
+            if value is None:
+                continue
+            last_changed = getattr(item, "last_changed", None) or getattr(item, "last_updated", None)
+            if last_changed is None:
+                continue
+            begin = last_changed if last_changed.tzinfo else last_changed.replace(tzinfo=tz)
+            if index + 1 < len(samples):
+                nxt = getattr(samples[index + 1], "last_changed", None) or getattr(
+                    samples[index + 1], "last_updated", None
+                )
+                finish = nxt if nxt is not None and nxt.tzinfo else (nxt.replace(tzinfo=tz) if nxt else end_dt)
+            else:
+                finish = end_dt
+            begin = max(begin, start_dt)
+            finish = min(finish, end_dt)
+            if finish <= begin:
+                continue
+            cursor = begin
+            while cursor < finish:
+                day = cursor.astimezone(tz).date()
+                day_end = min(finish, _day_start(day + timedelta(days=1), tz))
+                seconds = (day_end - cursor).total_seconds()
+                if seconds > 0:
+                    weighted.setdefault(day, []).append((value, seconds))
+                cursor = day_end
+        for day, parts in weighted.items():
+            total = sum(seconds for _value, seconds in parts)
+            if total <= 0:
+                continue
+            result[entity_id][day] = sum(value * seconds for value, seconds in parts) / total
+    return result
+
+
 async def async_first_day_with_data(
     hass: HomeAssistant, entity_id: str, tz: tzinfo, max_years: int = 10
 ) -> date | None:

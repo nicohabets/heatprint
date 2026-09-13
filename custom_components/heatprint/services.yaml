@@ -208,6 +208,34 @@ clear_statistics:
       selector:
         text:
 
+fit_room_signature:
+  fields:
+    entry_id:
+      required: true
+      selector:
+        config_entry:
+          integration: heatprint
+    room_id:
+      required: true
+      example: living
+      selector:
+        text:
+    start:
+      required: false
+      example: "2024-10-01"
+      selector:
+        date:
+    end:
+      required: false
+      example: "2025-04-30"
+      selector:
+        date:
+    season:
+      required: false
+      example: "2024/2025"
+      selector:
+        text:
+
 create_dashboard:
   fields:
     entry_id:

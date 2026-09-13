@@ -480,6 +480,83 @@
       "abort": {
         "reconfigure_successful": "The measure has been changed."
       }
+    },
+    "room": {
+      "entry_type": "Room",
+      "initiate_flow": {
+        "user": "Add room",
+        "reconfigure": "Change room"
+      },
+      "step": {
+        "user": {
+          "title": "Room",
+          "description": "A room allocates a share of the site's space heating from a demand signal (valve, thermostat or dedicated meter). Apparent heat loss is an allocation-based estimate, not a design calculation (METHODS §12).",
+          "data": {
+            "area_id": "Home Assistant area",
+            "name": "Name",
+            "demand_entity": "Demand entity",
+            "demand_kind": "Demand kind",
+            "temperature_entity": "Room temperature",
+            "emitter_kind": "Emitter",
+            "rated_output_w": "Rated output",
+            "floor_area_m2": "Floor area",
+            "volume_m3": "Volume",
+            "enabled": "Enabled",
+            "price_entity": "Price sensor"
+          },
+          "data_description": {
+            "area_id": "Optional. Prefills the name from the area.",
+            "name": "For example Living room. The id derived from it is used in statistics and entities.",
+            "demand_entity": "Heating-power percentage, valve position, on/off climate, or a dedicated energy meter.",
+            "demand_kind": "How the demand entity is interpreted. Metered energy bypasses allocation and is the room's heat directly.",
+            "temperature_entity": "Optional. Used for the indicative UA estimate.",
+            "emitter_kind": "Used only for the default Watts-per-m² weight when rated output is missing.",
+            "rated_output_w": "Preferred weight. Leave empty to use floor area × default W/m².",
+            "floor_area_m2": "Enables specific heat loss (W/(m²·K)) and heat per m².",
+            "volume_m3": "Captured for later use; not used in the current calculations.",
+            "enabled": "Disabled rooms keep their history but are skipped in daily allocation.",
+            "price_entity": "Optional override for a metered-energy room. Site cost sensors are not written yet (METHODS §13)."
+          }
+        },
+        "reconfigure": {
+          "title": "Change room",
+          "description": "The id in statistics and entities does not change when you rename. Disabled rooms keep their history.",
+          "data": {
+            "area_id": "Home Assistant area",
+            "name": "Name",
+            "demand_entity": "Demand entity",
+            "demand_kind": "Demand kind",
+            "temperature_entity": "Room temperature",
+            "emitter_kind": "Emitter",
+            "rated_output_w": "Rated output",
+            "floor_area_m2": "Floor area",
+            "volume_m3": "Volume",
+            "enabled": "Enabled",
+            "price_entity": "Price sensor"
+          },
+          "data_description": {
+            "area_id": "Optional.",
+            "name": "The id in statistics and entities does not change when you rename.",
+            "demand_entity": "Heating-power percentage, valve position, on/off climate, or a dedicated energy meter.",
+            "demand_kind": "How the demand entity is interpreted.",
+            "temperature_entity": "Optional. Used for the indicative UA estimate.",
+            "emitter_kind": "Used only for the default Watts-per-m² weight when rated output is missing.",
+            "rated_output_w": "Preferred weight. Leave empty to use floor area × default W/m².",
+            "floor_area_m2": "Enables specific heat loss (W/(m²·K)) and heat per m².",
+            "volume_m3": "Captured for later use; not used in the current calculations.",
+            "enabled": "Disabled rooms keep their history but are skipped in daily allocation.",
+            "price_entity": "Optional override for a metered-energy room."
+          }
+        }
+      },
+      "error": {
+        "entity_not_found": "Entity not found.",
+        "demand_kind_mismatch": "This entity does not match the chosen demand kind.",
+        "invalid_name": "The name must contain at least one letter or digit."
+      },
+      "abort": {
+        "reconfigure_successful": "The room has been changed."
+      }
     }
   },
   "options": {
@@ -493,6 +570,7 @@
           "import_readings": "Import meter readings",
           "pricing": "Prices and CO2",
           "integrations": "Integrations",
+          "rooms": "Rooms",
           "advanced": "Advanced"
         }
       },
@@ -624,6 +702,26 @@
           "mindergas_token": "Personal API token from your mindergas.nl account settings.",
           "mindergas_generator_id": "The gas meter whose reading is sent.",
           "mindergas_daily_push": "After the daily run the meter reading at midnight is sent as today's reading."
+        }
+      },
+      "rooms": {
+        "title": "Rooms",
+        "description": "Default emitter output per m² is a labelled placeholder (METHODS §12.2). Rooms using it are flagged as estimated. Turning allocation off still computes site heat, but skips the per-room breakdown.",
+        "data": {
+          "allocation_enabled": "Allocate space heat to rooms",
+          "min_room_fit_days": "Minimum usable days for a room fit",
+          "output_w_per_m2_radiator": "Default radiator output (estimate)",
+          "output_w_per_m2_underfloor": "Default underfloor output (estimate)",
+          "output_w_per_m2_electric": "Default electric emitter output (estimate)",
+          "output_w_per_m2_other": "Default other-emitter output (estimate)"
+        },
+        "data_description": {
+          "allocation_enabled": "When off, heat_space_kwh is unchanged and no room statistics are written.",
+          "min_room_fit_days": "Below this number the room heat-loss coefficient stays unavailable (ROOM_NOT_FITTED).",
+          "output_w_per_m2_radiator": "Used when a radiator room has floor area but no rated output. Placeholder, not a design value.",
+          "output_w_per_m2_underfloor": "Used when an underfloor room has floor area but no rated output. Placeholder, not a design value.",
+          "output_w_per_m2_electric": "Used when an electric room has floor area but no rated output. Placeholder, not a design value.",
+          "output_w_per_m2_other": "Used when another emitter has floor area but no rated output. Placeholder, not a design value."
         }
       },
       "advanced": {
@@ -812,6 +910,22 @@
       "options": {
         "mindergas": "mindergas.nl"
       }
+    },
+    "demand_kind": {
+      "options": {
+        "percentage": "Heating demand (%)",
+        "valve_position": "Valve position (%)",
+        "binary": "On / off",
+        "metered_energy": "Metered energy (kWh)"
+      }
+    },
+    "emitter_kind": {
+      "options": {
+        "radiator": "Radiator",
+        "underfloor": "Underfloor",
+        "electric": "Electric",
+        "other": "Other"
+      }
     }
   },
   "entity": {
@@ -872,6 +986,39 @@
       },
       "last_weather_update": {
         "name": "Last weather update"
+      },
+      "heat_unallocated_season": {
+        "name": "Unallocated heat season"
+      },
+      "most_expensive_room": {
+        "name": "Most expensive room"
+      },
+      "room_heat_yesterday": {
+        "name": "Heat yesterday"
+      },
+      "room_heat_season": {
+        "name": "Heat season"
+      },
+      "room_share_season": {
+        "name": "Share season"
+      },
+      "room_heat_loss_coefficient": {
+        "name": "Heat loss coefficient"
+      },
+      "room_specific_heat_loss": {
+        "name": "Specific heat loss"
+      },
+      "room_balance_temperature": {
+        "name": "Balance temperature"
+      },
+      "room_fit_quality": {
+        "name": "Fit quality"
+      },
+      "room_heat_per_m2_season": {
+        "name": "Heat per m² season"
+      },
+      "room_data_quality": {
+        "name": "Data quality"
       },
       "generator_heat_space_season": {
         "name": "Space heating season"
@@ -1062,9 +1209,35 @@
         }
       }
     },
+    "fit_room_signature": {
+      "name": "Fit room energy signature",
+      "description": "Fits the apparent heat-loss coefficient and balance temperature of one room and returns the fit. Reuses the site TAC; wind is not fitted.",
+      "fields": {
+        "entry_id": {
+          "name": "Site",
+          "description": "The Heatprint site."
+        },
+        "room_id": {
+          "name": "Room id",
+          "description": "Id of the room (slug of its name)."
+        },
+        "start": {
+          "name": "Start",
+          "description": "First day of the period (or use season)."
+        },
+        "end": {
+          "name": "End",
+          "description": "Last day of the period."
+        },
+        "season": {
+          "name": "Season",
+          "description": "Season label such as 2024/2025 instead of start and end."
+        }
+      }
+    },
     "create_dashboard": {
       "name": "Create Heatprint dashboard",
-      "description": "Creates or recreates the standard Heatprint Lovelace dashboard in the sidebar (stock cards only; no custom apexcharts card).",
+      "description": "Creates or recreates the Heatprint overview and Rooms Lovelace dashboards in the sidebar (stock cards only; no custom apexcharts card). Entity cards resolve entity_id from the registry by unique_id, so a Dutch UI works.",
       "fields": {
         "entry_id": {
           "name": "Site",

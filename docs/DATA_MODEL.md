@@ -493,7 +493,7 @@ DHW is never allocated to rooms, METHODS §12):
 | `sensor.<site>_room_<room>_heat_yesterday` | kWh | energy/total | |
 | `sensor.<site>_room_<room>_heat_season` | kWh | energy/total | |
 | `sensor.<site>_room_<room>_share_season` | % | measurement | share of `heat_space_kwh` allocated to this room |
-| `sensor.<site>_room_<room>_cost_season` | € | monetary/total | |
+| `sensor.<site>_room_<room>_cost_season` | € | monetary/total | Not created in 0.2.0 — site `cost_eur` is not written as a statistic yet (METHODS §13) |
 | `sensor.<site>_room_<room>_heat_loss_coefficient` | W/K | measurement | latest room fit; unavailable while `ROOM_NOT_FITTED` |
 | `sensor.<site>_room_<room>_specific_heat_loss` | W/(m²·K) | measurement | `heat_loss_coefficient / floor_area_m2`; only if `floor_area_m2` is set - the figure comparable across rooms and houses (METHODS §12.4) |
 | `sensor.<site>_room_<room>_balance_temperature` | °C | temperature | latest room fit |
@@ -508,7 +508,7 @@ Site-level additions for the rooms feature:
 |---|---|---|---|
 | `sensor.<site>_heat_unallocated_season` | kWh | energy/total | METHODS §12.3 |
 | `sensor.<site>_cost_space_season` | € | monetary/total | Sum of `cost_room_eur` + unallocated; reconciles against site `cost_eur` |
-| `sensor.<site>_most_expensive_room` | - | measurement | State = `room.name` of the room with the highest `cost_room_eur` this season; attributes: `ranking` (all enabled rooms, sorted by `cost_room_eur_season` desc, each with `cost_eur`, `heat_kwh` and `share`), `by_heat_loss` (same rooms sorted by `ua_w_per_k` desc, for "which room loses heat fastest" independent of how much it was actually heated). Unavailable while no room has a season total yet. |
+| `sensor.<site>_most_expensive_room` | - | measurement | State = `room.name` of the room with the highest allocated heat this season (0.2.0 ranks by `heat_kwh` until site `cost_eur` exists); attributes: `ranked_by`, `ranking` (enabled rooms with `heat_kwh` and `share`), `by_heat_loss` (same rooms sorted by `ua_w_per_k` desc). Unavailable while no room has a season total yet. |
 
 ---
 
@@ -526,7 +526,7 @@ Site-level additions for the rooms feature:
 | `heatprint.push_reading` | `entry_id`, `generator_id`, `target: mindergas`, `date` | bridge to the mindergas.nl API (optional, token in options) |
 | `heatprint.clear_statistics` | `entry_id`, optional `generator_id` | delete Heatprint external statistics of one generator or the whole site |
 | `heatprint.fit_room_signature` | `entry_id`, `room_id`, `start`, `end` or `season` | `RoomSignatureFit` as response |
-| `heatprint.create_dashboard` | `entry_id` | create or recreate the stock Heatprint Lovelace dashboard in the sidebar |
+| `heatprint.create_dashboard` | `entry_id` | create or recreate the stock Heatprint overview **and** Rooms Lovelace dashboards in the sidebar |
 
 ---
 

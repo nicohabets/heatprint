@@ -1,4 +1,4 @@
-"""Register a stock Heatprint Lovelace dashboard after setup.
+"""Register stock Heatprint Lovelace dashboards after setup.
 
 Uses the same Lovelace storage APIs as Home Assistant's own map dashboard
 (HA 2026.9): create a storage dashboard (url_path must contain a hyphen),
@@ -6,9 +6,11 @@ then ``LovelaceStorage.async_save`` the views. When the live
 ``DashboardsCollection`` is not reachable, a sidebar panel is registered
 directly on ``hass.data[LOVELACE_DATA]`` so the user can still open it.
 
-Entity cards are filled with ``entity_id``s looked up from the entity
-registry by ``unique_id`` (``{entry_id}_{description.key}``). Object ids
-are language-specific under ``has_entity_name``; statistic ids are not.
+Two dashboards are created: the site overview (``heatprint-<site>``) and
+the rooms view (``heatprint-<site>-rooms``). Entity cards are filled with
+``entity_id``s looked up from the entity registry by ``unique_id``
+(``{entry_id}_{key}`` or ``{entry_id}_{room_id}_{key}``). Object ids are
+language-specific under ``has_entity_name``; statistic ids are not.
 """
 
 from __future__ import annotations
@@ -21,14 +23,19 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import HomeAssistantError
 
-from .const import CONF_NAME, CONF_SITE_ID, SUBENTRY_TYPE_GENERATOR
+from .const import CONF_NAME, CONF_SITE_ID, SUBENTRY_TYPE_GENERATOR, SUBENTRY_TYPE_ROOM
 from .dashboard_config import (
     DASHBOARD_ICON,
     OVERVIEW_ENTITY_SPECS,
+    ROOMS_DASHBOARD_ICON,
     build_overview_config,
+    build_rooms_config,
     dashboard_title,
     dashboard_url_path,
     resolve_overview_entity_ids,
+    resolve_rooms_entity_ids,
+    rooms_dashboard_title,
+    rooms_dashboard_url_path,
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -83,7 +90,9 @@ def _dashboards_collection(hass: HomeAssistant) -> Any | None:
     return None
 
 
-def _register_panel(hass: HomeAssistant, url_path: str, title: str, *, update: bool) -> None:
+def _register_panel(
+    hass: HomeAssistant, url_path: str, title: str, icon: str, *, update: bool
+) -> None:
     """Show the dashboard in the sidebar (same kwargs as lovelace._register_panel)."""
     from homeassistant.components import frontend
 
@@ -91,7 +100,7 @@ def _register_panel(hass: HomeAssistant, url_path: str, title: str, *, update: b
         hass,
         LOVELACE_DOMAIN,
         sidebar_title=title,
-        sidebar_icon=DASHBOARD_ICON,
+        sidebar_icon=icon,
         frontend_url_path=url_path,
         require_admin=False,
         config={"mode": "storage"},
@@ -100,7 +109,11 @@ def _register_panel(hass: HomeAssistant, url_path: str, title: str, *, update: b
 
 
 def _attach_storage(
-    hass: HomeAssistant, url_path: str, title: str, item_id: str | None = None
+    hass: HomeAssistant,
+    url_path: str,
+    title: str,
+    icon: str = DASHBOARD_ICON,
+    item_id: str | None = None,
 ) -> Any:
     """Put a LovelaceStorage dashboard on LOVELACE_DATA and register the panel."""
     from homeassistant.components.frontend import async_panel_exists
@@ -113,19 +126,19 @@ def _attach_storage(
         "id": item_id or url_path,
         "url_path": url_path,
         "title": title,
-        "icon": DASHBOARD_ICON,
+        "icon": icon,
         "show_in_sidebar": True,
         "require_admin": False,
         "mode": "storage",
     }
     store = LovelaceStorage(hass, item)
     lovelace.dashboards[url_path] = store
-    _register_panel(hass, url_path, title, update=async_panel_exists(hass, url_path))
+    _register_panel(hass, url_path, title, icon, update=async_panel_exists(hass, url_path))
     return store
 
 
 async def _save_if_needed(store: Any, config: dict[str, Any], *, recreate: bool) -> bool:
-    """Write the overview when missing, or when recreate was requested."""
+    """Write the dashboard when missing, or when recreate was requested."""
     from homeassistant.components.lovelace.const import ConfigNotFound
 
     if not recreate:
@@ -157,8 +170,26 @@ def _generator_payloads(entry: ConfigEntry) -> list[dict[str, Any]]:
     return payloads
 
 
+def _room_payloads(entry: ConfigEntry) -> list[dict[str, Any]]:
+    """Return enabled room id/name pairs from subentries."""
+    payloads: list[dict[str, Any]] = []
+    for subentry in entry.subentries.values():
+        if subentry.subentry_type != SUBENTRY_TYPE_ROOM:
+            continue
+        data = subentry.data
+        if data.get("enabled", True) is False:
+            continue
+        payloads.append(
+            {
+                "room_id": data.get("room_id"),
+                "name": data.get("name") or subentry.title,
+            }
+        )
+    return payloads
+
+
 def _resolved_entity_ids(hass: HomeAssistant, entry: ConfigEntry) -> dict[str, str]:
-    """Look up Lovelace entity_ids by unique_id (UI-language independent)."""
+    """Look up overview Lovelace entity_ids by unique_id (UI-language independent)."""
     from homeassistant.helpers import entity_registry as er
 
     registry = er.async_get(hass)
@@ -173,25 +204,26 @@ def _resolved_entity_ids(hass: HomeAssistant, entry: ConfigEntry) -> dict[str, s
     return resolved
 
 
-async def async_ensure_overview_dashboard(
-    hass: HomeAssistant, entry: ConfigEntry, *, recreate: bool = False
+def _resolved_rooms_entity_ids(hass: HomeAssistant, entry: ConfigEntry) -> dict[str, Any]:
+    """Look up rooms-dashboard entity_ids by unique_id (UI-language independent)."""
+    from homeassistant.helpers import entity_registry as er
+
+    registry = er.async_get(hass)
+    rooms = _room_payloads(entry)
+    resolved = resolve_rooms_entity_ids(registry.async_get_entity_id, entry.entry_id, rooms)
+    return resolved
+
+
+async def _async_ensure_dashboard(
+    hass: HomeAssistant,
+    url_path: str,
+    title: str,
+    config: dict[str, Any],
+    icon: str,
+    *,
+    recreate: bool,
 ) -> dict[str, Any]:
-    """Create or refresh the Heatprint overview dashboard for a site.
-
-    Returns ``url_path``, ``created`` (new panel or first save) and ``updated``
-    (config overwritten).
-    """
-    site_id = str(entry.data[CONF_SITE_ID])
-    site_name = str(entry.data.get(CONF_NAME) or entry.title or site_id)
-    url_path = dashboard_url_path(site_id)
-    title = dashboard_title(site_name)
-    config = build_overview_config(
-        site_id,
-        site_name=site_name,
-        generators=_generator_payloads(entry),
-        entity_ids=_resolved_entity_ids(hass, entry),
-    )
-
+    """Create or refresh one storage dashboard and sidebar panel."""
     lovelace = _lovelace_data(hass)
     if lovelace is None:
         raise HomeAssistantError("Lovelace is not loaded")
@@ -208,37 +240,103 @@ async def async_ensure_overview_dashboard(
                 {
                     "url_path": url_path,
                     "title": title,
-                    "icon": DASHBOARD_ICON,
+                    "icon": icon,
                     "show_in_sidebar": True,
                     "require_admin": False,
                 }
             )
         except (HomeAssistantError, ValueError) as err:
             _LOGGER.debug("DashboardsCollection create skipped: %s", err)
-            store = _attach_storage(hass, url_path, title)
+            store = _attach_storage(hass, url_path, title, icon)
         else:
             store = lovelace.dashboards.get(url_path) or _attach_storage(
-                hass, url_path, title, item_id=item.get("id")
+                hass, url_path, title, icon, item_id=item.get("id")
             )
             await store.async_save(config)
             return {"url_path": url_path, "created": True, "updated": True}
         wrote = await _save_if_needed(store, config, recreate=True)
         return {"url_path": url_path, "created": True, "updated": wrote}
 
-    store = _attach_storage(hass, url_path, title)
+    store = _attach_storage(hass, url_path, title, icon)
     wrote = await _save_if_needed(store, config, recreate=True)
     return {"url_path": url_path, "created": True, "updated": wrote}
+
+
+async def async_ensure_overview_dashboard(
+    hass: HomeAssistant, entry: ConfigEntry, *, recreate: bool = False
+) -> dict[str, Any]:
+    """Create or refresh the Heatprint overview dashboard for a site.
+
+    Returns ``url_path``, ``created`` (new panel or first save) and ``updated``
+    (config overwritten).
+    """
+    site_id = str(entry.data[CONF_SITE_ID])
+    site_name = str(entry.data.get(CONF_NAME) or entry.title or site_id)
+    return await _async_ensure_dashboard(
+        hass,
+        dashboard_url_path(site_id),
+        dashboard_title(site_name),
+        build_overview_config(
+            site_id,
+            site_name=site_name,
+            generators=_generator_payloads(entry),
+            entity_ids=_resolved_entity_ids(hass, entry),
+        ),
+        DASHBOARD_ICON,
+        recreate=recreate,
+    )
+
+
+async def async_ensure_rooms_dashboard(
+    hass: HomeAssistant, entry: ConfigEntry, *, recreate: bool = False
+) -> dict[str, Any]:
+    """Create or refresh the Heatprint Rooms dashboard for a site."""
+    site_id = str(entry.data[CONF_SITE_ID])
+    site_name = str(entry.data.get(CONF_NAME) or entry.title or site_id)
+    return await _async_ensure_dashboard(
+        hass,
+        rooms_dashboard_url_path(site_id),
+        rooms_dashboard_title(site_name),
+        build_rooms_config(
+            site_id,
+            site_name=site_name,
+            rooms=_room_payloads(entry),
+            entity_ids=_resolved_rooms_entity_ids(hass, entry),
+        ),
+        ROOMS_DASHBOARD_ICON,
+        recreate=recreate,
+    )
+
+
+async def async_ensure_dashboards(
+    hass: HomeAssistant, entry: ConfigEntry, *, recreate: bool = False
+) -> dict[str, Any]:
+    """Create or refresh the overview and rooms dashboards.
+
+    Returns both results plus top-level ``url_path`` / ``created`` / ``updated``
+    from the overview (same shape as v0.1.x ``create_dashboard``).
+    """
+    overview = await async_ensure_overview_dashboard(hass, entry, recreate=recreate)
+    rooms = await async_ensure_rooms_dashboard(hass, entry, recreate=recreate)
+    return {
+        "url_path": overview["url_path"],
+        "created": overview["created"] or rooms["created"],
+        "updated": overview["updated"] or rooms["updated"],
+        "overview": overview,
+        "rooms": rooms,
+    }
 
 
 async def async_setup_entry_dashboard(hass: HomeAssistant, entry: ConfigEntry) -> None:
     """Best-effort dashboard create during config-entry setup (never raises)."""
     try:
-        result = await async_ensure_overview_dashboard(hass, entry, recreate=False)
+        result = await async_ensure_dashboards(hass, entry, recreate=False)
     except Exception:  # noqa: BLE001 - dashboard must not fail the integration
-        _LOGGER.exception("Could not create the Heatprint dashboard")
+        _LOGGER.exception("Could not create the Heatprint dashboards")
         return
     _LOGGER.info(
-        "Heatprint dashboard %s (%s)",
-        result["url_path"],
+        "Heatprint dashboards %s and %s (%s)",
+        result["overview"]["url_path"],
+        result["rooms"]["url_path"],
         "created" if result["created"] else "already present",
     )

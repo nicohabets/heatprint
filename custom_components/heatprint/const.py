@@ -20,6 +20,7 @@ PLATFORMS: Final[list[Platform]] = [Platform.SENSOR, Platform.BINARY_SENSOR]
 
 SUBENTRY_TYPE_GENERATOR: Final = "generator"
 SUBENTRY_TYPE_MEASURE: Final = "measure"
+SUBENTRY_TYPE_ROOM: Final = "room"
 
 # Daily processing runs at 06:15 local time: KNMI publishes the definitive day
 # values of "yesterday" in the early morning and the recorder has compiled the
@@ -69,6 +70,7 @@ OPT_IMPORT: Final = "import_readings"
 OPT_PRICING: Final = "pricing"
 OPT_INTEGRATIONS: Final = "integrations"
 OPT_ADVANCED: Final = "advanced"
+OPT_ROOMS: Final = "rooms"
 
 # Methods and season
 CONF_SEASON_START: Final = "season_start"
@@ -151,6 +153,24 @@ CONF_MEASURE_ID: Final = "measure_id"
 CONF_DATE: Final = "date"
 CONF_CATEGORY: Final = "category"
 CONF_NOTES: Final = "notes"
+
+# --- Room (subentry data) ------------------------------------------------------
+CONF_ROOM_ID: Final = "room_id"
+CONF_AREA_ID: Final = "area_id"
+CONF_DEMAND_ENTITY: Final = "demand_entity"
+CONF_DEMAND_KIND: Final = "demand_kind"
+CONF_ROOM_TEMPERATURE_ENTITY: Final = "temperature_entity"
+CONF_EMITTER_KIND: Final = "emitter_kind"
+CONF_RATED_OUTPUT_W: Final = "rated_output_w"
+CONF_FLOOR_AREA_M2: Final = "floor_area_m2"
+CONF_VOLUME_M3: Final = "volume_m3"
+CONF_ENABLED: Final = "enabled"
+CONF_ROOMS_ALLOCATION: Final = "allocation_enabled"
+CONF_ROOMS_MIN_FIT_DAYS: Final = "min_room_fit_days"
+CONF_OUTPUT_W_PER_M2_RADIATOR: Final = "output_w_per_m2_radiator"
+CONF_OUTPUT_W_PER_M2_UNDERFLOOR: Final = "output_w_per_m2_underfloor"
+CONF_OUTPUT_W_PER_M2_ELECTRIC: Final = "output_w_per_m2_electric"
+CONF_OUTPUT_W_PER_M2_OTHER: Final = "output_w_per_m2_other"
 
 # --- Enumerations (string lists for selectors) ---------------------------------
 PROVIDER_KNMI: Final = "knmi"
@@ -261,6 +281,27 @@ TAC_PRESETS: Final = ["house", "pbl"]
 
 MEASURE_CATEGORIES: Final = ["insulation", "installation", "behaviour", "other"]
 
+DEMAND_KIND_PERCENTAGE: Final = "percentage"
+DEMAND_KIND_VALVE: Final = "valve_position"
+DEMAND_KIND_BINARY: Final = "binary"
+DEMAND_KIND_METERED: Final = "metered_energy"
+DEMAND_KINDS: Final = [
+    DEMAND_KIND_PERCENTAGE,
+    DEMAND_KIND_VALVE,
+    DEMAND_KIND_BINARY,
+    DEMAND_KIND_METERED,
+]
+EMITTER_KIND_RADIATOR: Final = "radiator"
+EMITTER_KIND_UNDERFLOOR: Final = "underfloor"
+EMITTER_KIND_ELECTRIC: Final = "electric"
+EMITTER_KIND_OTHER: Final = "other"
+EMITTER_KINDS: Final = [
+    EMITTER_KIND_RADIATOR,
+    EMITTER_KIND_UNDERFLOOR,
+    EMITTER_KIND_ELECTRIC,
+    EMITTER_KIND_OTHER,
+]
+
 PUSH_TARGET_MINDERGAS: Final = "mindergas"
 PUSH_TARGETS: Final = [PUSH_TARGET_MINDERGAS]
 IMPORT_UNITS: Final = CARRIER_UNITS
@@ -285,6 +326,16 @@ DEFAULT_PBL_TST: Final = {"winter": 17.01, "shoulder": 15.26, "transition": 15.1
 DEFAULT_PBL_RER: Final = {"winter": 1.00, "shoulder": 1.02, "transition": 0.79, "summer": 0.61}
 DEFAULT_PBL_TOP: Final = 1.30
 DEFAULT_PBL_WIND_SQRT_COEF: Final = 1.0
+DEFAULT_OUTPUT_W_PER_M2: Final[dict[str, float]] = {
+    EMITTER_KIND_RADIATOR: 70.0,
+    EMITTER_KIND_UNDERFLOOR: 50.0,
+    EMITTER_KIND_ELECTRIC: 100.0,
+    EMITTER_KIND_OTHER: 70.0,
+}
+DEFAULT_ROOMS_ALLOCATION: Final = True
+DEFAULT_ROOMS_MIN_FIT_DAYS: Final = 30
+UNIT_W_PER_K_PER_M2: Final = "W/(m²·K)"
+UNIT_KWH_PER_M2: Final = "kWh/m²"
 
 
 class KindDefaults(NamedTuple):
@@ -430,6 +481,8 @@ METRIC_ELECTRIC_HP: Final = "electric_hp"
 METRIC_GAS: Final = "gas"
 METRIC_HEAT_GENERATOR_PREFIX: Final = "heat_"
 METRIC_HEAT_DHW_GENERATOR_PREFIX: Final = "heat_dhw_"
+METRIC_HEAT_UNALLOCATED: Final = "heat_unallocated"
+METRIC_ROOM_PREFIX: Final = "room_"
 
 SITE_METRICS: Final[tuple[MetricDef, ...]] = (
     MetricDef(METRIC_T_MEAN, STATISTIC_MEAN, UnitOfTemperature.CELSIUS, "temperature"),
@@ -443,6 +496,7 @@ SITE_METRICS: Final[tuple[MetricDef, ...]] = (
     MetricDef(METRIC_HEAT_DHW, STATISTIC_SUM, UnitOfEnergy.KILO_WATT_HOUR, "energy"),
     MetricDef(METRIC_ELECTRIC_HP, STATISTIC_SUM, UnitOfEnergy.KILO_WATT_HOUR, "energy"),
     MetricDef(METRIC_GAS, STATISTIC_SUM, UnitOfVolume.CUBIC_METERS, "volume"),
+    MetricDef(METRIC_HEAT_UNALLOCATED, STATISTIC_SUM, UnitOfEnergy.KILO_WATT_HOUR, "energy"),
 )
 METHOD_TO_DD_METRIC: Final[dict[str, str]] = {
     METHOD_CLASSIC: METRIC_DD_CLASSIC,
@@ -467,6 +521,21 @@ def generator_dhw_metric(generator_id: str) -> str:
     return f"{METRIC_HEAT_DHW_GENERATOR_PREFIX}{generator_id}"
 
 
+def room_heat_metric(room_id: str) -> str:
+    """Return the metric key for allocated space heat of one room."""
+    return f"{METRIC_ROOM_PREFIX}{room_id}_heat"
+
+
+def room_demand_metric(room_id: str) -> str:
+    """Return the metric key for the daily demand integral of one room."""
+    return f"{METRIC_ROOM_PREFIX}{room_id}_demand"
+
+
+def room_t_mean_metric(room_id: str) -> str:
+    """Return the metric key for the daily mean room temperature."""
+    return f"{METRIC_ROOM_PREFIX}{room_id}_t_mean"
+
+
 # --- Data quality flags (METHODS 10); order defines the bit in the compact store ---
 FLAG_WEATHER_MISSING: Final = "WEATHER_MISSING"
 FLAG_WEATHER_PARTIAL: Final = "WEATHER_PARTIAL"
@@ -480,6 +549,11 @@ FLAG_HOUSE_NOT_FITTED: Final = "HOUSE_NOT_FITTED"
 FLAG_OUTLIER: Final = "OUTLIER"
 FLAG_IMPORTED: Final = "IMPORTED"
 FLAG_DHW_BASELINE_MISSING: Final = "DHW_BASELINE_MISSING"
+FLAG_ROOM_DEMAND_MISSING: Final = "ROOM_DEMAND_MISSING"
+FLAG_ROOM_DEMAND_FROM_HISTORY: Final = "ROOM_DEMAND_FROM_HISTORY"
+FLAG_ROOM_WEIGHT_ASSUMED: Final = "ROOM_WEIGHT_ASSUMED"
+FLAG_ROOM_NOT_FITTED: Final = "ROOM_NOT_FITTED"
+FLAG_ROOM_TEMPERATURE_MISSING: Final = "ROOM_TEMPERATURE_MISSING"
 FLAG_NAMES: Final[tuple[str, ...]] = (
     FLAG_WEATHER_MISSING,
     FLAG_WEATHER_PARTIAL,
@@ -493,6 +567,11 @@ FLAG_NAMES: Final[tuple[str, ...]] = (
     FLAG_OUTLIER,
     FLAG_IMPORTED,
     FLAG_DHW_BASELINE_MISSING,
+    FLAG_ROOM_DEMAND_MISSING,
+    FLAG_ROOM_DEMAND_FROM_HISTORY,
+    FLAG_ROOM_WEIGHT_ASSUMED,
+    FLAG_ROOM_NOT_FITTED,
+    FLAG_ROOM_TEMPERATURE_MISSING,
 )
 FLAG_BITS: Final[dict[str, int]] = {name: 1 << index for index, name in enumerate(FLAG_NAMES)}
 # Days carrying one of these flags are excluded from fits and k-values.
@@ -517,10 +596,12 @@ SERVICE_EXPORT_DAILY: Final = "export_daily"
 SERVICE_PUSH_READING: Final = "push_reading"
 SERVICE_CLEAR_STATISTICS: Final = "clear_statistics"
 SERVICE_CREATE_DASHBOARD: Final = "create_dashboard"
+SERVICE_FIT_ROOM_SIGNATURE: Final = "fit_room_signature"
 
 ATTR_ENTRY_ID: Final = "entry_id"
 ATTR_GENERATOR_ID: Final = "generator_id"
 ATTR_MEASURE_ID: Final = "measure_id"
+ATTR_ROOM_ID: Final = "room_id"
 ATTR_CSV: Final = "csv"
 ATTR_PATH: Final = "path"
 ATTR_MAPPING: Final = "mapping"
@@ -572,4 +653,15 @@ SENSOR_LAST_WEATHER_UPDATE: Final = "last_weather_update"
 SENSOR_GENERATOR_HEAT_SPACE_SEASON: Final = "generator_heat_space_season"
 SENSOR_GENERATOR_HEAT_DHW_SEASON: Final = "generator_heat_dhw_season"
 SENSOR_GENERATOR_SHARE_SEASON: Final = "generator_share_season"
+SENSOR_HEAT_UNALLOCATED_SEASON: Final = "heat_unallocated_season"
+SENSOR_MOST_EXPENSIVE_ROOM: Final = "most_expensive_room"
+SENSOR_ROOM_HEAT_YESTERDAY: Final = "room_heat_yesterday"
+SENSOR_ROOM_HEAT_SEASON: Final = "room_heat_season"
+SENSOR_ROOM_SHARE_SEASON: Final = "room_share_season"
+SENSOR_ROOM_HEAT_LOSS_COEFFICIENT: Final = "room_heat_loss_coefficient"
+SENSOR_ROOM_SPECIFIC_HEAT_LOSS: Final = "room_specific_heat_loss"
+SENSOR_ROOM_BALANCE_TEMPERATURE: Final = "room_balance_temperature"
+SENSOR_ROOM_FIT_QUALITY: Final = "room_fit_quality"
+SENSOR_ROOM_HEAT_PER_M2_SEASON: Final = "room_heat_per_m2_season"
+SENSOR_ROOM_DATA_QUALITY: Final = "room_data_quality"
 BINARY_SENSOR_DATA_GAP: Final = "data_gap"

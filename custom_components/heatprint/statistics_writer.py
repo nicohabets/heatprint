@@ -24,10 +24,12 @@ from homeassistant.components.recorder.statistics import (
     async_add_external_statistics,
     clear_statistics,
 )
-from homeassistant.const import UnitOfEnergy
+from homeassistant.const import PERCENTAGE, UnitOfEnergy, UnitOfTemperature
 from homeassistant.core import HomeAssistant, callback
 
 from .const import (
+    DEMAND_KIND_BINARY,
+    DEMAND_KIND_METERED,
     DOMAIN,
     METRIC_HEAT_DHW_GENERATOR_PREFIX,
     METRIC_HEAT_GENERATOR_PREFIX,
@@ -37,9 +39,12 @@ from .const import (
     MetricDef,
     generator_dhw_metric,
     generator_metric,
+    room_demand_metric,
+    room_heat_metric,
+    room_t_mean_metric,
     statistic_id,
 )
-from .core_api import DayMetrics, GeneratorConfig
+from .core_api import DayMetrics, GeneratorConfig, RoomConfig
 from .recorder_source import async_last_sum_before
 
 _LOGGER = logging.getLogger(__name__)
@@ -65,11 +70,23 @@ METRIC_NAMES: dict[str, str] = {
     "heat_dhw": "Hot water and cooking",
     "electric_hp": "Heat pump electricity",
     "gas": "Gas",
+    "heat_unallocated": "Unallocated space heating",
 }
 
 
-def metric_definitions(generators: Iterable[GeneratorConfig]) -> dict[str, MetricDef]:
-    """Return all metric definitions for a site including the per-generator metrics."""
+def _room_demand_unit(kind: str) -> tuple[str, str | None]:
+    if kind == DEMAND_KIND_METERED:
+        return UnitOfEnergy.KILO_WATT_HOUR, "energy"
+    if kind == DEMAND_KIND_BINARY:
+        return "h", None
+    return PERCENTAGE, None
+
+
+def metric_definitions(
+    generators: Iterable[GeneratorConfig],
+    rooms: Iterable[RoomConfig] | None = None,
+) -> dict[str, MetricDef]:
+    """Return all metric definitions for a site including generators and rooms."""
     definitions = {metric.key: metric for metric in SITE_METRICS}
     for generator in generators:
         definitions[generator_metric(generator.generator_id)] = MetricDef(
@@ -84,10 +101,35 @@ def metric_definitions(generators: Iterable[GeneratorConfig]) -> dict[str, Metri
             UnitOfEnergy.KILO_WATT_HOUR,
             "energy",
         )
+    for room in rooms or ():
+        definitions[room_heat_metric(room.room_id)] = MetricDef(
+            room_heat_metric(room.room_id),
+            STATISTIC_SUM,
+            UnitOfEnergy.KILO_WATT_HOUR,
+            "energy",
+        )
+        demand_unit, demand_class = _room_demand_unit(room.demand_kind)
+        definitions[room_demand_metric(room.room_id)] = MetricDef(
+            room_demand_metric(room.room_id),
+            STATISTIC_MEAN,
+            demand_unit,
+            demand_class,
+        )
+        definitions[room_t_mean_metric(room.room_id)] = MetricDef(
+            room_t_mean_metric(room.room_id),
+            STATISTIC_MEAN,
+            UnitOfTemperature.CELSIUS,
+            "temperature",
+        )
     return definitions
 
 
-def _metric_name(site_name: str, metric: MetricDef, generators: Mapping[str, str]) -> str:
+def _metric_name(
+    site_name: str,
+    metric: MetricDef,
+    generators: Mapping[str, str],
+    rooms: Mapping[str, str] | None = None,
+) -> str:
     """Return a human readable name for the statistic."""
     if metric.key.startswith(METRIC_HEAT_DHW_GENERATOR_PREFIX):
         generator_id = metric.key[len(METRIC_HEAT_DHW_GENERATOR_PREFIX) :]
@@ -97,6 +139,16 @@ def _metric_name(site_name: str, metric: MetricDef, generators: Mapping[str, str
         generator_id = metric.key[len(METRIC_HEAT_GENERATOR_PREFIX) :]
         if generator_id in generators:
             return f"{site_name} {generators[generator_id]} space heating"
+    if metric.key.startswith("room_") and rooms:
+        rest = metric.key[len("room_") :]
+        for room_id, name in rooms.items():
+            prefix = f"{room_id}_"
+            if rest.startswith(prefix):
+                suffix = rest[len(prefix) :]
+                label = {"heat": "heat", "demand": "demand", "t_mean": "temperature"}.get(
+                    suffix, suffix
+                )
+                return f"{site_name} {name} {label}"
     return f"{site_name} {METRIC_NAMES.get(metric.key, metric.key)}"
 
 
@@ -135,6 +187,7 @@ async def async_write_daily_metrics(
     generators: Iterable[GeneratorConfig],
     tz: tzinfo,
     sum_offsets: Mapping[str, float] | None = None,
+    rooms: Iterable[RoomConfig] | None = None,
 ) -> dict[str, float]:
     """Upsert the day metrics of ``records`` as external statistics.
 
@@ -144,11 +197,13 @@ async def async_write_daily_metrics(
     can pass them into the next chunk.
     """
     generator_list = list(generators)
+    room_list = list(rooms or ())
     rows = sorted(records, key=lambda item: item.date)
     if not rows:
         return dict(sum_offsets or {})
-    definitions = metric_definitions(generator_list)
+    definitions = metric_definitions(generator_list, room_list)
     generator_names = {generator.generator_id: generator.name for generator in generator_list}
+    room_names = {room.room_id: room.name for room in room_list}
     running: dict[str, float] = dict(sum_offsets or {})
     first_day = rows[0].date
 
@@ -191,7 +246,9 @@ async def async_write_daily_metrics(
                 )
         if not stats:
             continue
-        metadata = build_metadata(site_id, _metric_name(site_name, metric, generator_names), metric)
+        metadata = build_metadata(
+            site_id, _metric_name(site_name, metric, generator_names, room_names), metric
+        )
         async_add_external_statistics(hass, metadata, stats)
     await _async_flush_recorder(hass)
     return running

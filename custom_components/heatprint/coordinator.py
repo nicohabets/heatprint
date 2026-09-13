@@ -38,6 +38,8 @@ from .const import (
     CONF_LONGITUDE,
     CONF_METHODS_PRIMARY,
     CONF_MIN_FIT_DAYS,
+    CONF_ROOMS_ALLOCATION,
+    CONF_ROOMS_MIN_FIT_DAYS,
     CONF_MINDERGAS_DAILY_PUSH,
     CONF_MINDERGAS_GENERATOR,
     CONF_MINDERGAS_TOKEN,
@@ -62,6 +64,7 @@ from .const import (
     METRIC_GAS,
     METRIC_HEAT_DHW,
     METRIC_HEAT_SPACE,
+    METRIC_HEAT_UNALLOCATED,
     METRIC_T_MEAN,
     METRIC_TAC_HOUSE,
     METRIC_TAC_PBL,
@@ -74,6 +77,7 @@ from .const import (
     WEATHER_CACHE_DAYS,
     generator_dhw_metric,
     generator_metric,
+    room_heat_metric,
     statistic_id,
 )
 from .core_api import (
@@ -83,6 +87,7 @@ from .core_api import (
     GeneratorConfig,
     InsufficientData,
     MeasureConfig,
+    RoomConfig,
     SeasonWindow,
     WeatherDay,
     advanced_options,
@@ -96,11 +101,18 @@ from .core_api import (
     estimate_baselines,
     fit_signature,
     forecast_season,
+    allocate_rooms,
+    fit_room_signature,
     generator_configs,
     history_options,
+    merge_room_metrics,
+    output_w_per_m2_table,
+    room_configs,
+    rooms_options,
     measure_configs,
     measure_effect,
     method_options,
+    record_flags,
     record_is_usable,
     record_to_metrics,
     season_for,
@@ -109,6 +121,7 @@ from .core_api import (
 )
 from .mindergas import MindergasError, async_push_reading
 from .recorder_source import (
+    async_daily_from_history,
     async_daily_means,
     async_daily_metrics,
     async_daily_sums,
@@ -120,6 +133,7 @@ from .store import (
     META_CLIMATOLOGY_SIGNATURE,
     META_LAST_DEFINITIVE_DATE,
     META_LAST_FIT_AT,
+    META_LAST_ROOM_FIT_AT,
     META_LAST_RUN,
     META_RECOMPUTE_MARKER,
     META_WEATHER_SIGNATURE,
@@ -151,6 +165,26 @@ class GeneratorAggregate:
 
 
 @dataclass(slots=True)
+class RoomAggregate:
+    """Season totals and latest fit of one room."""
+
+    room_id: str
+    name: str
+    heat_kwh: float = 0.0
+    share: float | None = None
+    heat_yesterday_kwh: float | None = None
+    heat_per_m2: float | None = None
+    floor_area_m2: float | None = None
+    ua_w_per_k: float | None = None
+    ua_w_per_k_per_m2: float | None = None
+    ua_indicative_w_per_k: float | None = None
+    balance_temp: float | None = None
+    fit: dict[str, Any] | None = None
+    flags: list[str] = field(default_factory=list)
+    data_quality: float | None = None
+
+
+@dataclass(slots=True)
 class SeasonAggregate:
     """Season-to-date totals (from the site's own external statistics)."""
 
@@ -167,6 +201,11 @@ class SeasonAggregate:
     heat_per_dd: dict[str, float] = field(default_factory=dict)
     gas_per_dd_classic: float | None = None
     per_generator: dict[str, GeneratorAggregate] = field(default_factory=dict)
+    heat_unallocated_kwh: float = 0.0
+    per_room: dict[str, RoomAggregate] = field(default_factory=dict)
+    most_expensive_room: str | None = None
+    room_ranking: list[dict[str, Any]] = field(default_factory=list)
+    room_ranking_by_heat_loss: list[dict[str, Any]] = field(default_factory=list)
 
 
 @dataclass(slots=True)
@@ -207,6 +246,7 @@ class HeatprintData:
     last_weather_update: datetime | None
     primary_method: str
     last_run: datetime
+    room_fits: dict[str, dict[str, Any]] = field(default_factory=dict)
 
 
 def _daterange(start: date, end: date) -> Iterable[date]:
@@ -240,6 +280,8 @@ class HeatprintCoordinator(DataUpdateCoordinator[HeatprintData]):
         )
         self.generators: list[GeneratorConfig] = generator_configs(entry)
         self.measures: list[MeasureConfig] = measure_configs(entry)
+        self.rooms: list[RoomConfig] = room_configs(entry)
+        self._last_room_records: list[Any] = []
         self.site: Any = None
         self.backfill_progress: dict[str, Any] | None = None
         self._last_metrics: list[DayMetrics] = []
@@ -415,6 +457,80 @@ class HeatprintCoordinator(DataUpdateCoordinator[HeatprintData]):
         )
         return records, weather
 
+    def _rooms_allocation_enabled(self) -> bool:
+        """True when rooms options enable allocation and at least one room is enabled."""
+        if not rooms_options(self.entry).get(CONF_ROOMS_ALLOCATION, True):
+            return False
+        return any(room.enabled for room in self.rooms)
+
+    async def _async_room_demands(
+        self, start: date, end: date
+    ) -> dict[date, dict[str, dict[str, Any]]]:
+        """Read daily demand and room temperature, preferring statistics."""
+        demand_entities = {
+            room.demand_entity for room in self.rooms if room.enabled and room.demand_entity
+        }
+        temp_entities = {
+            room.temperature_entity
+            for room in self.rooms
+            if room.enabled and room.temperature_entity
+        }
+        metered = {
+            room.demand_entity
+            for room in self.rooms
+            if room.enabled and room.is_metered and room.demand_entity
+        }
+        means_entities = (demand_entities - metered) | temp_entities
+        means = await async_daily_means(self.hass, means_entities, start, end, self.tz)
+        sums = await async_daily_sums(self.hass, metered, start, end, self.tz)
+        missing_demand = [
+            entity
+            for entity in demand_entities
+            if not means.get(entity) and not sums.get(entity)
+        ]
+        history = (
+            await async_daily_from_history(self.hass, missing_demand, start, end, self.tz)
+            if missing_demand
+            else {}
+        )
+        result: dict[date, dict[str, dict[str, Any]]] = {}
+        for room in self.rooms:
+            if not room.enabled:
+                continue
+            for day in _daterange(start, end):
+                raw: float | None = None
+                from_history = False
+                if room.demand_entity:
+                    if room.is_metered:
+                        raw = sums.get(room.demand_entity, {}).get(day)
+                    else:
+                        raw = means.get(room.demand_entity, {}).get(day)
+                    if raw is None:
+                        raw = history.get(room.demand_entity, {}).get(day)
+                        from_history = raw is not None
+                t_room = None
+                if room.temperature_entity:
+                    t_room = means.get(room.temperature_entity, {}).get(day)
+                result.setdefault(day, {})[room.room_id] = {
+                    "raw": raw,
+                    "t_room_mean": t_room,
+                    "from_history": from_history,
+                }
+        return result
+
+    async def _async_allocate_rooms(
+        self, records: list[Any], start: date, end: date
+    ) -> tuple[list[Any], dict[date, float]]:
+        """Allocate site space heat across configured rooms."""
+        inputs = await self._async_room_demands(start, end)
+        return await self.hass.async_add_executor_job(
+            allocate_rooms,
+            self.site,
+            records,
+            inputs,
+            output_w_per_m2_table(self.entry),
+        )
+
     async def _async_process_window(
         self, start: date, end: date, sum_offsets: Mapping[str, float] | None = None
     ) -> tuple[list[DayMetrics], dict[str, float]]:
@@ -425,6 +541,12 @@ class HeatprintCoordinator(DataUpdateCoordinator[HeatprintData]):
         for day in metrics:
             if day.date in provisional_days:
                 day.provisional = True
+        if self._rooms_allocation_enabled():
+            room_records, unallocated = await self._async_allocate_rooms(records, start, end)
+            merge_room_metrics(metrics, room_records, unallocated, self.rooms)
+            self._last_room_records = room_records
+            for record in room_records:
+                self.store.set_room_flags(record.room_id, record.date, record_flags(record))
         carried = await async_write_daily_metrics(
             self.hass,
             self.site_id,
@@ -433,6 +555,7 @@ class HeatprintCoordinator(DataUpdateCoordinator[HeatprintData]):
             self.generators,
             self.tz,
             sum_offsets,
+            rooms=self.rooms,
         )
         for day in metrics:
             self.store.set_flags(day.date, day.flags)
@@ -598,6 +721,7 @@ class HeatprintCoordinator(DataUpdateCoordinator[HeatprintData]):
         aggregate = await self._async_season_aggregate(season, yesterday)
         records, _weather = await self._async_build_records(season.start, yesterday)
         fit = await self._async_maybe_fit(season, records)
+        room_fits = await self._async_maybe_fit_rooms(season, records)
         forecast = await self._async_forecast(season, aggregate, records, fit)
         quality = await self._async_data_quality(yesterday)
         primary = method_options(self.entry)[CONF_METHODS_PRIMARY]
@@ -613,6 +737,7 @@ class HeatprintCoordinator(DataUpdateCoordinator[HeatprintData]):
             last_weather_update=self._last_weather_update,
             primary_method=primary,
             last_run=dt_util.utcnow(),
+            room_fits=room_fits,
         )
 
     def _latest_day(self) -> LatestDay | None:
@@ -644,10 +769,13 @@ class HeatprintCoordinator(DataUpdateCoordinator[HeatprintData]):
                 *METHOD_TO_DD_METRIC.values(),
                 METRIC_HEAT_SPACE,
                 METRIC_HEAT_DHW,
+                METRIC_HEAT_UNALLOCATED,
                 METRIC_GAS,
                 METRIC_ELECTRIC_HP,
             )
         ]
+        for room in self.rooms:
+            ids.append(statistic_id(self.site_id, room_heat_metric(room.room_id)))
         for generator in self.generators:
             ids.append(statistic_id(self.site_id, generator_metric(generator.generator_id)))
             if generator.role in (ROLE_BOTH, ROLE_DHW):
@@ -689,6 +817,73 @@ class HeatprintCoordinator(DataUpdateCoordinator[HeatprintData]):
         dd_classic = aggregate.dd.get("classic", 0.0)
         if dd_classic > 0 and aggregate.gas_m3 > 0:
             aggregate.gas_per_dd_classic = aggregate.gas_m3 / dd_classic
+        aggregate.heat_unallocated_kwh = _total(METRIC_HEAT_UNALLOCATED)
+        latest_by_room = {
+            record.room_id: record
+            for record in self._last_room_records
+            if self._last_room_records
+        }
+        yesterday = self.today - timedelta(days=1)
+        for room in self.rooms:
+            if not room.enabled:
+                continue
+            item = RoomAggregate(room.room_id, room.name, floor_area_m2=room.floor_area_m2)
+            item.heat_kwh = _total(room_heat_metric(room.room_id))
+            if aggregate.heat_space_kwh > 0:
+                item.share = item.heat_kwh / aggregate.heat_space_kwh
+            if room.floor_area_m2 and room.floor_area_m2 > 0:
+                item.heat_per_m2 = item.heat_kwh / room.floor_area_m2
+            latest = latest_by_room.get(room.room_id)
+            if latest is not None and latest.date == yesterday:
+                item.heat_yesterday_kwh = latest.heat_room_kwh
+                item.flags = record_flags(latest)
+            fit = self.store.latest_room_fit(room.room_id)
+            if fit:
+                item.fit = fit
+                item.ua_w_per_k = fit.get("ua_w_per_k")
+                item.ua_w_per_k_per_m2 = fit.get("ua_w_per_k_per_m2")
+                item.ua_indicative_w_per_k = fit.get("ua_indicative_w_per_k")
+                item.balance_temp = fit.get("balance_temp")
+            window_start = end - timedelta(days=DATA_QUALITY_WINDOW_DAYS - 1)
+            room_flags = self.store.room_flags_between(room.room_id, window_start, end)
+            usable_days = sum(
+                1
+                for day in _daterange(window_start, end)
+                if "ROOM_DEMAND_MISSING" not in room_flags.get(day, [])
+            )
+            item.data_quality = usable_days / DATA_QUALITY_WINDOW_DAYS
+            aggregate.per_room[room.room_id] = item
+        ranking = sorted(
+            aggregate.per_room.values(),
+            key=lambda room: room.heat_kwh,
+            reverse=True,
+        )
+        aggregate.room_ranking = [
+            {
+                "room_id": room.room_id,
+                "name": room.name,
+                "heat_kwh": room.heat_kwh,
+                "share": room.share,
+            }
+            for room in ranking
+            if room.heat_kwh > 0
+        ]
+        if aggregate.room_ranking:
+            aggregate.most_expensive_room = aggregate.room_ranking[0]["name"]
+        by_loss = sorted(
+            (room for room in aggregate.per_room.values() if room.ua_w_per_k),
+            key=lambda room: float(room.ua_w_per_k or 0),
+            reverse=True,
+        )
+        aggregate.room_ranking_by_heat_loss = [
+            {
+                "room_id": room.room_id,
+                "name": room.name,
+                "ua_w_per_k": room.ua_w_per_k,
+                "ua_w_per_k_per_m2": room.ua_w_per_k_per_m2,
+            }
+            for room in by_loss
+        ]
         return aggregate
 
     async def _async_maybe_fit(
@@ -710,6 +905,51 @@ class HeatprintCoordinator(DataUpdateCoordinator[HeatprintData]):
             _LOGGER.warning("Signature fit failed for %s: %s", self.site_name, err)
             return latest
         return fit or latest
+
+    async def _async_maybe_fit_rooms(
+        self, season: SeasonWindow, records: list[Any]
+    ) -> dict[str, dict[str, Any]]:
+        """Refresh per-room fits when allocation is on and enough days exist."""
+        latest = self.store.all_latest_room_fits()
+        if not self._rooms_allocation_enabled() or not self._last_room_records:
+            return latest
+        yesterday = self.today - timedelta(days=1)
+        min_days = int(rooms_options(self.entry)[CONF_ROOMS_MIN_FIT_DAYS])
+        last_fit_at = self.store.get_meta(META_LAST_ROOM_FIT_AT)
+        last_fit = dt_util.parse_datetime(last_fit_at) if last_fit_at else None
+        due = last_fit is None or (dt_util.utcnow() - last_fit) > timedelta(days=FIT_REFRESH_DAYS)
+        if not due:
+            return latest
+        core_rooms = {room.id: room for room in getattr(self.site, "rooms", [])}
+        by_room: dict[str, list[Any]] = {}
+        for record in self._last_room_records:
+            by_room.setdefault(record.room_id, []).append(record)
+        advanced = advanced_options(self.entry)
+        for room_id, room_records in by_room.items():
+            core_room = core_rooms.get(room_id)
+            if core_room is None:
+                continue
+            try:
+                fit = await self.hass.async_add_executor_job(
+                    lambda cr=core_room, rr=room_records: fit_room_signature(
+                        cr,
+                        rr,
+                        records,
+                        start=season.start,
+                        end=yesterday,
+                        min_days=min_days,
+                        outlier_k=float(advanced[CONF_OUTLIER_THRESHOLD]),
+                    )
+                )
+            except (CoreError, HomeAssistantError) as err:
+                _LOGGER.warning("Room fit failed for %s: %s", room_id, err)
+                continue
+            if fit is not None:
+                self.store.add_room_fit(room_id, fit)
+                latest[room_id] = fit
+        self.store.set_meta(META_LAST_ROOM_FIT_AT, dt_util.utcnow().isoformat())
+        self.store.async_delay_save()
+        return latest
 
     async def _async_fit(
         self,
@@ -973,6 +1213,38 @@ class HeatprintCoordinator(DataUpdateCoordinator[HeatprintData]):
             )
         return fit
 
+    async def async_fit_room_signature(
+        self, room_id: str, start: date, end: date
+    ) -> dict[str, Any]:
+        """Fit one room's energy signature for a period and store it."""
+        room = next((item for item in self.rooms if item.room_id == room_id), None)
+        if room is None:
+            raise HomeAssistantError(f"Unknown room {room_id}")
+        records, _weather = await self._async_build_records(start, end)
+        room_records, _unallocated = await self._async_allocate_rooms(records, start, end)
+        only = [record for record in room_records if record.room_id == room_id]
+        core_room = self.site.room(room_id)
+        min_days = int(rooms_options(self.entry)[CONF_ROOMS_MIN_FIT_DAYS])
+        advanced = advanced_options(self.entry)
+        fit = await self.hass.async_add_executor_job(
+            lambda: fit_room_signature(
+                core_room,
+                only,
+                records,
+                start=start,
+                end=end,
+                min_days=min_days,
+                outlier_k=float(advanced[CONF_OUTLIER_THRESHOLD]),
+            )
+        )
+        if fit is None:
+            raise HomeAssistantError(
+                "Not enough usable days for a room fit (at least 30 days with demand and heat)"
+            )
+        self.store.add_room_fit(room_id, fit)
+        self.store.async_delay_save()
+        return fit
+
     async def async_compare_periods(
         self, base: tuple[date, date], target: tuple[date, date], method: str
     ) -> dict[str, Any]:
@@ -1143,6 +1415,15 @@ class HeatprintCoordinator(DataUpdateCoordinator[HeatprintData]):
                     "category": measure.category,
                 }
                 for measure in self.measures
+            ],
+            "rooms": [
+                {
+                    "id": room.room_id,
+                    "demand_kind": room.demand_kind,
+                    "emitter_kind": room.emitter_kind,
+                    "enabled": room.enabled,
+                }
+                for room in self.rooms
             ],
             "methods": method_options(self.entry),
             "history": history_options(self.entry),

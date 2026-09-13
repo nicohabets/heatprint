@@ -61,6 +61,22 @@ KNMI14_BASE_TEMP: float = 14.0
 #: Balance temperature used for the house method as long as no fit exists (METHODS section 4.4).
 HOUSE_FALLBACK_BALANCE_TEMP: float = 15.5
 
+# --- Rooms (METHODS section 12.2 / 12.4) -------------------------------------------------------
+
+#: Default ceiling height used only to derive ``volume_m3`` from floor area.
+#: Volume is captured for a future ventilation/thermal-mass method; unused in v0.2.
+DEFAULT_CEILING_HEIGHT_M: float = 2.5
+
+#: Indicative emitter output per m² (W/m²) by ``emitter_kind``. Placeholders until
+#: verified against a published source (ROADMAP research item); rooms that use these
+#: defaults are flagged ``ROOM_WEIGHT_ASSUMED`` (METHODS section 12.2).
+DEFAULT_OUTPUT_W_PER_M2: dict[str, float] = {
+    "radiator": 70.0,
+    "underfloor": 50.0,
+    "electric": 100.0,
+    "other": 70.0,
+}
+
 # --- mindergas month weights (METHODS section 4.1) ---------------------------------------------
 
 #: Month factors of the classic weighted degree days: Nov-Feb 1.1, Mar and Oct 1.0, Apr-Sep 0.8.

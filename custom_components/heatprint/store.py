@@ -37,8 +37,11 @@ KEY_FORECAST = "forecast"
 KEY_FLAGS = "flags"
 KEY_WEATHER_CACHE = "weather_cache"
 KEY_IMPORTED = "imported"
+KEY_ROOM_FITS = "room_fits"
+KEY_ROOM_FLAGS = "room_flags"
 
 META_WEATHER_SIGNATURE = "weather_signature"
+META_LAST_ROOM_FIT_AT = "last_room_fit_at"
 META_LAST_DEFINITIVE_DATE = "last_definitive_date"
 META_LAST_RUN = "last_run"
 META_LAST_FIT_AT = "last_fit_at"
@@ -57,6 +60,8 @@ def _empty_data() -> dict[str, Any]:
         KEY_FLAGS: {},
         KEY_WEATHER_CACHE: {},
         KEY_IMPORTED: {},
+        KEY_ROOM_FITS: {},
+        KEY_ROOM_FLAGS: {},
     }
 
 
@@ -167,6 +172,57 @@ class HeatprintStore:
         ]
         fits.append(dict(fit))
         self._data[KEY_FITS] = fits[-MAX_STORED_FITS:]
+
+    # --- room fits -----------------------------------------------------------------
+
+    def room_fits(self, room_id: str) -> list[dict[str, Any]]:
+        """Return stored fits for one room, newest last."""
+        return list(self._data.get(KEY_ROOM_FITS, {}).get(room_id, []))
+
+    def latest_room_fit(self, room_id: str) -> dict[str, Any] | None:
+        """Return the most recent fit of a room, or None."""
+        fits = self.room_fits(room_id)
+        return dict(fits[-1]) if fits else None
+
+    def add_room_fit(self, room_id: str, fit: Mapping[str, Any]) -> None:
+        """Add a room fit, replacing an existing fit for the same period."""
+        key = (fit.get("period_start"), fit.get("period_end"))
+        existing = [
+            item
+            for item in self._data.setdefault(KEY_ROOM_FITS, {}).get(room_id, [])
+            if (item.get("period_start"), item.get("period_end")) != key
+        ]
+        existing.append(dict(fit))
+        self._data[KEY_ROOM_FITS][room_id] = existing[-MAX_STORED_FITS:]
+
+    def all_latest_room_fits(self) -> dict[str, dict[str, Any]]:
+        """Return the latest fit per room id."""
+        result: dict[str, dict[str, Any]] = {}
+        for room_id, fits in self._data.get(KEY_ROOM_FITS, {}).items():
+            if fits:
+                result[room_id] = dict(fits[-1])
+        return result
+
+    def set_room_flags(self, room_id: str, day: date, flags: Iterable[str]) -> None:
+        """Store the data quality flags of one room-day."""
+        bits = flags_to_bits(flags)
+        bucket = self._data.setdefault(KEY_ROOM_FLAGS, {}).setdefault(room_id, {})
+        key = day.isoformat()
+        if bits:
+            bucket[key] = bits
+        else:
+            bucket.pop(key, None)
+
+    def room_flags_between(
+        self, room_id: str, start: date, end: date
+    ) -> dict[date, list[str]]:
+        """Return room flags in start..end that have any flag set."""
+        result: dict[date, list[str]] = {}
+        for key, bits in self._data.get(KEY_ROOM_FLAGS, {}).get(room_id, {}).items():
+            day = date.fromisoformat(key)
+            if start <= day <= end and bits:
+                result[day] = bits_to_flags(int(bits))
+        return result
 
     # --- baselines -----------------------------------------------------------------
 

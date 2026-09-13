@@ -32,9 +32,12 @@ from .models import (
     ConversionMode,
     DailyEnergy,
     DailyRecord,
+    DailyRoomRecord,
     DailyWeather,
+    DemandKind,
     DhwConfig,
     DhwMode,
+    EmitterKind,
     Forecast,
     Generator,
     GeneratorKind,
@@ -46,6 +49,8 @@ from .models import (
     Period,
     Provider,
     Role,
+    Room,
+    RoomSignatureFit,
     Season,
     SeasonConfig,
     SignatureFit,
@@ -53,6 +58,15 @@ from .models import (
     WeatherSourceConfig,
 )
 from .pipeline import build_daily_records, estimate_baselines
+from .rooms import (
+    RoomDayInput,
+    allocate_day,
+    allocate_period,
+    daily_demand_integral,
+    fit_room_signature,
+    indicative_ua_w_per_k,
+    room_weight,
+)
 from .readings import readings_to_daily
 from .season import season_for, season_window
 from .weather import (
@@ -66,7 +80,7 @@ from .weather import (
     remaining_season_dd,
 )
 
-__version__ = "0.1.4"
+__version__ = "0.2.0"
 
 __all__ = [
     "CarrierInput",
@@ -79,9 +93,12 @@ __all__ = [
     "CsvInspection",
     "DailyEnergy",
     "DailyRecord",
+    "DailyRoomRecord",
     "DailyWeather",
+    "DemandKind",
     "DhwConfig",
     "DhwMode",
+    "EmitterKind",
     "Flag",
     "Forecast",
     "Generator",
@@ -97,6 +114,9 @@ __all__ = [
     "Period",
     "Provider",
     "Role",
+    "Room",
+    "RoomDayInput",
+    "RoomSignatureFit",
     "Season",
     "SeasonConfig",
     "SignatureFit",
@@ -104,6 +124,8 @@ __all__ = [
     "WeatherProvider",
     "WeatherSourceConfig",
     "__version__",
+    "allocate_day",
+    "allocate_period",
     "build_climatology",
     "build_daily_records",
     "carrier_to_heat",
@@ -111,10 +133,13 @@ __all__ = [
     "compute_all",
     "compute_day",
     "cop_day",
+    "daily_demand_integral",
     "estimate_baseline",
     "estimate_baselines",
+    "fit_room_signature",
     "fit_signature",
     "forecast_season",
+    "indicative_ua_w_per_k",
     "inspect_readings_csv",
     "measure_effect",
     "merge_weather",
@@ -125,6 +150,7 @@ __all__ = [
     "preset",
     "readings_to_daily",
     "remaining_season_dd",
+    "room_weight",
     "saving_between",
     "season_for",
     "season_window",
