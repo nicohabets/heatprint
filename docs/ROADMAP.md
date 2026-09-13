@@ -36,6 +36,8 @@ Deferred (not required for a coherent pre-alpha):
 3. Real Heerlen reference case (KNMI 380 + four gas years of mindergas export) — needs
    Nico's local export; the core reproduces the mindergas *formula* on fixture data
    within 1%. Scheduled with the v0.2 live HA run.
+4. GitHub repository description and topics (`custom-integration`, `hacs-integration`,
+   `homeassistant`). HACS CI ignores those two checks until they are set on the repo.
 
 ## Research items
 
