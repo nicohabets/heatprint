@@ -1524,7 +1524,7 @@ class HeatprintOptionsFlow(OptionsFlow):
 
 
 class _SubentryFlowBase(ConfigSubentryFlow):
-    """Shared helpers for the subentry flows (compatible with HA 2025.3 and newer)."""
+    """Shared helpers for the subentry flows (compatible with HA 2026.9 and newer)."""
 
     @property
     def _config_entry(self) -> ConfigEntry:

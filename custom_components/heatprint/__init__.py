@@ -36,7 +36,7 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
 async def async_setup_entry(hass: HomeAssistant, entry: HeatprintConfigEntry) -> bool:
     """Set up a Heatprint site from a config entry."""
     if not hasattr(entry, "subentries"):
-        # Config subentries arrived in Home Assistant 2025.3 (see hacs.json).
+        # Config subentries need Home Assistant 2026.9+ (see hacs.json).
         raise ConfigEntryError(translation_domain=DOMAIN, translation_key="ha_too_old")
 
     coordinator = HeatprintCoordinator(hass, entry)

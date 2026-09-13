@@ -1058,7 +1058,7 @@
       "message": "Give either start and end or a season."
     },
     "ha_too_old": {
-      "message": "Heatprint needs Home Assistant 2025.3 or newer (config subentries)."
+      "message": "Heatprint needs Home Assistant 2026.9 or newer (config subentries)."
     }
   }
 }

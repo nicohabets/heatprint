@@ -4,7 +4,7 @@ Goal: a user with gas, a heat pump, a hybrid system, all-electric heating or dis
 sets up Heatprint **within five minutes** without YAML, and can change everything later
 without reinstalling.
 
-Structure in Home Assistant (2025.3+):
+Structure in Home Assistant (2026.9+):
 
 - **Config entry** = one site (dwelling). Multiple sites are possible (second home).
 - **Subentries** of type `generator` (heat generator) and `measure` (energy-saving measure).
@@ -243,7 +243,7 @@ again and recompute all daily records (with confirmation).
 
 ## Migrations and versions
 
-- `version = 1`, `minor_version = 0`. Subentries require HA 2025.3+; on older HA the
+- `version = 1`, `minor_version = 0`. Subentries require HA 2026.9+; on older HA the
   integration refuses to load with a clear repair notification (the HACS minimum is in
   `hacs.json`).
 - Future fields get default values in `async_migrate_entry`.

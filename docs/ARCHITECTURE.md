@@ -193,7 +193,8 @@ development: `pip install -e .` in the devcontainer.
 - `pytest` for the core (formulas, synthetic dwelling, Heerlen reference case).
 - `ruff` in CI (`ruff check .`). `mypy` is in the `dev` extra for local checks of
   the core; a strict mypy gate is scheduled with the HA shell tests in v0.2.
-- `hassfest` and `hacs/action` in GitHub Actions.
+- `hassfest` and `hacs/action` in GitHub Actions. Minimum Home Assistant is 2026.9.0
+  (`hacs.json`).
 - HA shell: `pytest-homeassistant-custom-component` for config flow and coordinator
   (snapshot tests of entities) from v0.2.
 

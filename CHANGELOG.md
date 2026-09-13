@@ -24,6 +24,7 @@ All notable changes to this project are documented here. The format follows
   external statistics.
 
 ### Changed
+- Minimum Home Assistant version is 2026.9.0 (`hacs.json`).
 - PBL daily wind coefficient verified against PBL 2022 eq. 17/20: `sqrt` mode uses
   `c_sqrt = 1.0` (`T - √W`), not the hourly Informatiecode `√W/0.35`.
 - Config-flow copy for the PBL wind sqrt coefficient now states the verified daily

@@ -11,6 +11,7 @@
 ## Definition of done per release
 
 - Tests green (core ≥ 90% coverage), ruff/mypy clean, hassfest + HACS validation green.
+- Minimum Home Assistant 2026.9.0 (`hacs.json`).
 - CHANGELOG updated, version in `manifest.json` and `pyproject.toml` identical.
 - Docs updated (METHODS on every formula change).
 - Manual smoke test on an HA installation (config flow, backfill, sensors, one service).

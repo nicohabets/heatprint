@@ -1058,7 +1058,7 @@
       "message": "Geef begin en einde op, of een seizoen."
     },
     "ha_too_old": {
-      "message": "Heatprint heeft Home Assistant 2025.3 of nieuwer nodig (config subentries)."
+      "message": "Heatprint heeft Home Assistant 2026.9 of nieuwer nodig (config subentries)."
     }
   }
 }

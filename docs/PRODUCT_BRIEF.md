@@ -245,7 +245,7 @@ Privacy: no data leaves the house except coordinates/station to the weather prov
    term is `T - √W` (`c_sqrt = 1.0`), plus optional `Q/480`. The hourly Informatiecode
    term `√W/0.35` is a different formula and is not used. Default mode stays `linear`
    (`T - V/1.5`); choose `sqrt` for the authentic daily KEV-SJV wind term.
-4. **Subentries vs. options list**: subentries (HA ≥ 2025.3) chosen for management per
+4. **Subentries vs. options list**: subentries (HA ≥ 2026.9) chosen for management per
    generator; older HA versions are not supported.
 5. **Publishing `heatprint-core` on PyPI vs. vendoring it in the integration**: PyPI (cleaner,
    reusable); vendoring as a last resort.
