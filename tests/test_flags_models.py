@@ -90,12 +90,12 @@ def test_defaults_follow_docs() -> None:
 
 
 def test_generator_for_kind_defaults() -> None:
-    boiler = Generator.for_kind("boiler", "CV-ketel", GeneratorKind.GAS_BOILER)
+    boiler = Generator.for_kind("boiler", "Gas boiler", GeneratorKind.GAS_BOILER)
     assert boiler.carrier.unit is CarrierUnit.M3
     assert boiler.conversion.mode is ConversionMode.FIXED_EFFICIENCY
     assert boiler.role is Role.BOTH
     assert boiler.dhw.mode is DhwMode.BASELINE
-    heat_pump = Generator.for_kind("hp", "WP", GeneratorKind.HEAT_PUMP, role=Role.SPACE)
+    heat_pump = Generator.for_kind("hp", "HP", GeneratorKind.HEAT_PUMP, role=Role.SPACE)
     assert heat_pump.conversion.mode is ConversionMode.COP_FIXED
     assert heat_pump.is_heat_pump
     assert not boiler.is_heat_pump
@@ -104,14 +104,14 @@ def test_generator_for_kind_defaults() -> None:
 def test_site_json_round_trip() -> None:
     site = Site(
         id="home",
-        name="Thuis",
+        name="Home",
         latitude=50.89,
         longitude=5.98,
         generators=[
-            Generator.for_kind("boiler", "CV", GeneratorKind.GAS_BOILER),
-            Generator.for_kind("hp", "WP", GeneratorKind.HEAT_PUMP, role=Role.SPACE),
+            Generator.for_kind("boiler", "Boiler", GeneratorKind.GAS_BOILER),
+            Generator.for_kind("hp", "HP", GeneratorKind.HEAT_PUMP, role=Role.SPACE),
         ],
-        measures=[Measure("m1", "Triple glas", date(2025, 6, 1), MeasureCategory.INSULATION)],
+        measures=[Measure("m1", "Triple glazing", date(2025, 6, 1), MeasureCategory.INSULATION)],
     )
     payload = json.loads(json.dumps(site.to_dict()))
     restored = Site.from_dict(payload)

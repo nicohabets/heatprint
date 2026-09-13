@@ -1,22 +1,22 @@
-# ADR 0004 - Vier graaddagmethodes naast elkaar, huisfit als primaire
+# ADR 0004 - Four degree-day methods side by side, house fit as primary
 
-**Status:** geaccepteerd (2026-09-13)
+**Status:** accepted (2026-09-13)
 
 ## Context
 
-Gebruikers komen van mindergas (klassiek 18 °C, maandfactoren). Het PBL toont dat die
-methode structureel afwijkt. Een landelijk gekalibreerde methode (PBL) is beter dan klassiek
-maar niet huisspecifiek. Een huisgebonden fit is het meest nauwkeurig maar vraagt ≥ 30 dagen
-data en is minder herkenbaar.
+Users come from mindergas (classic 18 °C, monthly factors). The PBL shows that this method
+deviates structurally. A nationally calibrated method (PBL) is better than classic but not
+house-specific. A house-specific fit is the most accurate but needs ≥ 30 days of data and is
+less recognisable.
 
-## Besluit
+## Decision
 
-Alle methodes (`classic`, `knmi14`, `pbl`, `house`) worden altijd berekend en opgeslagen.
-De gebruiker kiest de primaire methode voor hoofdsensoren; standaard `house`, met `pbl` als
-fallback zolang er geen fit is. Vergelijkingen tonen alle methodes.
+All methods (`classic`, `knmi14`, `pbl`, `house`) are always computed and stored.
+The user chooses the primary method for the main sensors; default `house`, with `pbl` as
+fallback as long as there is no fit. Comparisons show all methods.
 
-## Gevolgen
+## Consequences
 
-- Migratie vanaf mindergas/Degree-days zonder cijferbreuk (`classic` reproduceert).
-- Extra opslag (4 statistieken i.p.v. 1) - verwaarloosbaar (1 rij/dag).
-- UI moet methodeverschillen uitleggen; docs bevatten een "welke methode wanneer"-pagina.
+- Migration from mindergas/Degree-days without a break in the numbers (`classic` reproduces them).
+- Extra storage (4 statistics instead of 1) - negligible (1 row/day).
+- The UI must explain the differences between methods; the docs contain a "which method when" page.

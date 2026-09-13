@@ -861,7 +861,7 @@
         },
         "generator_id": {
           "name": "Generator id",
-          "description": "Id of the generator the readings belong to (for example cv_ketel)."
+          "description": "Id of the generator the readings belong to (for example boiler)."
         },
         "csv": {
           "name": "CSV text",

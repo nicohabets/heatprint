@@ -6,7 +6,8 @@ All notable changes to this project are documented here. The format follows
 ## [Unreleased]
 
 ### Added
-- Product brief, data model, config flow specification, architecture and ADRs (Dutch).
+- Product brief, data model, config flow specification, architecture and ADRs (all
+  documentation in English).
 - `heatprint_core`: models, constants, flags, weather providers (KNMI, Open-Meteo),
   effective temperature presets, degree-day methods (classic, knmi14, pbl, house), heat
   conversion per generator, DHW split, meter-reading interpolation, energy-signature fit,

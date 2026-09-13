@@ -416,7 +416,7 @@ class Site(JsonMixin):
     """A site (dwelling) with its configuration (DATA_MODEL section 1.1)."""
 
     id: str
-    name: str = "Thuis"
+    name: str = "Home"
     latitude: float = 52.10
     longitude: float = 5.18
     timezone: str = "Europe/Amsterdam"

@@ -6,6 +6,9 @@ right now are **real data** (daily readings + location) that break the assumptio
 
 ## Ground rules
 
+0. English only: code, comments, docstrings, documentation, commit messages and issues are
+   written in English. Dutch appears only in `custom_components/heatprint/translations/nl.json`
+   (the Dutch UI translation) and in quoted titles of Dutch sources.
 1. Formulas live in `docs/METHODS.md` first, code second. A PR that changes a calculation
    updates METHODS.md in the same PR.
 2. `heatprint_core` stays free of Home Assistant imports and heavy dependencies (ADR 0002).

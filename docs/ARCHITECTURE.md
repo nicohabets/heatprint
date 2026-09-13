@@ -1,53 +1,54 @@
-# Architectuur (ARCHITECTURE)
+# Architecture (ARCHITECTURE)
 
-## 1. Uitgangspunten
+## 1. Principles
 
-1. **Rekenkern los van Home Assistant.** `heatprint_core` is pure Python (geen HA-imports, geen
-   zware dependencies) en bevat alle formules, providers en analyses. De HA-integratie is een
-   dunne schil: configuratie, dataophalen uit de recorder, opslag, entiteiten en services.
-   Zo is de kern testbaar met pytest, bruikbaar in een notebook/CLI en later in andere
-   platformen (Homey, openHAB, een webdienst).
-2. **Dagrecord als enige waarheid.** Alles wordt afgeleid van één rij per dag per site
-   (`DailyRecord`). Sensoren, statistieken, fits en prognoses zijn projecties daarvan.
-3. **Historie eerst.** External statistics maken backfill van jaren mogelijk; de integratie
-   werkt ook voor wie net begint (vanaf dag 1 zinvolle graaddagen, fits zodra 30 dagen).
-4. **Elke opwekker is een plug-in bouwblok.** Gas, warmtepomp, elektrisch, warmtenet en
-   "anders" delen één interface: drager → warmte → (tapwater, ruimteverwarming).
-5. **Methodes naast elkaar.** Klassiek (mindergas), KNMI 14 °C, PBL/KEV-SJV en huisfit worden
-   altijd alle berekend; de gebruiker ziet hoe de methodekeuze de conclusie beïnvloedt.
-6. **Eerlijk over onzekerheid.** Geschatte warmte (SCOP), voorlopige weerdata en gaten worden
-   gevlagd en in de UI benoemd; fits krijgen betrouwbaarheidsintervallen.
+1. **Calculation core independent of Home Assistant.** `heatprint_core` is pure Python (no HA
+   imports, no heavy dependencies) and contains all formulas, providers and analyses. The HA
+   integration is a thin shell: configuration, fetching data from the recorder, storage,
+   entities and services. This keeps the core testable with pytest, usable in a notebook/CLI
+   and later on other platforms (Homey, openHAB, a web service).
+2. **The daily record as the single source of truth.** Everything is derived from one row per
+   day per site (`DailyRecord`). Sensors, statistics, fits and forecasts are projections of it.
+3. **History first.** External statistics make backfilling years of data possible; the
+   integration also works for those who are just starting (meaningful degree days from day 1,
+   fits as soon as there are 30 days).
+4. **Every generator is a plug-in building block.** Gas, heat pump, electric, district heating
+   and "other" share one interface: carrier → heat → (DHW, space heating).
+5. **Methods side by side.** Classic (mindergas), KNMI 14 °C, PBL/KEV-SJV and house fit are
+   always all computed; the user sees how the choice of method affects the conclusion.
+6. **Honest about uncertainty.** Estimated heat (SCOP), provisional weather data and gaps are
+   flagged and named in the UI; fits get confidence intervals.
 
-## 2. Contextdiagram
+## 2. Context diagram
 
 ```mermaid
 flowchart LR
-    U[Bewoner / HA-gebruiker]
+    U[Resident / HA user]
     subgraph HA["Home Assistant"]
-        HP["Heatprint integratie<br/>(custom_components/heatprint)"]
+        HP["Heatprint integration<br/>(custom_components/heatprint)"]
         REC[("Recorder<br/>long-term statistics")]
-        ENT["Energiesensoren<br/>DSMR, warmtepomp, kWh-meters"]
-        WS["Weersensoren<br/>Buienradar, KNMI, Tado"]
-        DASH["Dashboards<br/>statistiekgrafiek, apexcharts"]
+        ENT["Energy sensors<br/>DSMR, heat pump, kWh meters"]
+        WS["Weather sensors<br/>Buienradar, KNMI, Tado"]
+        DASH["Dashboards<br/>statistics graph, apexcharts"]
     end
-    KNMI[("KNMI daggegevens<br/>daggegevens.knmi.nl")]
+    KNMI[("KNMI daily data<br/>daggegevens.knmi.nl")]
     OM[("Open-Meteo<br/>archive + forecast API")]
-    MG[("mindergas.nl API<br/>(optionele brug)")]
-    CSV[/"CSV-export meterstanden<br/>(mindergas, leverancier)"/]
+    MG[("mindergas.nl API<br/>(optional bridge)")]
+    CSV[/"CSV export of meter readings<br/>(mindergas, supplier)"/]
 
     U -->|config flow, services| HP
-    ENT -->|statistieken| REC
-    WS -->|statistieken| REC
+    ENT -->|statistics| REC
+    WS -->|statistics| REC
     REC -->|statistics_during_period| HP
     HP -->|external statistics| REC
-    HP -->|entiteiten| DASH
+    HP -->|entities| DASH
     KNMI -->|TG FG Q per station| HP
     OM -->|ERA5 + model past_days| HP
     CSV -->|import_readings| HP
     HP -->|push_reading| MG
 ```
 
-## 3. Componenten
+## 3. Components
 
 ```mermaid
 flowchart TB
@@ -55,17 +56,17 @@ flowchart TB
         M["models<br/>Site, Generator, DailyWeather,<br/>DailyEnergy, DailyRecord, Fit, ..."]
         W["weather<br/>base · knmi · open_meteo · climatology"]
         E["methods<br/>effective_temperature · degree_days<br/>(classic, knmi14, pbl, house)"]
-        H["heat<br/>generators → warmte · dhw-splitsing"]
-        R["readings<br/>tellerstanden → dagverbruik"]
+        H["heat<br/>generators → heat · DHW split"]
+        R["readings<br/>meter readings → daily consumption"]
         A["analysis<br/>signature (PRISM) · compare ·<br/>normalize (NAC) · forecast"]
-        I["importers<br/>csv (generiek, mindergas)"]
+        I["importers<br/>csv (generic, mindergas)"]
         P["pipeline<br/>build_daily_records(site, weather, energy)"]
     end
 
-    subgraph ha["custom_components/heatprint (HA-schil)"]
+    subgraph ha["custom_components/heatprint (HA shell)"]
         CF["config_flow<br/>+ subentries generator/measure<br/>+ options + reconfigure"]
-        CO["coordinator<br/>dagelijkse run 06:15 lokaal,<br/>backfill-taak, cache"]
-        RS["recorder_source<br/>statistieken lezen (dag-sums, dag-means)"]
+        CO["coordinator<br/>daily run 06:15 local time,<br/>backfill task, cache"]
+        RS["recorder_source<br/>read statistics (daily sums, daily means)"]
         ST["statistics_writer<br/>external statistics heatprint:*"]
         SE["sensor / binary_sensor<br/>entity descriptions"]
         SV["services<br/>import · recompute · fit · compare ·<br/>measure_effect · forecast · export · push"]
@@ -86,91 +87,91 @@ flowchart TB
     A --> M
 ```
 
-Verantwoordelijkheden per HA-module:
+Responsibilities per HA module:
 
-| Module | Doet | Doet niet |
+| Module | Does | Does not |
 |---|---|---|
-| `config_flow.py` | Wizard, validaties, subentries, options, reconfigure | Berekeningen |
-| `coordinator.py` | Plant runs, haalt weer (via core-providers met aiohttp-sessie van HA), leest recorder, roept `pipeline.build_daily_records`, schrijft statistieken/store, update entiteiten | Formules |
-| `recorder_source.py` | `statistics_during_period` per dag voor energie (sum/change) en weer (mean) | Interpretatie |
-| `statistics_writer.py` | `async_add_external_statistics` met idempotente dagrecords; herschrijft bij herberekening | Lezen |
-| `sensor.py` | `SensorEntityDescription` per metric, waarde uit coordinator-data | Opslag |
-| `services.py` | Schema's, response-data (`SupportsResponse.ONLY`), bestanden onder `config/heatprint/` | Rekenen (delegeert naar core) |
-| `store.py` | `homeassistant.helpers.storage.Store` versie 1 | |
-| `core_api.py` | Alle aanroepen van `heatprint_core` op één plek (adapters van entry/opties naar `Site`, records, fits, prognose, import) | Formules |
-| `mindergas.py` | Client voor de optionele mindergas.nl-brug | |
-| `diagnostics.py` | Config zonder tokens, laatste 30 dagrecords, vlaggenstatistiek | |
+| `config_flow.py` | Wizard, validations, subentries, options, reconfigure | Calculations |
+| `coordinator.py` | Schedules runs, fetches weather (via the core providers with HA's aiohttp session), reads the recorder, calls `pipeline.build_daily_records`, writes statistics/store, updates entities | Formulas |
+| `recorder_source.py` | `statistics_during_period` per day for energy (sum/change) and weather (mean) | Interpretation |
+| `statistics_writer.py` | `async_add_external_statistics` with idempotent daily records; rewrites on recomputation | Reading |
+| `sensor.py` | `SensorEntityDescription` per metric, value from coordinator data | Storage |
+| `services.py` | Schemas, response data (`SupportsResponse.ONLY`), files under `config/heatprint/` | Calculating (delegates to the core) |
+| `store.py` | `homeassistant.helpers.storage.Store` version 1 | |
+| `core_api.py` | All calls into `heatprint_core` in one place (adapters from entry/options to `Site`, records, fits, forecast, import) | Formulas |
+| `mindergas.py` | Client for the optional mindergas.nl bridge | |
+| `diagnostics.py` | Config without tokens, last 30 daily records, flag statistics | |
 
-## 4. Dagelijkse verwerking (sequence)
+## 4. Daily processing (sequence)
 
 ```mermaid
 sequenceDiagram
     autonumber
-    participant T as Tijdtrigger 06:15
+    participant T as Time trigger 06:15
     participant C as Coordinator
-    participant WP as Weerprovider
+    participant WP as Weather provider
     participant REC as Recorder
     participant CORE as heatprint_core.pipeline
     participant ST as StatisticsWriter
-    participant S as Sensoren
+    participant S as Sensors
 
     T->>C: run()
-    C->>WP: fetch(daily, from=laatste_definitieve_dag-2, to=gisteren)
-    WP-->>C: DailyWeather[] (provisional gemarkeerd)
-    C->>REC: statistics_during_period(energie-entiteiten, dag, sum/change)
-    REC-->>C: dagverbruik per generator
-    C->>REC: statistics_during_period(ha_sensors weer, dag, mean) [optioneel]
+    C->>WP: fetch(daily, from=last_definitive_day-2, to=yesterday)
+    WP-->>C: DailyWeather[] (marked provisional)
+    C->>REC: statistics_during_period(energy entities, day, sum/change)
+    REC-->>C: daily consumption per generator
+    C->>REC: statistics_during_period(ha_sensors weather, day, mean) [optional]
     C->>CORE: build_daily_records(site, weather, energy, baseline, fits)
-    CORE-->>C: DailyRecord[] (met vlaggen)
-    C->>ST: upsert external statistics (per metric, per dag)
-    C->>C: store: vlaggen, baseline, forecast
-    alt seizoen ≥ 30 bruikbare dagen en laatste fit ouder dan 7 dagen
-        C->>CORE: fit_signature(seizoen)
+    CORE-->>C: DailyRecord[] (with flags)
+    C->>ST: upsert external statistics (per metric, per day)
+    C->>C: store: flags, baseline, forecast
+    alt season ≥ 30 usable days and last fit older than 7 days
+        C->>CORE: fit_signature(season)
         CORE-->>C: SignatureFit
-        C->>C: store fit, primaire methode 'house' bijwerken
+        C->>C: store fit, update primary method 'house'
     end
     C->>S: async_set_updated_data(snapshot)
 ```
 
-Backfill (bij setup of options-wijziging) is dezelfde pipeline over een groot datumbereik, in
-blokken van 90 dagen, als achtergrondtaak met voortgangsmelding; KNMI-requests worden per
-jaar gedaan, Open-Meteo per 1 jaar (archive) plus `past_days=92` (forecast-API) voor het
-ERA5-gat.
+Backfill (at setup or after an options change) is the same pipeline over a large date range,
+in blocks of 90 days, as a background task with a progress notification; KNMI requests are
+made per year, Open-Meteo per 1 year (archive) plus `past_days=92` (forecast API) for the
+ERA5 gap.
 
-## 5. Datastromen en opslag
+## 5. Data flows and storage
 
-| Data | Waar | Waarom |
+| Data | Where | Why |
 |---|---|---|
-| Configuratie | config entry + subentries | HA-standaard, backup, UI-beheer |
-| Dagrecords (metrics) | external statistics | jaren historie, standaardgrafieken, geen recorder-bloat |
-| Vlaggen, baseline, klimatologie, fits, forecast | `Store` JSON | klein, gestructureerd, versieerbaar |
-| CSV-imports | eenmalig verwerkt → statistics | geen dubbele waarheid |
-| Weer-cache | `Store` (laatste 400 dagen) + statistics (`t_mean`, `tac_*`) | snelle herberekening zonder herhaalde API-calls |
+| Configuration | config entry + subentries | HA standard, backup, UI management |
+| Daily records (metrics) | external statistics | years of history, standard graphs, no recorder bloat |
+| Flags, baseline, climatology, fits, forecast | `Store` JSON | small, structured, versionable |
+| CSV imports | processed once → statistics | no duplicate source of truth |
+| Weather cache | `Store` (last 400 days) + statistics (`t_mean`, `tac_*`) | fast recomputation without repeated API calls |
 
-## 6. Externe koppelingen
+## 6. External integrations
 
-| Bron | Protocol | Auth | Limieten | Fallback |
+| Source | Protocol | Auth | Limits | Fallback |
 |---|---|---|---|---|
-| KNMI daggegevens | HTTPS POST form (`start`, `end`, `stns`, `vars`) | geen | fair use; 1 request/dag/site + backfill | Open-Meteo |
-| Open-Meteo archive/forecast | HTTPS GET JSON | geen (niet-commercieel) | 10.000 calls/dag | KNMI (NL) of HA-sensoren |
-| HA-sensoren | recorder | n.v.t. | alleen zolang statistieken bestaan | - |
-| mindergas.nl API | HTTPS POST JSON | API-token | geen terugwerkende kracht | - |
+| KNMI daily data | HTTPS POST form (`start`, `end`, `stns`, `vars`) | none | fair use; 1 request/day/site + backfill | Open-Meteo |
+| Open-Meteo archive/forecast | HTTPS GET JSON | none (non-commercial) | 10,000 calls/day | KNMI (NL) or HA sensors |
+| HA sensors | recorder | n/a | only as long as statistics exist | - |
+| mindergas.nl API | HTTPS POST JSON | API token | not retroactive | - |
 
-Netwerkfouten: exponentiële backoff, `UpdateFailed` met behoud van laatste data;
-`binary_sensor.<site>_data_gap` gaat aan na 3 dagen zonder bruikbare data (een repair-melding
-volgt in v1.0).
+Network errors: exponential backoff, `UpdateFailed` while keeping the last data;
+`binary_sensor.<site>_data_gap` turns on after 3 days without usable data (a repair
+notification follows in v1.0).
 
-## 7. Package-layout
+## 7. Package layout
 
 ```
 heatprint/
-├── custom_components/heatprint/      # HA-schil (HACS)
+├── custom_components/heatprint/      # HA shell (HACS)
 │   ├── __init__.py  config_flow.py  const.py  coordinator.py
 │   ├── recorder_source.py  statistics_writer.py  store.py
 │   ├── sensor.py  binary_sensor.py  services.py  services.yaml
 │   ├── core_api.py  mindergas.py  diagnostics.py  manifest.json  strings.json
 │   └── translations/{en,nl}.json
-├── heatprint_core/                   # rekenkern (PyPI: heatprint-core)
+├── heatprint_core/                   # calculation core (PyPI: heatprint-core)
 │   ├── models.py  constants.py  flags.py  pipeline.py  readings.py  heat.py  dhw.py
 │   ├── weather/{base,knmi,open_meteo,climatology}.py
 │   ├── methods/{effective_temperature,degree_days,pbl_params}.py
@@ -178,34 +179,34 @@ heatprint/
 │   └── importers/csv_readings.py
 ├── tests/                            # pytest (core) + fixtures
 ├── examples/dashboards/              # apexcharts/statistics-graph YAML
-├── docs/                             # deze documentatie + ADR's
+├── docs/                             # this documentation + ADRs
 └── .github/workflows/                # tests, ruff, hassfest, HACS validate
 ```
 
-Vendoring: HA laadt `heatprint_core` als `requirements` in `manifest.json`
-(`heatprint-core==x.y.z`, dezelfde repo, gepubliceerd op PyPI bij elke release). Tijdens
-ontwikkeling: `pip install -e .` in de devcontainer.
+Vendoring: HA loads `heatprint_core` as `requirements` in `manifest.json`
+(`heatprint-core==x.y.z`, the same repo, published to PyPI with every release). During
+development: `pip install -e .` in the devcontainer.
 
-## 8. Kwaliteit en CI
+## 8. Quality and CI
 
-- `pytest` voor de kern (formules, synthetische woning, referentiecase Heerlen).
-- `ruff` + `mypy` (strict voor de kern).
-- `hassfest` en `hacs/action` in GitHub Actions.
-- HA-schil: `pytest-homeassistant-custom-component` voor config flow en coordinator
-  (snapshot-tests van entiteiten) vanaf v0.2.
+- `pytest` for the core (formulas, synthetic dwelling, Heerlen reference case).
+- `ruff` + `mypy` (strict for the core).
+- `hassfest` and `hacs/action` in GitHub Actions.
+- HA shell: `pytest-homeassistant-custom-component` for config flow and coordinator
+  (snapshot tests of entities) from v0.2.
 
-## 9. Beveiliging en privacy
+## 9. Security and privacy
 
-- Geen telemetrie. Alle data blijft lokaal; externe calls bevatten alleen coördinaten/station
-  en datums.
-- mindergas-token in de entry (HA versleutelt `.storage` niet; token wordt niet gelogd en
-  uit diagnostics geredigeerd).
-- CSV-import leest alleen uit `config/heatprint/` of uit de service-payload.
+- No telemetry. All data stays local; external calls contain only coordinates/station and
+  dates.
+- mindergas token in the entry (HA does not encrypt `.storage`; the token is not logged and
+  is redacted from diagnostics).
+- CSV import reads only from `config/heatprint/` or from the service payload.
 
-## 10. Uitbreidpunten (roadmap-haken)
+## 10. Extension points (roadmap hooks)
 
-- Nieuwe weerprovider: implementeer `WeatherProvider.fetch_daily(start, end)`.
-- Nieuwe opwekker: voeg `GeneratorKind` + conversieregel toe in `heat.py`.
-- Nieuwe methode: voeg `DegreeDayMethod` toe in `methods/degree_days.py`; wordt automatisch
-  meegenomen in dagrecords en sensoren.
-- Custom Lovelace-kaart (v2) leest alleen statistieken en service-responses, geen eigen API.
+- New weather provider: implement `WeatherProvider.fetch_daily(start, end)`.
+- New generator: add a `GeneratorKind` + conversion rule in `heat.py`.
+- New method: add a `DegreeDayMethod` in `methods/degree_days.py`; it is automatically
+  included in daily records and sensors.
+- Custom Lovelace card (v2) reads only statistics and service responses, no API of its own.

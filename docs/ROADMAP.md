@@ -1,39 +1,39 @@
 # Roadmap
 
-| Versie | Doel | Belangrijkste inhoud | Status |
+| Version | Goal | Main content | Status |
 |---|---|---|---|
-| 0.1.0 | Fundament + rekenkern | Docs, `heatprint_core` met tests (providers, methodes, warmte, DHW, tellerstanden, fit, prognose), HA-skelet (config flow, sensoren, services, statistieken) | in uitvoering |
-| 0.2.0 | Draait op Nico's HA | Coordinator end-to-end, KNMI-station 380, DSMR-gas, Buienradar-fallback, CSV-import mindergas-export (4 gasjaren), referentiecase | gepland |
-| 0.3.0 | Hybride | Warmtepomp-opwekker met thermische/elektrische tellers, WP-aandeel, COP-dag, seizoen 2026/27 live | gepland (bij installatie WP) |
-| 1.0.0 | HACS-release | Maatregel-effect met CI, mindergas-brug, kosten/CO₂, COP-curve, DHW-maandprofiel, repairs/diagnostics, EN-docs, HACS default | gepland |
-| 2.0.0 | Inzicht in beeld | Custom kaart (energiekenlijn), occupancy-regressor, zoneproxy (Tado), export/CLI, opt-in benchmark | idee |
+| 0.1.0 | Foundation + calculation core | Docs, `heatprint_core` with tests (providers, methods, heat, DHW, meter readings, fit, forecast), HA skeleton (config flow, sensors, services, statistics) | in progress |
+| 0.2.0 | Runs on Nico's HA | Coordinator end-to-end, KNMI station 380, DSMR gas, Buienradar fallback, CSV import of mindergas export (4 gas years), reference case | planned |
+| 0.3.0 | Hybrid | Heat pump generator with thermal/electric meters, heat pump share, daily COP, season 2026/27 live | planned (when the heat pump is installed) |
+| 1.0.0 | HACS release | Measure effect with CI, mindergas bridge, cost/CO₂, COP curve, DHW monthly profile, repairs/diagnostics, HACS default | planned |
+| 2.0.0 | Visual insight | Custom card (energy signature), occupancy regressor, zone proxy (Tado), export/CLI, opt-in benchmark | idea |
 
 ## Definition of done per release
 
-- Tests groen (kern ≥ 90% dekking), ruff/mypy schoon, hassfest + HACS-validatie groen.
-- CHANGELOG bijgewerkt, versie in `manifest.json` en `pyproject.toml` gelijk.
-- Docs bijgewerkt (METHODS bij elke formulewijziging).
-- Handmatige smoke-test op een HA-installatie (config flow, backfill, sensoren, één service).
+- Tests green (core ≥ 90% coverage), ruff/mypy clean, hassfest + HACS validation green.
+- CHANGELOG updated, version in `manifest.json` and `pyproject.toml` identical.
+- Docs updated (METHODS on every formula change).
+- Manual smoke test on an HA installation (config flow, backfill, sensors, one service).
 
-## Openstaande punten uit de review van v0.1 (13-09-2026)
+## Open items from the v0.1 review (2026-09-13)
 
-1. `cost_eur` en `co2_kg` worden berekend maar nog niet als statistiek/sensor geschreven;
-   prijs-entiteiten worden nog niet gelezen (`core_api.build_daily_records`, v1.0).
-2. Baselines worden alleen voor `dhw_mode = baseline` berekend; `measured` valt op dagen
-   zonder meting terug op "geen baseline" (`coordinator.py`).
-3. Statistieken vereisen dat lokale middernacht op een heel UTC-uur valt; tijdzones met een
-   half uur offset (bijv. India) worden nog niet ondersteund. Dagbuckets van de recorder
-   volgen de HA-tijdzone, niet de site-tijdzone.
-4. `compare_periods` geeft NaN bij expliciet `min_dd=0`; COP-curve wordt op 1,0 geklemd; de
-   bootstrap gebruikt een 0,5 K-raster - alle drie nog niet in METHODS vastgelegd.
-5. Vlag `DHW_BASELINE_MISSING` toevoegen (METHODS §6).
-6. Service `heatprint.clear_statistics` voor het opruimen van statistieken van een verwijderde
-   opwekker.
+1. `cost_eur` and `co2_kg` are computed but not yet written as a statistic/sensor;
+   price entities are not yet read (`core_api.build_daily_records`, v1.0).
+2. Baselines are only computed for `dhw_mode = baseline`; `measured` falls back to "no
+   baseline" on days without a measurement (`coordinator.py`).
+3. Statistics require local midnight to fall on a whole UTC hour; time zones with a
+   half-hour offset (e.g. India) are not yet supported. The recorder's daily buckets
+   follow the HA time zone, not the site time zone.
+4. `compare_periods` returns NaN with an explicit `min_dd=0`; the COP curve is clamped at 1.0;
+   the bootstrap uses a 0.5 K grid - none of the three is documented in METHODS yet.
+5. Add the `DHW_BASELINE_MISSING` flag (METHODS §6).
+6. Service `heatprint.clear_statistics` for cleaning up the statistics of a removed
+   generator.
 
-## Onderzoeksitems
+## Research items
 
-- Exacte PBL-windcoëfficiënt en zonterm verifiëren (pdf).
-- KNMI Data Platform (EDR/open data API) als tweede NL-provider met key.
-- Welke warmtepompmerken leveren thermische energie via HA-integraties (Vaillant, Viessmann,
-  NIBE, Bosch/EMS-ESP, Remeha, Daikin, Mitsubishi, Panasonic) - matrix voor de docs.
-- Occupancy: aanwezigheid/werkdag als regressor (HA `person`, `workday`).
+- Verify the exact PBL wind coefficient and solar term (pdf).
+- KNMI Data Platform (EDR/open data API) as a second NL provider with a key.
+- Which heat pump brands provide thermal energy via HA integrations (Vaillant, Viessmann,
+  NIBE, Bosch/EMS-ESP, Remeha, Daikin, Mitsubishi, Panasonic) - matrix for the docs.
+- Occupancy: presence/workday as a regressor (HA `person`, `workday`).

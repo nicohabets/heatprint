@@ -220,6 +220,8 @@ from .core_api import (
 STATE_CLASS_CUMULATIVE = {"total", "total_increasing"}
 MONTH_DAY_RE = re.compile(r"^(0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01])$")
 HEAT_PUMP_NAME_TOKENS = {"hp", "wp"}
+# Name fragments that suggest a heat pump sensor. The Dutch "warmtepomp" (and the "wp"
+# token above) is intentional: it matches the entity names of Dutch installations.
 HEAT_PUMP_NAME_PARTS = ("warmtepomp", "heat pump", "heatpump")
 
 _TIMEZONES: list[str] | None = None

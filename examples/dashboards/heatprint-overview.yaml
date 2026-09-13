@@ -1,7 +1,7 @@
 # Heatprint overview - example Lovelace view.
 #
-# Replace "thuis" with the slug of your site (the name you gave it in the config
-# flow, lower case, spaces as underscores) and "cv_ketel" with a generator id.
+# Replace "home" with the slug of your site (the name you gave it in the config
+# flow, lower case, spaces as underscores) and "boiler" with a generator id.
 # The statistics-graph cards read the external long-term statistics that
 # Heatprint writes (heatprint:<site>_<metric>); the entity cards show the
 # sensors of the site device. The last card needs the custom apexcharts-card
@@ -22,34 +22,34 @@ cards:
       - type: entities
         title: Today
         entities:
-          - entity: sensor.thuis_effective_temperature
-          - entity: sensor.thuis_degree_days_yesterday
-          - entity: sensor.thuis_heat_space_yesterday
-          - entity: sensor.thuis_cop_yesterday
-          - entity: sensor.thuis_data_quality
-          - entity: binary_sensor.thuis_data_gap
-          - entity: sensor.thuis_last_weather_update
+          - entity: sensor.home_effective_temperature
+          - entity: sensor.home_degree_days_yesterday
+          - entity: sensor.home_heat_space_yesterday
+          - entity: sensor.home_cop_yesterday
+          - entity: sensor.home_data_quality
+          - entity: binary_sensor.home_data_gap
+          - entity: sensor.home_last_weather_update
 
       - type: entities
         title: Season to date
         entities:
-          - entity: sensor.thuis_degree_days_season
-          - entity: sensor.thuis_heat_space_season
-          - entity: sensor.thuis_heat_dhw_season
-          - entity: sensor.thuis_heat_per_degree_day
-          - entity: sensor.thuis_gas_per_degree_day
-          - entity: sensor.thuis_heat_pump_share_season
-          - entity: sensor.thuis_dhw_baseline
+          - entity: sensor.home_degree_days_season
+          - entity: sensor.home_heat_space_season
+          - entity: sensor.home_heat_dhw_season
+          - entity: sensor.home_heat_per_degree_day
+          - entity: sensor.home_gas_per_degree_day
+          - entity: sensor.home_heat_pump_share_season
+          - entity: sensor.home_dhw_baseline
 
       - type: entities
         title: Energy signature and forecast
         entities:
-          - entity: sensor.thuis_heat_loss_coefficient
-          - entity: sensor.thuis_balance_temperature
-          - entity: sensor.thuis_fit_quality
-          - entity: sensor.thuis_forecast_heat_season
-          - entity: sensor.thuis_forecast_gas_season
-          - entity: sensor.thuis_forecast_electric_season
+          - entity: sensor.home_heat_loss_coefficient
+          - entity: sensor.home_balance_temperature
+          - entity: sensor.home_fit_quality
+          - entity: sensor.home_forecast_heat_season
+          - entity: sensor.home_forecast_gas_season
+          - entity: sensor.home_forecast_electric_season
 
   - type: vertical-stack
     cards:
@@ -61,9 +61,9 @@ cards:
         stat_types:
           - change
         entities:
-          - entity: heatprint:thuis_heat_space
+          - entity: heatprint:home_heat_space
             name: Space heating
-          - entity: heatprint:thuis_heat_dhw
+          - entity: heatprint:home_heat_dhw
             name: Hot water and cooking
 
       - type: statistics-graph
@@ -74,13 +74,13 @@ cards:
         stat_types:
           - change
         entities:
-          - entity: heatprint:thuis_dd_classic
+          - entity: heatprint:home_dd_classic
             name: Classic (mindergas)
-          - entity: heatprint:thuis_dd_knmi14
+          - entity: heatprint:home_dd_knmi14
             name: KNMI 14 °C
-          - entity: heatprint:thuis_dd_pbl
+          - entity: heatprint:home_dd_pbl
             name: PBL 2022
-          - entity: heatprint:thuis_dd_house
+          - entity: heatprint:home_dd_house
             name: House fit
 
       - type: statistics-graph
@@ -91,11 +91,11 @@ cards:
         stat_types:
           - mean
         entities:
-          - entity: heatprint:thuis_t_mean
+          - entity: heatprint:home_t_mean
             name: Mean temperature
-          - entity: heatprint:thuis_tac_pbl
+          - entity: heatprint:home_tac_pbl
             name: Effective (PBL)
-          - entity: heatprint:thuis_tac_house
+          - entity: heatprint:home_tac_house
             name: Effective (house)
 
       - type: statistics-graph
@@ -106,11 +106,11 @@ cards:
         stat_types:
           - change
         entities:
-          - entity: heatprint:thuis_heat_cv_ketel
+          - entity: heatprint:home_heat_boiler
             name: Boiler
-          - entity: heatprint:thuis_electric_hp
+          - entity: heatprint:home_electric_hp
             name: Heat pump electricity
-          - entity: heatprint:thuis_gas
+          - entity: heatprint:home_gas
             name: Gas (m³)
 
   # Optional: energy signature scatter with apexcharts-card (HACS).
@@ -135,7 +135,7 @@ cards:
       markers:
         size: 4
     series:
-      - entity: sensor.thuis_heat_space_yesterday
+      - entity: sensor.home_heat_space_yesterday
         name: Heat vs effective temperature
         type: scatter
         statistics:
@@ -146,7 +146,7 @@ cards:
           // reading both statistics through the websocket API of Home Assistant.
           const end = new Date();
           const start = new Date(end.getTime() - 180 * 24 * 3600 * 1000);
-          const ids = ["heatprint:thuis_heat_space", "heatprint:thuis_tac_pbl"];
+          const ids = ["heatprint:home_heat_space", "heatprint:home_tac_pbl"];
           const stats = await hass.callWS({
             type: "recorder/statistics_during_period",
             start_time: start.toISOString(),
@@ -155,8 +155,8 @@ cards:
             period: "day",
             types: ["change", "mean"],
           });
-          const heat = stats["heatprint:thuis_heat_space"] || [];
-          const temp = new Map((stats["heatprint:thuis_tac_pbl"] || []).map((r) => [r.start, r.mean]));
+          const heat = stats["heatprint:home_heat_space"] || [];
+          const temp = new Map((stats["heatprint:home_tac_pbl"] || []).map((r) => [r.start, r.mean]));
           return heat
             .filter((r) => r.change !== null && temp.has(r.start))
             .map((r) => [temp.get(r.start), r.change]);

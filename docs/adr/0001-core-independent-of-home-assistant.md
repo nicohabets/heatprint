@@ -1,21 +1,21 @@
-# ADR 0001 - Rekenkern los van Home Assistant
+# ADR 0001 - Calculation core independent of Home Assistant
 
-**Status:** geaccepteerd (2026-09-13)
+**Status:** accepted (2026-09-13)
 
 ## Context
 
-Heatprint moet zowel als HACS-integratie werken als bruikbaar zijn in notebooks/CLI en
-mogelijk andere platformen. Home Assistant-code is lastig te testen zonder de HA-testtooling
-en verandert elk kwartaal.
+Heatprint must work both as a HACS integration and be usable in notebooks/CLI and possibly
+other platforms. Home Assistant code is hard to test without the HA test tooling and changes
+every quarter.
 
-## Besluit
+## Decision
 
-Alle formules, weerproviders, conversies en analyses leven in `heatprint_core`, een pure
-Python-package zonder HA-imports. De integratie in `custom_components/heatprint` doet alleen
-configuratie, recorder-I/O, opslag, entiteiten en services en roept de kern aan.
+All formulas, weather providers, conversions and analyses live in `heatprint_core`, a pure
+Python package without HA imports. The integration in `custom_components/heatprint` only
+handles configuration, recorder I/O, storage, entities and services, and calls the core.
 
-## Gevolgen
+## Consequences
 
-- Kern is met pytest te testen (synthetische woning, referentiecase).
-- Kern wordt op PyPI gepubliceerd (`heatprint-core`) en als `requirements` in de manifest gezet.
-- Dubbele versiebeheer (kern + integratie); releases altijd samen.
+- The core can be tested with pytest (synthetic house, reference case).
+- The core is published on PyPI (`heatprint-core`) and listed as `requirements` in the manifest.
+- Two version numbers to manage (core + integration); always released together.

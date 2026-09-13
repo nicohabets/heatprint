@@ -1,39 +1,40 @@
 # Config flow (CONFIG_FLOW)
 
-Doel: een gebruiker met gas, warmtepomp, hybride, elektrisch of warmtenet richt Heatprint in
-**binnen vijf minuten** zonder YAML, en kan alles later aanpassen zonder herinstallatie.
+Goal: a user with gas, a heat pump, a hybrid system, all-electric heating or district heating
+sets up Heatprint **within five minutes** without YAML, and can change everything later
+without reinstalling.
 
-Structuur in Home Assistant (2025.3+):
+Structure in Home Assistant (2025.3+):
 
-- **Config entry** = één site (woning). Meerdere sites mogelijk (tweede huis).
-- **Subentries** van type `generator` (warmteopwekker) en `measure` (besparingsmaatregel).
-- **Options flow** voor methodes, DHW-standaarden, backfill en integraties (mindergas-brug).
-- **Reconfigure flow** voor locatie en weerbron.
+- **Config entry** = one site (dwelling). Multiple sites are possible (second home).
+- **Subentries** of type `generator` (heat generator) and `measure` (energy-saving measure).
+- **Options flow** for methods, DHW defaults, backfill and integrations (mindergas bridge).
+- **Reconfigure flow** for location and weather source.
 
 ```mermaid
 flowchart TD
-    A([Integratie toevoegen]) --> B[Stap 1: Site<br/>naam, locatie, tijdzone]
-    B --> C{Land = NL?}
-    C -- ja --> D[Stap 2a: Weerbron<br/>KNMI-station<br/>dichtstbijzijnde voorgesteld]
-    C -- nee --> E[Stap 2b: Weerbron<br/>Open-Meteo of HA-sensoren]
-    D --> F[Stap 3: Verwarmingssituatie<br/>gas / hybride / all-electric /<br/>warmtenet / anders]
+    A([Add integration]) --> B[Step 1: Site<br/>name, location, timezone]
+    B --> C{Country = NL?}
+    C -- yes --> D[Step 2a: Weather source<br/>KNMI station<br/>nearest suggested]
+    C -- no --> E[Step 2b: Weather source<br/>Open-Meteo or HA sensors]
+    D --> F[Step 3: Heating setup<br/>gas / hybrid / all-electric /<br/>district heating / other]
     E --> F
-    F --> G[Stap 4: Eerste opwekker<br/>voorgevuld op basis van stap 3]
-    G --> H{Nog een opwekker?}
-    H -- ja --> G
-    H -- nee --> I[Stap 5: Tapwater en koken<br/>splitsmethode]
-    I --> J[Stap 6: Methodes en seizoen<br/>standaarden tonen, aanpasbaar]
-    J --> K[Stap 7: Historie<br/>backfill-jaren, CSV later]
-    K --> L[Samenvatting en bevestigen]
-    L --> M([Entry aangemaakt<br/>+ subentries generator])
-    M --> N[Achtergrond: weer backfill,<br/>klimatologie, eerste berekening]
+    F --> G[Step 4: First generator<br/>prefilled from step 3]
+    G --> H{Another generator?}
+    H -- yes --> G
+    H -- no --> I[Step 5: DHW and cooking<br/>split method]
+    I --> J[Step 6: Methods and season<br/>show defaults, adjustable]
+    J --> K[Step 7: History<br/>backfill years, CSV later]
+    K --> L[Summary and confirm]
+    L --> M([Entry created<br/>+ generator subentries])
+    M --> N[Background: weather backfill,<br/>climatology, first calculation]
 
     subgraph Later
-        O[Subentry: opwekker toevoegen/wijzigen]
-        P[Subentry: maatregel toevoegen]
-        Q[Opties: methodes, DHW, backfill,<br/>mindergas-brug, prijzen/CO2]
-        R[Reconfigure: locatie, weerbron]
-        S[Service: CSV-import meterstanden]
+        O[Subentry: add/edit generator]
+        P[Subentry: add measure]
+        Q[Options: methods, DHW, backfill,<br/>mindergas bridge, prices/CO2]
+        R[Reconfigure: location, weather source]
+        S[Service: CSV import of meter readings]
     end
     M -.-> O
     M -.-> P
@@ -44,208 +45,209 @@ flowchart TD
 
 ---
 
-## Stap 1 - Site
+## Step 1 - Site
 
-| Veld | Type/selector | Standaard | Validatie |
+| Field | Type/selector | Default | Validation |
 |---|---|---|---|
-| `name` | text | "Thuis" | uniek per installatie |
-| `location` | location-selector (kaart) | HA home | lat/lon geldig |
-| `timezone` | select | HA-tijdzone | |
-| `country` | select (ISO-2) | uit HA | |
+| `name` | text | "Home" | unique per installation |
+| `location` | location selector (map) | HA home | valid lat/lon |
+| `timezone` | select | HA time zone | |
+| `country` | select (ISO-2) | from HA | |
 
-Fouten: `name_exists`.
+Errors: `name_exists`.
 
-## Stap 2a - Weerbron (NL)
+## Step 2a - Weather source (NL)
 
-| Veld | Selector | Standaard | Toelichting |
+| Field | Selector | Default | Notes |
 |---|---|---|---|
 | `provider` | select: `knmi`, `open_meteo`, `ha_sensors` | `knmi` | |
-| `station_id` | select (lijst met naam + afstand) | dichtstbijzijnde KNMI-station | lijst van ~35 stations met lat/lon in `const.py` |
+| `station_id` | select (list with name + distance) | nearest KNMI station | list of ~35 stations with lat/lon in `const.py` |
 | `fallback` | select: `open_meteo`, `none` | `open_meteo` | |
 
-Validatie: testrequest KNMI (laatste 7 dagen). Fouten: `cannot_connect`, `no_data_for_station`.
+Validation: KNMI test request (last 7 days). Errors: `cannot_connect`, `no_data_for_station`.
 
-## Stap 2b - Weerbron (buiten NL)
+## Step 2b - Weather source (outside NL)
 
-| Veld | Selector | Standaard |
+| Field | Selector | Default |
 |---|---|---|
 | `provider` | select: `open_meteo`, `ha_sensors` | `open_meteo` |
 | `ha_entities.temperature` | entity (sensor, device_class temperature) | - |
-| `ha_entities.wind` | entity (sensor, wind_speed) | optioneel |
-| `ha_entities.radiation` | entity (sensor, irradiance) | optioneel |
+| `ha_entities.wind` | entity (sensor, wind_speed) | optional |
+| `ha_entities.radiation` | entity (sensor, irradiance) | optional |
 
-Validatie: Open-Meteo testrequest; bij `ha_sensors` controle op `state_class measurement`
-(anders geen long-term statistics → fout `entity_no_statistics`).
+Validation: Open-Meteo test request; with `ha_sensors`, a check for `state_class measurement`
+(otherwise there are no long-term statistics → error `entity_no_statistics`).
 
-## Stap 3 - Verwarmingssituatie (wizard-keuze)
+## Step 3 - Heating setup (wizard choice)
 
-Eén keuze die de volgende stap voorvult:
+One choice that prefills the next step:
 
-| Keuze | Voorgevulde opwekkers |
+| Choice | Prefilled generators |
 |---|---|
 | `gas` | 1× `gas_boiler` (role `both`) |
 | `hybrid` | 1× `gas_boiler` (`both`) + 1× `heat_pump` (`space`) |
 | `all_electric` | 1× `heat_pump` (`both`) |
 | `district_heat` | 1× `district_heat` (`both`) |
-| `custom` | leeg |
+| `custom` | empty |
 
-Autodetectie (suggesties, geen automatische keuze): sensoren met `device_class: gas` en
-`state_class: total_increasing` → gas; sensoren met `device_class: energy` en naam bevat
-warmtepomp/heat pump/hp/wp → warmtepomp.
+Autodetection (suggestions, no automatic choice): sensors with `device_class: gas` and
+`state_class: total_increasing` → gas; sensors with `device_class: energy` and a name containing
+warmtepomp/heat pump/hp/wp → heat pump.
 
-## Stap 4 - Opwekker (herhalend; wordt subentry `generator`)
+## Step 4 - Generator (repeating; becomes subentry `generator`)
 
-Sub-stappen afhankelijk van `kind`:
+Sub-steps depending on `kind`:
 
-### 4.1 Soort en rol
+### 4.1 Kind and role
 
-| Veld | Selector | Standaard |
+| Field | Selector | Default |
 |---|---|---|
-| `name` | text | per soort |
-| `kind` | select | uit stap 3 |
-| `role` | select: `space`, `dhw`, `both` | per soort |
+| `name` | text | per kind |
+| `kind` | select | from step 3 |
+| `role` | select: `space`, `dhw`, `both` | per kind |
 
-### 4.2 Sensoren
+### 4.2 Sensors
 
-| `kind` | Verplicht | Optioneel |
+| `kind` | Required | Optional |
 |---|---|---|
-| `gas_boiler` | `energy_entity` (m³, total_increasing) | `dhw_entity` (zelden) |
-| `heat_pump` | minstens één van `thermal_entity` (kWh_th) of `electric_entity` (kWh) | beide; `dhw_entity` (kWh_th tapwater), `dhw_electric_entity` |
+| `gas_boiler` | `energy_entity` (m³, total_increasing) | `dhw_entity` (rare) |
+| `heat_pump` | at least one of `thermal_entity` (kWh_th) or `electric_entity` (kWh) | both; `dhw_entity` (kWh_th DHW), `dhw_electric_entity` |
 | `electric_heater` | `energy_entity` (kWh) | |
 | `air_to_air` | `energy_entity` (kWh) | |
-| `district_heat` | `energy_entity` (GJ of kWh) | `dhw_entity` |
+| `district_heat` | `energy_entity` (GJ or kWh) | `dhw_entity` |
 | `other` | `energy_entity` | |
 
-Validatie: entity bestaat, `state_class` is `total` of `total_increasing`, eenheid past bij
-soort (m³ → gas; kWh/Wh/MWh → elektrisch/thermisch; GJ/MJ/kWh → warmtenet). Fouten:
+Validation: the entity exists, `state_class` is `total` or `total_increasing`, the unit matches
+the kind (m³ → gas; kWh/Wh/MWh → electric/thermal; GJ/MJ/kWh → district heating). Errors:
 `entity_not_found`, `entity_not_cumulative`, `unit_mismatch`, `missing_thermal_or_electric`.
 
-### 4.3 Conversie
+### 4.3 Conversion
 
-| `kind` | Velden | Standaard |
+| `kind` | Fields | Default |
 |---|---|---|
-| `gas_boiler` | `heating_value` (select Hs 8,792 / Hi 7,92 / custom), `efficiency` (0,5-1,1) | Hs, 0,95 |
-| `heat_pump` | `mode` (auto: `measured_thermal` als thermische sensor aanwezig, anders `cop_fixed`), `scop` (1-7) | 3,5 |
-| `air_to_air` | `cop` | 3,0 |
-| `electric_heater` | - | factor 1,0 |
-| `district_heat` | `efficiency` | 1,0 |
-| `other` | `factor` | 1,0 |
+| `gas_boiler` | `heating_value` (select Hs 8.792 / Hi 7.92 / custom), `efficiency` (0.5-1.1) | Hs, 0.95 |
+| `heat_pump` | `mode` (auto: `measured_thermal` when a thermal sensor is present, otherwise `cop_fixed`), `scop` (1-7) | 3.5 |
+| `air_to_air` | `cop` | 3.0 |
+| `electric_heater` | - | factor 1.0 |
+| `district_heat` | `efficiency` | 1.0 |
+| `other` | `factor` | 1.0 |
 
-Toelichtingstekst bij `cop_fixed`: "Zonder thermische teller is de warmte een schatting;
-Heatprint labelt die als 'geschat'."
+Help text for `cop_fixed`: "Without a thermal meter the heat is an estimate;
+Heatprint labels it as 'estimated'."
 
-### 4.4 Tapwater/koken (alleen bij role `both`)
+### 4.4 DHW/cooking (only with role `both`)
 
-| Veld | Selector | Standaard |
+| Field | Selector | Default |
 |---|---|---|
-| `dhw_mode` | select: `baseline`, `fixed`, `measured`, `none` | `measured` als `dhw_entity` gezet, anders `baseline` |
-| `fixed_per_day` | number (dragereenheid/dag) | - |
+| `dhw_mode` | select: `baseline`, `fixed`, `measured`, `none` | `measured` when `dhw_entity` is set, otherwise `baseline` |
+| `fixed_per_day` | number (carrier unit/day) | - |
 
-Het zomervenster voor de baseline (`summer_window`, MM-DD, standaard 06-01 t/m 08-31) is een
-site-instelling (stap 5 en options), niet per opwekker.
+The summer window for the baseline (`summer_window`, MM-DD, default 06-01 to 08-31) is a
+site setting (step 5 and options), not a per-generator one.
 
-### 4.5 Prijs en CO₂ (optioneel, uitklapbaar)
+### 4.5 Price and CO₂ (optional, collapsible)
 
-| Veld | Selector | Standaard |
+| Field | Selector | Default |
 |---|---|---|
 | `price_entity` | entity (sensor) | - |
-| `co2_factor` | number | per soort (gas 1,78 kg/m³; stroom 0,30 kg/kWh of CO₂-sensor) |
+| `co2_factor` | number | per kind (gas 1.78 kg/m³; electricity 0.30 kg/kWh or a CO₂ sensor) |
 
-Na 4.5: "Nog een opwekker toevoegen?" (ja → 4.1).
+After 4.5: "Add another generator?" (yes → 4.1).
 
-## Stap 5 - Tapwater en koken (site-niveau)
+## Step 5 - DHW and cooking (site level)
 
-Alleen samenvatting en eventuele overrule van de standaard uit 4.4; plus uitleg waarom de
-splitsing belangrijk is voor de verwarmingslijn.
+Only a summary and an optional override of the default from 4.4; plus an explanation of why
+the split matters for the heating line.
 
-## Stap 6 - Methodes en seizoen
+## Step 6 - Methods and season
 
-| Veld | Selector | Standaard |
+| Field | Selector | Default |
 |---|---|---|
-| `season_start` | select: `1 oktober` (gasjaar), `1 januari`, `1 juli` | 1 oktober |
+| `season_start` | select: `1 October` (gas year), `1 January`, `1 July` | 1 October |
 | `methods.enabled` | multi-select: `classic`, `knmi14`, `pbl`, `house` | classic, pbl, house |
 | `methods.primary` | select | `house` |
 | `classic.weighted` | boolean | true |
-| `classic.base_temp`, `classic.heating_limit` | number | 18,0 / 18,0 |
+| `classic.base_temp`, `classic.heating_limit` | number | 18.0 / 18.0 |
 | `pbl.parameter_set` | select: `practical`, `optimal` | practical |
 | `pbl.wind_mode` | select: `linear`, `sqrt` | linear |
-| `pbl.include_sun` | boolean | false (alleen als straling beschikbaar) |
+| `pbl.include_sun` | boolean | false (only when radiation is available) |
 | `house.fit_wind` | boolean | true |
 
-Geavanceerde velden staan onder "Geavanceerd" (collapsed section).
+Advanced fields live under "Advanced" (collapsed section).
 
-## Stap 7 - Historie
+## Step 7 - History
 
-| Veld | Selector | Standaard |
+| Field | Selector | Default |
 |---|---|---|
 | `backfill_years` | number 0-10 | 3 |
 | `climatology_years` | number 10-30 | 20 |
-| `import_now` | boolean | false; toont uitleg over `heatprint.import_readings` |
+| `import_now` | boolean | false; shows an explanation of `heatprint.import_readings` |
 
-Tekst: "Weerhistorie wordt op de achtergrond opgehaald. Meterstanden van vóór je Home
-Assistant-historie importeer je met de actie 'Meterstanden importeren' (CSV, bijvoorbeeld
-de export van mindergas.nl)."
+Text: "Weather history is fetched in the background. Meter readings from before your Home
+Assistant history can be imported with the action 'Import meter readings' (CSV, for example
+the export of mindergas.nl)."
 
-## Samenvatting
+## Summary
 
-Toont site, weerbron, opwekkers met rol/conversie/DHW, methodes, seizoen, backfill.
-Bevestigen → entry + subentries aanmaken → coordinator start backfill-taak (met voortgang als
-repair/notification).
+Shows site, weather source, generators with role/conversion/DHW, methods, season, backfill.
+Confirm → create entry + subentries → coordinator starts the backfill task (with progress as
+a repair/notification).
 
 ---
 
 ## Subentry flows
 
-### `generator` (toevoegen / wijzigen / verwijderen)
+### `generator` (add / edit / remove)
 
-Zelfde stappen als 4.1-4.5. Wijzigen van `energy_entity` triggert herberekening vanaf de
-vroegste beschikbare datum van de nieuwe sensor. Verwijderen: statistieken van die generator
-blijven bestaan (historie), maar worden niet meer bijgewerkt. Home Assistant kent geen
-verwijder-flow voor subentries met eigen vragen, dus "ook statistieken wissen" wordt een
-aparte service (`heatprint.clear_statistics`, v0.2) in plaats van een vinkje.
+Same steps as 4.1-4.5. Changing `energy_entity` triggers a recomputation from the earliest
+available date of the new sensor. Removing: the statistics of that generator are kept
+(history) but are no longer updated. Home Assistant has no removal flow for subentries with
+questions of its own, so "also clear statistics" becomes a separate service
+(`heatprint.clear_statistics`, v0.2) instead of a checkbox.
 
-### `measure` (toevoegen / wijzigen / verwijderen)
+### `measure` (add / edit / remove)
 
-| Veld | Selector |
+| Field | Selector |
 |---|---|
 | `name` | text |
 | `date` | date |
 | `category` | select: `insulation`, `installation`, `behaviour`, `other` |
 | `notes` | text (multiline) |
 
-Na aanmaken: knop/melding "Effect berekenen" (service `heatprint.measure_effect`), pas
-zinvol als er ≥ 30 dagen na de datum zijn.
+After creation: button/notification "Compute effect" (service `heatprint.measure_effect`), only
+meaningful once there are ≥ 30 days after the date.
 
 ---
 
 ## Options flow
 
-Secties (menu):
+Sections (menu):
 
-1. **Methodes en seizoen** - zelfde velden als stap 6.
-2. **Tapwater en koken** - standaarden en zomervenster.
-3. **Historie** - backfill/klimatologie-jaren; knop "opnieuw berekenen vanaf datum".
-4. **Prijzen en CO₂** - standaardfactoren, CO₂-sensor.
-5. **Integraties** - mindergas.nl-brug: API-token (wachtwoordveld), generator-keuze,
-   dagelijks pushen aan/uit. Token wordt versleuteld in de entry opgeslagen; nooit gelogd.
-6. **Geavanceerd** - PBL-parameters (TST/RER/TOP per maandgroep) en windcoëfficiënt
-   overschrijven; uitschieterdrempel; minimale dagen voor fit.
+1. **Methods and season** - same fields as step 6.
+2. **DHW and cooking** - defaults and summer window.
+3. **History** - backfill/climatology years; button "recompute from date".
+4. **Prices and CO₂** - default factors, CO₂ sensor.
+5. **Integrations** - mindergas.nl bridge: API token (password field), generator choice,
+   daily push on/off. The token is stored encrypted in the entry; never logged.
+6. **Advanced** - override PBL parameters (TST/RER/TOP per month group) and wind
+   coefficient; outlier threshold; minimum number of days for a fit.
 
 ## Reconfigure flow
 
-Locatie, tijdzone, weerbron/station. Bij stationwissel: weerhistorie opnieuw ophalen en
-alle dagrecords herberekenen (met bevestiging).
+Location, timezone, weather source/station. On a station change: fetch the weather history
+again and recompute all daily records (with confirmation).
 
 ---
 
-## Migraties en versies
+## Migrations and versions
 
-- `version = 1`, `minor_version = 0`. Subentries vanaf HA 2025.3; op oudere HA weigert de
-  integratie te laden met een duidelijke repair-melding (HACS-minimum staat in `hacs.json`).
-- Toekomstige velden krijgen standaardwaarden in `async_migrate_entry`.
+- `version = 1`, `minor_version = 0`. Subentries require HA 2025.3+; on older HA the
+  integration refuses to load with a clear repair notification (the HACS minimum is in
+  `hacs.json`).
+- Future fields get default values in `async_migrate_entry`.
 
-## Teksten en vertalingen
+## Strings and translations
 
-Alle labels, beschrijvingen en fouten in `strings.json` + `translations/en.json` en
-`translations/nl.json`. Toon bij elk technisch veld een korte "waarom"-tekst (beschrijving),
-zodat de gebruiker de keuze begrijpt (bijvoorbeeld waarom 18 °C niet heilig is).
+All labels, descriptions and errors live in `strings.json` + `translations/en.json` and
+`translations/nl.json`. Show a short "why" text (description) with every technical field, so
+that the user understands the choice (for example why 18 °C is not sacred).

@@ -1,262 +1,268 @@
 # Product brief - Heatprint
 
-> *Het warmteprofiel van je huis, weergecorrigeerd. Voor gas, warmtepomp, hybride en warmtenet.*
+> *The weather-corrected heat fingerprint of your home. For gas, heat pumps, hybrids and district heating.*
 
 | | |
 |---|---|
-| Status | Concept v0.1 (september 2026) |
-| Eigenaar | Nico Habets |
-| Vorm | Open source (MIT): Home Assistant-integratie via HACS + Python-rekenkern (`heatprint-core`) |
-| Documenten | [METHODS](METHODS.md) · [DATA_MODEL](DATA_MODEL.md) · [CONFIG_FLOW](CONFIG_FLOW.md) · [ARCHITECTURE](ARCHITECTURE.md) · [ROADMAP](ROADMAP.md) · [ADR's](adr/) |
+| Status | Draft v0.1 (September 2026) |
+| Owner | Nico Habets |
+| Form | Open source (MIT): Home Assistant integration via HACS + Python calculation core (`heatprint-core`) |
+| Documents | [METHODS](METHODS.md) · [DATA_MODEL](DATA_MODEL.md) · [CONFIG_FLOW](CONFIG_FLOW.md) · [ARCHITECTURE](ARCHITECTURE.md) · [ROADMAP](ROADMAP.md) · [ADRs](adr/) |
 
 ---
 
-## 1. Samenvatting
+## 1. Summary
 
-Heatprint beantwoordt één vraag die geen bestaand hulpmiddel goed beantwoordt:
-**"Hoeveel warmte heeft mijn huis nodig, gecorrigeerd voor het weer, en wat deden mijn
-maatregelen daaraan - ongeacht of ik stook op gas, een warmtepomp, een hybride combinatie,
-elektrisch of een warmtenet?"**
+Heatprint answers one question that no existing tool answers well:
+**"How much heat does my house need, corrected for the weather, and what did my
+energy-saving measures change - regardless of whether I heat with gas, a heat pump, a hybrid
+setup, electricity or district heating?"**
 
-Het rekent alle energiedragers om naar **geleverde warmte per dag**, splitst tapwater/koken af,
-zet daar een **effectieve temperatuur** tegenover (wind, traagheid, optioneel zon) en levert
-vier graaddagmethodes naast elkaar (klassiek/mindergas, KNMI 14 °C, PBL/KEV-SJV 2022 en een
-huisgebonden fit). Daarbovenop een **energiekenlijn per stookseizoen** (PRISM-methode): helling
-= warmteverlies in W/K, balanstemperatuur = stookgedrag, met betrouwbaarheidsintervallen. Zo
-wordt "heeft het triple glas geholpen?" een cijfer met een marge, en blijft de analyse
-vergelijkbaar wanneer de cv-ketel een hybride warmtepomp naast zich krijgt.
+It converts all energy carriers into **delivered heat per day**, splits off domestic hot water
+(DHW) and cooking, sets that against an **effective temperature** (wind, thermal inertia,
+optionally solar) and provides four degree-day methods side by side (classic/mindergas, KNMI
+14 °C, PBL/KEV-SJV 2022 and a house-specific fit). On top of that an **energy signature per
+heating season** (PRISM method): slope = heat loss in W/K, balance temperature = heating
+behaviour, with confidence intervals. That turns "did the triple glazing help?" into a number
+with a margin, and the analysis stays comparable when the gas boiler gets a hybrid heat pump
+next to it.
 
-Alles draait lokaal in Home Assistant, met jaren historie via external statistics, gratis
-weerdata (KNMI voor NL, Open-Meteo wereldwijd) en een importfunctie voor oude meterstanden.
+Everything runs locally in Home Assistant, with years of history via external statistics, free
+weather data (KNMI for NL, Open-Meteo worldwide) and an import function for old meter readings.
 
-## 2. Probleem
+## 2. Problem
 
-- **mindergas.nl** (NL-standaard voor gasgraaddagen) logt per account **óf** m³ **óf** kWh; een
-  hybride woning kan er niet in. De methode (vaste stookgrens 18 °C, maandfactoren) is door
-  het PBL in 2022 als structureel onnauwkeurig beoordeeld: geen wind, geen traagheid, vaste
-  grens. Na het eerste halfjaar betaald lidmaatschap.
-- **Home Assistant Energy-dashboard** toont verbruik, maar corrigeert niet voor weer; de
-  community vraagt er al jaren om (feature request "Add degree days to Energy Dashboard",
-  GitHub discussion #1746 "Support Heating Degree Days").
-- **HACS "Degree-days"** (Ernst79) is een mindergas-kloon: alleen jaartotalen, één drager,
-  geen warmte, geen regressie.
-- **Bestaande blogs/templates** (statistics + template sensors) zijn per huis geknutseld, zonder
-  historie, zonder tapwatersplitsing en zonder warmtepompen.
-- De **energietransitie** maakt het probleem groter: honderdduizenden hybride installaties
-  per jaar in NL; elke eigenaar wil weten of de WP het werk doet en of de isolatiestap zin had.
+- **mindergas.nl** (the NL standard for gas degree days) logs **either** m³ **or** kWh per
+  account; a hybrid home cannot be entered. The method (fixed heating limit of 18 °C, monthly
+  factors) was judged structurally inaccurate by the PBL in 2022: no wind, no thermal inertia,
+  fixed limit. Paid membership after the first six months.
+- The **Home Assistant Energy dashboard** shows consumption but does not correct for weather;
+  the community has been asking for it for years (feature request "Add degree days to Energy
+  Dashboard", GitHub discussion #1746 "Support Heating Degree Days").
+- **HACS "Degree-days"** (Ernst79) is a mindergas clone: annual totals only, one carrier,
+  no heat, no regression.
+- **Existing blogs/templates** (statistics + template sensors) are hand-built per house, without
+  history, without a DHW split and without heat pumps.
+- The **energy transition** makes the problem bigger: hundreds of thousands of hybrid
+  installations per year in NL; every owner wants to know whether the heat pump is doing the
+  work and whether the insulation step paid off.
 
-## 3. Doelgroep en persona's
+## 3. Target group and personas
 
-| Persona | Situatie | Kernvraag | Wat Heatprint moet doen |
+| Persona | Situation | Key question | What Heatprint must do |
 |---|---|---|---|
-| **Gas-stoker** (Nico vóór de WP) | cv-ketel, slimme meter, mindergas-gebruiker | "Bespaar ik écht, of was het een zachte winter?" | mindergas-compatibel én beter; historie importeren |
-| **Hybride-eigenaar** (Nico ná de WP) | ketel + WP, omschakelpunt op tarief/temperatuur | "Wat is mijn warmtevraag en hoeveel doet de WP?" | gas + WP samenvoegen tot warmte; aandeel WP; COP |
-| **All-electric** | WP met (of zonder) thermische teller, evt. elektrisch bijverwarmen | "Klopt mijn SCOP, en is de warmtevraag gedaald na isolatie?" | thermisch of SCOP-geschat, gelabeld; energiekenlijn |
-| **Warmtenet** | GJ-meter | "Betaal ik voor meer warmte dan mijn huis zou moeten vragen?" | GJ → kWh; zelfde analyse |
-| **Renoveerder** | maatregelen plannen/verantwoorden | "Wat leverde stap X op, en wat verwacht ik van stap Y?" | maatregelen met datum; voor/na met marge |
-| **Tweaker/data-liefhebber** | wil alles zien en exporteren | "Geef me de dagdata en de fit-parameters." | export, services met response-data, alle methodes |
+| **Gas user** (Nico before the heat pump) | gas boiler, smart meter, mindergas user | "Am I really saving, or was it a mild winter?" | mindergas-compatible and better; import history |
+| **Hybrid owner** (Nico after the heat pump) | boiler + heat pump, switch-over point on tariff/temperature | "What is my heat demand and how much of it does the heat pump cover?" | merge gas + heat pump into heat; heat pump share; COP |
+| **All-electric** | heat pump with (or without) thermal energy meter, possibly electric backup heating | "Is my SCOP right, and has the heat demand dropped after insulation?" | thermally measured or SCOP-estimated, labelled; energy signature |
+| **District heating** | GJ meter | "Am I paying for more heat than my house should need?" | GJ → kWh; same analysis |
+| **Renovator** | planning/justifying measures | "What did step X deliver, and what do I expect from step Y?" | measures with a date; before/after with margin |
+| **Tweaker/data enthusiast** | wants to see and export everything | "Give me the daily data and the fit parameters." | export, services with response data, all methods |
 
-Buiten NL: zelfde persona's met Open-Meteo als weerbron; de PBL-preset is NL-gekalibreerd,
-de huisfit is universeel.
+Outside NL: the same personas with Open-Meteo as weather source; the PBL preset is
+NL-calibrated, the house fit is universal.
 
 ## 4. Jobs-to-be-done
 
-1. Weergecorrigeerd vergelijken van periodes/seizoenen (simpel: kWh per graaddag; goed:
-   genormaliseerd seizoensverbruik).
-2. Effect van een maatregel bepalen (isolatie, lagere aanvoertemperatuur, zonering,
-   warmtepomp) met betrouwbaarheidsinterval.
-3. Warmtevraag volgen bij verandering van opwekker (gas → hybride → all-electric) zonder
-   trendbreuk.
-4. Prognose van het lopende seizoen (warmte, gas m³, kWh) op basis van klimatologie.
-5. Benchmark: warmteverlies (W/K) en balanstemperatuur als vergelijkbare kengetallen tussen
-   woningen en jaren.
-6. Historie behouden: oude meterstanden importeren, jaren terugrekenen.
-7. Mindergas-gebruikers laten overstappen zonder verlies (zelfde graaddagen reproduceren,
-   optioneel blijven pushen naar mindergas).
+1. Weather-corrected comparison of periods/seasons (simple: kWh per degree day; good:
+   normalized seasonal consumption).
+2. Determine the effect of a measure (insulation, lower flow temperature, zoning,
+   heat pump) with a confidence interval.
+3. Track heat demand through a change of generator (gas → hybrid → all-electric) without
+   a break in the trend.
+4. Forecast for the current season (heat, gas m³, kWh) based on climatology.
+5. Benchmark: heat loss (W/K) and balance temperature as comparable key figures between
+   homes and years.
+6. Preserve history: import old meter readings, recompute years back.
+7. Let mindergas users switch without loss (reproduce the same degree days,
+   optionally keep pushing to mindergas).
 
-## 5. Waardepropositie en differentiatie
+## 5. Value proposition and differentiation
 
 | | mindergas.nl | HACS Degree-days | HA Energy | **Heatprint** |
 |---|---|---|---|---|
-| Meerdere dragers samen (hybride) | nee | nee | toont apart | **ja, als warmte** |
-| Tapwater/koken afsplitsen | vaste waarde | vaste waarde | nee | **gemeten / baseline / vast** |
-| Wind, traagheid, zon | nee | nee | nee | **ja (KNMI, PBL, huisfit)** |
-| Stookgrens | vast 18 °C | vast | - | **per maand (PBL) of gefit** |
-| Regressie/energiekenlijn met CI | nee | nee | nee | **ja (PRISM)** |
-| Historie importeren | ja (handmatig) | nee | nee | **ja (CSV, backfill)** |
-| Lokaal/privacy | cloud | lokaal | lokaal | **lokaal** |
-| Buiten NL | nee | nee | ja | **ja (Open-Meteo)** |
-| Benchmark met anderen | ja | nee | nee | later (opt-in, v3) |
-| Kosten | lidmaatschap | gratis | gratis | **gratis, MIT** |
+| Multiple carriers combined (hybrid) | no | no | shows them separately | **yes, as heat** |
+| Split off DHW/cooking | fixed value | fixed value | no | **measured / baseline / fixed** |
+| Wind, thermal inertia, solar | no | no | no | **yes (KNMI, PBL, house fit)** |
+| Heating limit | fixed 18 °C | fixed | - | **per month (PBL) or fitted** |
+| Regression/energy signature with CI | no | no | no | **yes (PRISM)** |
+| Import history | yes (manual) | no | no | **yes (CSV, backfill)** |
+| Local/privacy | cloud | local | local | **local** |
+| Outside NL | no | no | yes | **yes (Open-Meteo)** |
+| Benchmark against others | yes | no | no | later (opt-in, v3) |
+| Cost | membership | free | free | **free, MIT** |
 
 ## 6. Scope
 
-### 6.1 MVP (v0.1 - "werkt voor Nico's huis en voor een hybride")
+### 6.1 MVP (v0.1 - "works for Nico's house and for a hybrid")
 
-- Weerbronnen: KNMI daggegevens (alle NL-stations, dichtstbijzijnde voorgesteld), Open-Meteo
-  (archive + forecast `past_days`), HA-sensoren (daggemiddelden uit statistieken).
-- Effectieve temperatuur: presets `none`, `knmi`, `pbl` (0,65/0,35; wind lineair of wortel;
-  zon optioneel).
-- Graaddagen: `classic` (mindergas-weging, stookgrens en basistemperatuur instelbaar),
-  `knmi14`, `pbl` (praktisch én optimaal parameterset), `house` (fallback tot fit).
-- Opwekkers: `gas_boiler`, `heat_pump` (thermisch gemeten of SCOP-geschat), `electric_heater`,
-  `air_to_air`, `district_heat`, `other`; rollen `space`/`dhw`/`both`.
-- Tapwater/koken: `measured`, `baseline` (zomervenster), `fixed`, `none`.
-- Dagrecords als external statistics; JSON-store voor vlaggen/fits/klimatologie.
-- Sensoren: effectieve temperatuur, graaddagen (dag/seizoen), warmte (dag/seizoen), kWh per
-  graaddag, m³ per graaddag (mindergas-vergelijkbaar), WP-aandeel, COP, datakwaliteit.
-- Energiekenlijn-fit per seizoen (helling, balanstemperatuur, R², CI) + sensoren.
-- Services: `import_readings` (CSV, mindergas-export), `recompute`, `fit_signature`,
+- Weather sources: KNMI daily data (all NL stations, nearest one suggested), Open-Meteo
+  (archive + forecast `past_days`), HA sensors (daily averages from statistics).
+- Effective temperature: presets `none`, `knmi`, `pbl` (0.65/0.35; wind linear or square root;
+  solar optional).
+- Degree days: `classic` (mindergas weighting, heating limit and base temperature configurable),
+  `knmi14`, `pbl` (both the practical and the optimal parameter set), `house` (fallback until
+  a fit exists).
+- Generators: `gas_boiler`, `heat_pump` (thermally measured or SCOP-estimated), `electric_heater`,
+  `air_to_air`, `district_heat`, `other`; roles `space`/`dhw`/`both`.
+- DHW/cooking: `measured`, `baseline` (summer window), `fixed`, `none`.
+- Daily records as external statistics; JSON store for flags/fits/climatology.
+- Sensors: effective temperature, degree days (day/season), heat (day/season), kWh per
+  degree day, m³ per degree day (mindergas-comparable), heat pump share, COP, data quality.
+- Energy signature fit per season (slope, balance temperature, R², CI) + sensors.
+- Services: `import_readings` (CSV, mindergas export), `recompute`, `fit_signature`,
   `compare_periods`, `forecast`, `export_daily`.
-- Prognose lopend seizoen (klimatologie 20 jaar).
-- Config flow met wizard-keuze (gas / hybride / all-electric / warmtenet / anders), subentries
-  voor opwekkers en maatregelen, options en reconfigure.
-- Vertalingen NL en EN. Voorbeelddashboard (statistics-graph + apexcharts).
+- Forecast for the current season (20-year climatology).
+- Config flow with wizard choice (gas / hybrid / all-electric / district heating / other),
+  subentries for generators and measures, options and reconfigure.
+- Translations NL and EN. Example dashboard (statistics-graph + apexcharts).
 
-### 6.2 v1.0 - "voor iedereen via HACS"
+### 6.2 v1.0 - "for everyone via HACS"
 
-- Maatregel-effect (`measure_effect`) met genormaliseerd seizoensverbruik en bootstrap-CI.
-- COP-curve (temperatuurafhankelijke COP) als schatter zonder thermische teller.
-- Maandprofiel voor tapwater-baseline.
-- mindergas.nl-brug (`push_reading`), CO₂ en kosten per kWh warmte (prijs-entiteiten).
-- Repairs/diagnostics, uitgebreide tests (`pytest-homeassistant-custom-component`).
-- HACS default-repository aanvragen; documentatiesite.
+- Measure effect (`measure_effect`) with normalized seasonal consumption and bootstrap CI.
+- COP curve (temperature-dependent COP) as an estimator without a thermal energy meter.
+- Monthly profile for the DHW baseline.
+- mindergas.nl bridge (`push_reading`), CO₂ and cost per kWh of heat (price entities).
+- Repairs/diagnostics, extended tests (`pytest-homeassistant-custom-component`).
+- Apply for the HACS default repository; documentation site.
 
-### 6.3 v2.0 - "inzicht in beeld"
+### 6.3 v2.0 - "visual insight"
 
-- Custom Lovelace-kaart: energiekenlijn-scatter met fitlijn per seizoen, maatregelmarkers,
-  vergelijkingstabel per methode.
-- Weekend/vakantie/aanwezigheid als regressor (occupancy-correctie).
-- Warmtevraag per zone met Tado/thermostaat-"verwarmingsvermogen" als dragerloze proxy.
-- Anonieme benchmark (opt-in): W/K per m² en bouwjaar, alleen geaggregeerd.
-- Export naar notebook (Parquet/CSV) en een CLI in `heatprint-core`.
+- Custom Lovelace card: energy signature scatter plot with fit line per season, measure
+  markers, comparison table per method.
+- Weekend/holiday/presence as a regressor (occupancy correction).
+- Heat demand per zone with Tado/thermostat "heating power" as a carrier-less proxy.
+- Anonymous benchmark (opt-in): W/K per m² and year of construction, aggregated only.
+- Export to notebook (Parquet/CSV) and a CLI in `heatprint-core`.
 
-### 6.4 Niet in scope
+### 6.4 Out of scope
 
-- Sturing van de installatie (geen thermostaat- of warmtepompregeling).
-- Facturatie/leverancierskoppelingen.
-- Koeling (graaddagen voor koelen) - later mogelijk, zelfde model met omgekeerde H.
-- Eigen cloud of accounts.
+- Controlling the installation (no thermostat or heat pump control).
+- Billing/energy supplier integrations.
+- Cooling (degree days for cooling) - possibly later, same model with reversed H.
+- Own cloud or accounts.
 
-## 7. Functionele eisen (alle voorgestelde opties)
+## 7. Functional requirements (all proposed options)
 
-| # | Eis | Prio |
+| # | Requirement | Priority |
 |---|---|---|
-| F1 | Site met locatie/tijdzone; meerdere sites per installatie | MVP |
-| F2 | Weerprovider KNMI (station), Open-Meteo, HA-sensoren; fallback | MVP |
-| F3 | Effectieve temperatuur met presets en configureerbare coëfficiënten | MVP |
-| F4 | Vier graaddagmethodes, altijd allemaal berekend; primaire methode kiesbaar | MVP |
-| F5 | Opwekkers: zes soorten, drie rollen; onbeperkt aantal per site | MVP |
-| F6 | Warmteconversie per soort; WP thermisch gemeten of SCOP; COP-dag | MVP |
-| F7 | Tapwater/koken: vier splitsmethoden; baseline automatisch uit zomer | MVP |
-| F8 | Tellerstanden → dagverbruik met interpolatie, reset- en gatdetectie | MVP |
-| F9 | Dagrecords opslaan als external statistics; backfill N jaar | MVP |
-| F10 | Klimatologie (20 jaar) per site; jaarlijkse verversing | MVP |
-| F11 | Energiekenlijn-fit per seizoen met CI en uitschieterdetectie | MVP |
-| F12 | kWh/graaddag en m³/graaddag seizoen-tot-nu per methode | MVP |
-| F13 | Prognose seizoen (warmte, per drager) | MVP |
-| F14 | CSV-import (mindergas-export, leverancier) met kolommapping | MVP |
-| F15 | Services met response-data voor dashboards/automations | MVP |
-| F16 | Maatregelen (subentry) en voor/na-effect met genormaliseerd verbruik | v1 |
-| F17 | mindergas-brug (dagelijks pushen) | v1 |
-| F18 | Kosten en CO₂ per kWh warmte, prijs-entiteiten | v1 |
-| F19 | COP-curve en tapwater-maandprofiel | v1 |
-| F20 | Custom kaart, occupancy-regressor, zoneproxy, benchmark | v2 |
-| F21 | Datakwaliteitsvlaggen op elk dagrecord en in de UI | MVP |
-| F22 | Vertalingen NL/EN; uitleg bij elk veld | MVP |
-| F23 | Diagnostics zonder geheimen; repairs bij datagaten | v1 |
+| F1 | Site with location/time zone; multiple sites per installation | MVP |
+| F2 | Weather providers KNMI (station), Open-Meteo, HA sensors; fallback | MVP |
+| F3 | Effective temperature with presets and configurable coefficients | MVP |
+| F4 | Four degree-day methods, always all computed; primary method selectable | MVP |
+| F5 | Generators: six types, three roles; unlimited number per site | MVP |
+| F6 | Heat conversion per type; heat pump thermally measured or SCOP; daily COP | MVP |
+| F7 | DHW/cooking: four split methods; baseline automatically from summer | MVP |
+| F8 | Meter readings → daily consumption with interpolation, reset and gap detection | MVP |
+| F9 | Store daily records as external statistics; backfill N years | MVP |
+| F10 | Climatology (20 years) per site; annual refresh | MVP |
+| F11 | Energy signature fit per season with CI and outlier detection | MVP |
+| F12 | kWh/degree day and m³/degree day season-to-date per method | MVP |
+| F13 | Season forecast (heat, per carrier) | MVP |
+| F14 | CSV import (mindergas export, energy supplier) with column mapping | MVP |
+| F15 | Services with response data for dashboards/automations | MVP |
+| F16 | Measures (subentry) and before/after effect with normalized consumption | v1 |
+| F17 | mindergas bridge (daily push) | v1 |
+| F18 | Cost and CO₂ per kWh of heat, price entities | v1 |
+| F19 | COP curve and DHW monthly profile | v1 |
+| F20 | Custom card, occupancy regressor, zone proxy, benchmark | v2 |
+| F21 | Data quality flags on every daily record and in the UI | MVP |
+| F22 | Translations NL/EN; explanation for every field | MVP |
+| F23 | Diagnostics without secrets; repairs on data gaps | v1 |
 
-Niet-functioneel: geen telemetrie; ≤ 1 externe call per dag per site in normaal bedrijf;
-dagelijkse run < 5 s; backfill 10 jaar < 2 min; werkt op HA Green/Yellow (geen numpy
-vereist in de kern).
+Non-functional: no telemetry; ≤ 1 external call per day per site in normal operation;
+daily run < 5 s; 10-year backfill < 2 min; runs on HA Green/Yellow (no numpy
+required in the core).
 
-## 8. Rekenmethodes in het kort
+## 8. Calculation methods in brief
 
-Zie [METHODS.md](METHODS.md). Kern: `T_eff = T - c_lin·V - c_sqrt·√V + c_sun·Q`,
-traagheid `TAC = 0,65·T_eff(d) + 0,35·T_eff(d-1)`, graaddagen per methode, warmte per
-opwekker, DHW-splitsing, fit `Q = a + b·max(0, T_b - TAC) + c·V`, genormaliseerd
-seizoensverbruik via klimatologie, prognose. Open punt: de exacte PBL-windcoëfficiënt
-(placeholder, configureerbaar; huisfit is onafhankelijk hiervan).
+See [METHODS.md](METHODS.md). Core: `T_eff = T - c_lin·V - c_sqrt·√V + c_sun·Q`,
+thermal inertia `TAC = 0.65·T_eff(d) + 0.35·T_eff(d-1)`, degree days per method, heat per
+generator, DHW split, fit `Q = a + b·max(0, T_b - TAC) + c·V`, normalized
+seasonal consumption via climatology, forecast. Open point: the exact PBL wind coefficient
+(placeholder, configurable; the house fit is independent of it).
 
-## 9. Nauwkeurigheid en eerlijkheid
+## 9. Accuracy and honesty
 
-- Elke geschatte grootheid draagt een vlag (`HEAT_ESTIMATED`, `WEATHER_PROVISIONAL`, ...).
-- Fits tonen n, R², RMSE en CI; onder 30 dagen geen fit.
-- Vergelijkingen tonen de uitkomst voor alle methodes, zodat zichtbaar is wanneer de conclusie
-  methode-afhankelijk is.
-- Validatie: synthetische woning (bekende parameters terugvinden) en referentiecase Heerlen
-  (mindergas reproduceren binnen 1%; vier gasjaren).
+- Every estimated quantity carries a flag (`HEAT_ESTIMATED`, `WEATHER_PROVISIONAL`, ...).
+- Fits show n, R², RMSE and CI; no fit below 30 days.
+- Comparisons show the result for all methods, so that it is visible when the conclusion
+  depends on the method.
+- Validation: synthetic house (recover known parameters) and the Heerlen reference case
+  (reproduce mindergas within 1%; four gas years).
 
-## 10. Databronnen, licenties, privacy
+## 10. Data sources, licences, privacy
 
-| Bron | Voorwaarden |
+| Source | Terms |
 |---|---|
-| KNMI daggegevens (script-API) | open data, bronvermelding KNMI |
-| Open-Meteo | gratis voor niet-commercieel gebruik (CC-BY 4.0), API-key voor commercieel |
-| PBL 2022, Informatiecode bijlage 3 | publieke methodiek en parameters, bronvermelding |
-| mindergas.nl API | gebruikersvoorwaarden mindergas; token van gebruiker |
+| KNMI daily data (script API) | open data, attribution to KNMI |
+| Open-Meteo | free for non-commercial use (CC-BY 4.0), API key for commercial use |
+| PBL 2022, Informatiecode annex 3 | public methodology and parameters, attribution |
+| mindergas.nl API | mindergas terms of use; the user's own token |
 | Code | MIT |
 
-Privacy: geen data verlaat het huis behalve coördinaten/station naar de weerprovider en
-(optioneel) meterstanden naar mindergas op verzoek van de gebruiker.
+Privacy: no data leaves the house except coordinates/station to the weather provider and
+(optionally) meter readings to mindergas at the user's request.
 
-## 11. Risico's en mitigaties
+## 11. Risks and mitigations
 
-| Risico | Kans | Impact | Mitigatie |
+| Risk | Likelihood | Impact | Mitigation |
 |---|---|---|---|
-| KNMI-scriptendpoint wijzigt of verdwijnt | middel | hoog (NL) | provider-abstractie, Open-Meteo fallback, KNMI Data Platform (API-key) als tweede NL-provider in v1 |
-| Tapwatersplitsing onnauwkeurig bij hybride | hoog | middel | gemeten split waar mogelijk; baseline + maandprofiel; onzekerheid tonen |
-| WP zonder thermische teller | hoog | middel | SCOP/COP-curve, gelabeld; aanbeveling kWh-meter + thermische teller in docs |
-| HA-API-wijzigingen (subentries, statistics) | middel | middel | minimale HA-versie, CI met hassfest, snelle releases |
-| Gebruikers vertrouwen op één methode | middel | middel | alle methodes tonen; primaire methode = huisfit |
-| Onderhoudslast voor één maintainer | hoog | hoog | dunne HA-schil, kern goed getest, CONTRIBUTING, issues-templates, co-maintainer zoeken |
-| Verkeerde conclusies bij gedragsverandering | middel | middel | maatregelcategorie bepaalt interpretatie; occupancy-regressor in v2 |
+| KNMI script endpoint changes or disappears | medium | high (NL) | provider abstraction, Open-Meteo fallback, KNMI Data Platform (API key) as second NL provider in v1 |
+| DHW split inaccurate for hybrids | high | medium | measured split where possible; baseline + monthly profile; show uncertainty |
+| Heat pump without thermal energy meter | high | medium | SCOP/COP curve, labelled; recommend kWh meter + thermal energy meter in the docs |
+| HA API changes (subentries, statistics) | medium | medium | minimum HA version, CI with hassfest, quick releases |
+| Users rely on a single method | medium | medium | show all methods; primary method = house fit |
+| Maintenance burden for a single maintainer | high | high | thin HA shell, well-tested core, CONTRIBUTING, issue templates, look for a co-maintainer |
+| Wrong conclusions when behaviour changes | medium | medium | measure category determines interpretation; occupancy regressor in v2 |
 
-## 12. Succesmetrics
+## 12. Success metrics
 
-- MVP: Nico's referentiecase reproduceert mindergas binnen 1%; fit op seizoen 2025/26 met
-  R² ≥ 0,85; hybride seizoen 2026/27 zonder trendbreuk in warmtevraag.
-- v1 (6 maanden na release): ≥ 250 installaties (HACS-analytics), ≥ 100 GitHub-stars,
-  ≥ 10 externe issues met echte data, ≥ 3 weerstations/landen buiten NL in gebruik.
-- Kwaliteit: CI groen, testdekking kern ≥ 90%, geen open P1-bug > 14 dagen.
+- MVP: Nico's reference case reproduces mindergas within 1%; fit on season 2025/26 with
+  R² ≥ 0.85; hybrid season 2026/27 without a break in the heat demand trend.
+- v1 (6 months after release): ≥ 250 installations (HACS analytics), ≥ 100 GitHub stars,
+  ≥ 10 external issues with real data, ≥ 3 weather stations/countries outside NL in use.
+- Quality: CI green, core test coverage ≥ 90%, no open P1 bug > 14 days.
 
-## 13. Planning (indicatief)
+## 13. Planning (indicative)
 
-| Fase | Inhoud | Inspanning |
+| Phase | Content | Effort |
 |---|---|---|
-| 0 - Fundament (nu) | Naam, repo, brief, datamodel, configflow, architectuur, kernskelet met tests | 1 week |
-| 1 - Kern | Providers, methodes, warmte/DHW, tellerstanden, fit, prognose; referentiecase Heerlen | 2-3 weken avondwerk |
-| 2 - HA-schil MVP | Config flow, coordinator, statistieken, sensoren, services; op eigen HA draaien | 2-3 weken |
-| 3 - Winter 2026/27 | Live meedraaien naast mindergas; hybride WP aansluiten; bugs; docs | doorlopend |
-| 4 - v1.0 | Maatregel-effect, brug, kosten/CO₂, tests, HACS default | 3-4 weken |
-| 5 - v2.0 | Kaart, occupancy, zoneproxy, benchmark | later |
+| 0 - Foundation (now) | Name, repo, brief, data model, config flow, architecture, core skeleton with tests | 1 week |
+| 1 - Core | Providers, methods, heat/DHW, meter readings, fit, forecast; Heerlen reference case | 2-3 weeks of evening work |
+| 2 - HA shell MVP | Config flow, coordinator, statistics, sensors, services; run on own HA | 2-3 weeks |
+| 3 - Winter 2026/27 | Run live alongside mindergas; connect the hybrid heat pump; bugs; docs | ongoing |
+| 4 - v1.0 | Measure effect, bridge, cost/CO₂, tests, HACS default | 3-4 weeks |
+| 5 - v2.0 | Card, occupancy, zone proxy, benchmark | later |
 
-## 14. Open vragen en beslissingen
+## 14. Open questions and decisions
 
-1. **Naam**: Heatprint (gekozen; PyPI en GitHub vrij op 13-09-2026). Alternatieven overwogen:
-   Balancepoint (concept, internationaal), Stooklijn (NL, verwarrend met "stooklijn" =
-   verwarmingscurve), Graadmeter (NL-woordspeling, niet internationaal).
-2. **Taal van de documentatie**: nu Nederlands (doelgroep NL-first, snelle iteratie);
-   vóór de publieke HACS-release Engelse vertaling van README/docs. Code en UI-strings zijn
-   tweetalig vanaf dag 1.
-3. **PBL-windcoëfficiënt**: verifiëren in de pdf (Nico levert pdf aan); tot die tijd
-   `linear` als standaard.
-4. **Subentries vs. options-lijst**: subentries (HA ≥ 2025.3) gekozen voor beheer per
-   opwekker; ouder HA wordt niet ondersteund.
-5. **Publiceren van `heatprint-core` op PyPI vs. vendoren in de integratie**: PyPI (schoner,
-   herbruikbaar); vendoren als noodgreep.
-6. **Bijdragen aan Ernst79/degree-days in plaats van eigen project**: nee, scope te
-   verschillend; wel credits en een migratiepad voor die gebruikers (zelfde `classic`-cijfers).
-7. **Benchmark (opt-in)**: pas als er voldoende gebruikers zijn; vereist een kleine
-   backend en privacy-ontwerp.
+1. **Name**: Heatprint (chosen; PyPI and GitHub names free on 2026-09-13). Alternatives
+   considered: Balancepoint (concept, international), Stooklijn (NL, confusing because
+   "stooklijn" = heating curve), Graadmeter (Dutch pun, not international).
+2. **Language of the documentation**: English only. Documentation, code and UI strings are
+   English; Dutch exists only as a UI translation file (`translations/nl.json`).
+3. **PBL wind coefficient**: verify in the pdf (Nico supplies the pdf); until then
+   `linear` as default.
+4. **Subentries vs. options list**: subentries (HA ≥ 2025.3) chosen for management per
+   generator; older HA versions are not supported.
+5. **Publishing `heatprint-core` on PyPI vs. vendoring it in the integration**: PyPI (cleaner,
+   reusable); vendoring as a last resort.
+6. **Contributing to Ernst79/degree-days instead of a separate project**: no, the scope is too
+   different; but credits and a migration path for those users (same `classic` figures).
+7. **Benchmark (opt-in)**: only once there are enough users; requires a small
+   backend and a privacy design.
 
-## 15. Bronnen
+## 15. Sources
 
-- PBL (2022), *Herziening weerscorrectie voor ruimteverwarming*.
-- Informatiecode elektriciteit en gas, bijlage 3 (profielenmethodiek aardgas).
-- KNMI, *Graaddagen in gasjaar 2021* (definitie 14 °C en effectieve temperatuur).
-- mindergas.nl, *Over graaddagen*, *Warmtepomp en graaddagen*, FAQ.
-- Fels, M. (1986), *PRISM: an introduction*, Energy and Buildings 9 - genormaliseerd verbruik
-  via balanstemperatuur-regressie.
+- PBL (2022), *Herziening weerscorrectie voor ruimteverwarming* (Revision of the weather
+  correction for space heating).
+- Informatiecode elektriciteit en gas (Information Code for electricity and gas), annex 3
+  (profile methodology for natural gas).
+- KNMI, *Graaddagen in gasjaar 2021* (Degree days in gas year 2021; definition of 14 °C and
+  effective temperature).
+- mindergas.nl, *Over graaddagen* (About degree days), *Warmtepomp en graaddagen* (Heat pump
+  and degree days), FAQ.
+- Fels, M. (1986), *PRISM: an introduction*, Energy and Buildings 9 - normalized consumption
+  via balance-temperature regression.
 - Home Assistant developer docs: long-term statistics, external statistics, config subentries.
-- Ernst79/degree-days (HACS), klausj1/homeassistant-statistics, Spook recorder-services.
+- Ernst79/degree-days (HACS), klausj1/homeassistant-statistics, Spook recorder services.

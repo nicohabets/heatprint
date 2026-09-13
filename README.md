@@ -1,7 +1,6 @@
 # Heatprint
 
 > **The weather-corrected heat fingerprint of your home - for gas, heat pumps, hybrids and district heat.**
-> *Het warmteprofiel van je huis, weergecorrigeerd - voor gas, warmtepomp, hybride en warmtenet.*
 
 [![HACS Custom](https://img.shields.io/badge/HACS-Custom-41BDF5.svg)](https://hacs.xyz)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
@@ -37,16 +36,16 @@ Pre-alpha. The repository currently contains the product brief, data model, conf
 architecture, the calculation core with tests, and the skeleton of the Home Assistant
 integration. See [docs/ROADMAP.md](docs/ROADMAP.md).
 
-## Documentation (Dutch first, English before the public HACS release)
+## Documentation
 
-| Document | Inhoud |
+| Document | Contents |
 |---|---|
-| [docs/PRODUCT_BRIEF.md](docs/PRODUCT_BRIEF.md) | Waarom, voor wie, scope, eisen, risico's, planning |
-| [docs/METHODS.md](docs/METHODS.md) | Alle formules: effectieve temperatuur, graaddagen, warmte, tapwater, energiekenlijn, prognose |
-| [docs/DATA_MODEL.md](docs/DATA_MODEL.md) | Configuratie, dagrecords, statistieken, sensoren, services |
+| [docs/PRODUCT_BRIEF.md](docs/PRODUCT_BRIEF.md) | Why, for whom, scope, requirements, risks, planning |
+| [docs/METHODS.md](docs/METHODS.md) | All formulas: effective temperature, degree days, heat, DHW, energy signature, forecast |
+| [docs/DATA_MODEL.md](docs/DATA_MODEL.md) | Configuration, daily records, statistics, sensors, services |
 | [docs/CONFIG_FLOW.md](docs/CONFIG_FLOW.md) | Wizard, subentries, options, reconfigure |
-| [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | Componenten, dataflow, opslag, koppelingen (Mermaid) |
-| [docs/adr/](docs/adr/) | Architectuurbeslissingen |
+| [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | Components, data flow, storage, integrations (Mermaid) |
+| [docs/adr/](docs/adr/) | Architecture decision records: [core independent of Home Assistant](docs/adr/0001-core-independent-of-home-assistant.md), [no heavy dependencies](docs/adr/0002-no-heavy-dependencies.md), [external statistics as storage](docs/adr/0003-external-statistics-as-storage.md), [four methods side by side](docs/adr/0004-four-methods-side-by-side.md) |
 
 ## Repository layout
 

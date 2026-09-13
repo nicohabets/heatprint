@@ -1,22 +1,22 @@
-# ADR 0002 - Geen zware dependencies in de kern
+# ADR 0002 - No heavy dependencies in the core
 
-**Status:** geaccepteerd (2026-09-13)
+**Status:** accepted (2026-09-13)
 
 ## Context
 
-Home Assistant draait ook op kleine hardware (HA Green/Yellow, Raspberry Pi). numpy/scipy/pandas
-zijn groot, vertragen installatie en geven wheel-problemen op sommige platformen. De
-berekeningen (OLS met één of twee regressoren, rasterzoek, bootstrap over ~200 dagen) zijn
-klein.
+Home Assistant also runs on small hardware (HA Green/Yellow, Raspberry Pi). numpy/scipy/pandas
+are large, slow down installation and cause wheel problems on some platforms. The
+calculations (OLS with one or two regressors, grid search, bootstrap over ~200 days) are
+small.
 
-## Besluit
+## Decision
 
-`heatprint_core` heeft geen verplichte runtime-dependencies. OLS, rasterzoek en bootstrap zijn in
-pure Python geïmplementeerd. HTTP-clients zijn optioneel (`aiohttp` via extra `http`); in HA
-wordt de aiohttp-sessie van HA doorgegeven.
+`heatprint_core` has no mandatory runtime dependencies. OLS, grid search and bootstrap are
+implemented in pure Python. HTTP clients are optional (`aiohttp` via the `http` extra); in HA
+the HA aiohttp session is passed in.
 
-## Gevolgen
+## Consequences
 
-- Iets meer eigen code (kleinste-kwadraten, t-kwantielen als tabel/benadering).
-- Snelle installatie via HACS, geen compilatie.
-- Voor zware analyses buiten HA kan een gebruiker de dagrecords exporteren naar pandas.
+- Slightly more code of our own (least squares, t-quantiles as a table/approximation).
+- Fast installation via HACS, no compilation.
+- For heavy analyses outside HA a user can export the daily records to pandas.
