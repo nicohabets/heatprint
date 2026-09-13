@@ -443,8 +443,8 @@ def generator_device_info(
     coordinator: HeatprintCoordinator, generator: GeneratorConfig
 ) -> DeviceInfo:
     """Return the device info of a generator device (child of the site device)."""
-    parent = dr.async_get(coordinator.hass).async_get_device(
-        identifiers={(DOMAIN, coordinator.entry.entry_id)}
+    parent = dr.async_get(coordinator.hass).async_get_device_by_identifier(
+        (DOMAIN, coordinator.entry.entry_id), coordinator.entry.entry_id
     )
     info: dict[str, Any] = {
         "identifiers": {(DOMAIN, f"{coordinator.entry.entry_id}_{generator.generator_id}")},
