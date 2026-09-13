@@ -8,6 +8,7 @@ All notable changes to this project are documented here. The format follows
 ## [0.1.0] - 2026-09-13
 
 ### Added
+- Brand icon at `custom_components/heatprint/brand/icon.png` for HACS validation.
 - Product brief, data model, config flow specification, architecture and ADRs (all
   documentation in English).
 - `heatprint_core`: models, constants, flags, weather providers (KNMI, Open-Meteo),

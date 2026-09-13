@@ -64,6 +64,10 @@ examples/dashboards/           Dashboard YAML examples
 docs/                          Product and technical documentation
 ```
 
+HACS validation in CI ignores GitHub-only metadata (`topics`, `description`). Before a
+HACS default submission, set a repository description and topics such as
+`custom-integration`, `hacs-integration` and `homeassistant`.
+
 ## Development
 
 ```bash
