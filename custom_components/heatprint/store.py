@@ -213,9 +213,7 @@ class HeatprintStore:
         else:
             bucket.pop(key, None)
 
-    def room_flags_between(
-        self, room_id: str, start: date, end: date
-    ) -> dict[date, list[str]]:
+    def room_flags_between(self, room_id: str, start: date, end: date) -> dict[date, list[str]]:
         """Return room flags in start..end that have any flag set."""
         result: dict[date, list[str]] = {}
         for key, bits in self._data.get(KEY_ROOM_FLAGS, {}).get(room_id, {}).items():

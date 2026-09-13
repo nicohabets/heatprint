@@ -357,9 +357,7 @@ def async_setup_services(hass: HomeAssistant) -> None:
                 translation_domain=DOMAIN, translation_key="period_required"
             )
         try:
-            return await coordinator.async_fit_room_signature(
-                call.data[ATTR_ROOM_ID], start, end
-            )
+            return await coordinator.async_fit_room_signature(call.data[ATTR_ROOM_ID], start, end)
         except CoreError as err:
             raise HomeAssistantError(f"Room fit failed: {err}") from err
 

@@ -346,9 +346,7 @@ def _rooms_registry(
 def test_resolve_dutch_room_object_ids_from_mock_registry() -> None:
     entry_id = "entry-thuis"
     registry = _rooms_registry(entry_id, "thuis", _DUTCH_ROOM_OBJECT_IDS, _DUTCH_OBJECT_IDS)
-    resolved = resolve_rooms_entity_ids(
-        registry.async_get_entity_id, entry_id, _rooms_payload()
-    )
+    resolved = resolve_rooms_entity_ids(registry.async_get_entity_id, entry_id, _rooms_payload())
     assert resolved["heat_unallocated_season"] == "sensor.thuis_niet_toegewezen_warmte_seizoen"
     assert resolved["most_expensive_room"] == "sensor.thuis_duurste_kamer"
     assert resolved["rooms"]["living"]["room_heat_yesterday"] == (
@@ -364,9 +362,7 @@ def test_resolve_dutch_room_object_ids_from_mock_registry() -> None:
 def test_rooms_dashboard_uses_dutch_resolved_ids_not_english_guesses() -> None:
     entry_id = "entry-thuis"
     registry = _rooms_registry(entry_id, "thuis", _DUTCH_ROOM_OBJECT_IDS, _DUTCH_OBJECT_IDS)
-    resolved = resolve_rooms_entity_ids(
-        registry.async_get_entity_id, entry_id, _rooms_payload()
-    )
+    resolved = resolve_rooms_entity_ids(registry.async_get_entity_id, entry_id, _rooms_payload())
     config = build_rooms_config(
         "thuis",
         site_name="Thuis",
@@ -392,9 +388,7 @@ def test_rooms_dashboard_uses_dutch_resolved_ids_not_english_guesses() -> None:
 def test_rooms_dashboard_uses_english_resolved_ids() -> None:
     entry_id = "entry-home"
     registry = _rooms_registry(entry_id, "home", _ENGLISH_ROOM_OBJECT_IDS, _ENGLISH_OBJECT_IDS)
-    resolved = resolve_rooms_entity_ids(
-        registry.async_get_entity_id, entry_id, _rooms_payload()
-    )
+    resolved = resolve_rooms_entity_ids(registry.async_get_entity_id, entry_id, _rooms_payload())
     config = build_rooms_config(
         "home", site_name="Home", rooms=_rooms_payload(), entity_ids=resolved
     )
@@ -426,7 +420,7 @@ def test_room_sensor_keys_match_dashboard_and_translations() -> None:
     """Dashboard keys, sensor.py and NL/EN names stay aligned (Dutch UI slugs)."""
     sensor_src = (INTEGRATION / "sensor.py").read_text(encoding="utf-8")
     for key in ROOM_ENTITY_KEYS:
-        assert f'key={key}' in sensor_src or f'key=SENSOR_{key.upper()}' in sensor_src
+        assert f"key={key}" in sensor_src or f"key=SENSOR_{key.upper()}" in sensor_src
     strings = json.loads((INTEGRATION / "strings.json").read_text(encoding="utf-8"))
     nl = json.loads((INTEGRATION / "translations" / "nl.json").read_text(encoding="utf-8"))
     en = json.loads((INTEGRATION / "translations" / "en.json").read_text(encoding="utf-8"))

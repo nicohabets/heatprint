@@ -391,11 +391,7 @@ class RoomConfig:
     @property
     def entities(self) -> set[str]:
         """Entities that must be read from the recorder for this room."""
-        return {
-            entity
-            for entity in (self.demand_entity, self.temperature_entity)
-            if entity
-        }
+        return {entity for entity in (self.demand_entity, self.temperature_entity) if entity}
 
 
 @dataclass(slots=True)
@@ -532,15 +528,9 @@ def rooms_options(entry: ConfigEntry) -> dict[str, Any]:
     opts = dict(entry.options.get(OPT_ROOMS, {}))
     opts.setdefault(CONF_ROOMS_ALLOCATION, DEFAULT_ROOMS_ALLOCATION)
     opts.setdefault(CONF_ROOMS_MIN_FIT_DAYS, DEFAULT_ROOMS_MIN_FIT_DAYS)
-    opts.setdefault(
-        CONF_OUTPUT_W_PER_M2_RADIATOR, DEFAULT_OUTPUT_W_PER_M2["radiator"]
-    )
-    opts.setdefault(
-        CONF_OUTPUT_W_PER_M2_UNDERFLOOR, DEFAULT_OUTPUT_W_PER_M2["underfloor"]
-    )
-    opts.setdefault(
-        CONF_OUTPUT_W_PER_M2_ELECTRIC, DEFAULT_OUTPUT_W_PER_M2["electric"]
-    )
+    opts.setdefault(CONF_OUTPUT_W_PER_M2_RADIATOR, DEFAULT_OUTPUT_W_PER_M2["radiator"])
+    opts.setdefault(CONF_OUTPUT_W_PER_M2_UNDERFLOOR, DEFAULT_OUTPUT_W_PER_M2["underfloor"])
+    opts.setdefault(CONF_OUTPUT_W_PER_M2_ELECTRIC, DEFAULT_OUTPUT_W_PER_M2["electric"])
     opts.setdefault(CONF_OUTPUT_W_PER_M2_OTHER, DEFAULT_OUTPUT_W_PER_M2["other"])
     return opts
 

@@ -236,7 +236,9 @@ async def async_daily_from_history(
             value = _state_numeric(item)
             if value is None:
                 continue
-            last_changed = getattr(item, "last_changed", None) or getattr(item, "last_updated", None)
+            last_changed = getattr(item, "last_changed", None) or getattr(
+                item, "last_updated", None
+            )
             if last_changed is None:
                 continue
             begin = last_changed if last_changed.tzinfo else last_changed.replace(tzinfo=tz)
@@ -244,7 +246,11 @@ async def async_daily_from_history(
                 nxt = getattr(samples[index + 1], "last_changed", None) or getattr(
                     samples[index + 1], "last_updated", None
                 )
-                finish = nxt if nxt is not None and nxt.tzinfo else (nxt.replace(tzinfo=tz) if nxt else end_dt)
+                finish = (
+                    nxt
+                    if nxt is not None and nxt.tzinfo
+                    else (nxt.replace(tzinfo=tz) if nxt else end_dt)
+                )
             else:
                 finish = end_dt
             begin = max(begin, start_dt)

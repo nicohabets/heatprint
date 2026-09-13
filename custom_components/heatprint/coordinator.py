@@ -38,8 +38,6 @@ from .const import (
     CONF_LONGITUDE,
     CONF_METHODS_PRIMARY,
     CONF_MIN_FIT_DAYS,
-    CONF_ROOMS_ALLOCATION,
-    CONF_ROOMS_MIN_FIT_DAYS,
     CONF_MINDERGAS_DAILY_PUSH,
     CONF_MINDERGAS_GENERATOR,
     CONF_MINDERGAS_TOKEN,
@@ -47,6 +45,8 @@ from .const import (
     CONF_OUTLIER_THRESHOLD,
     CONF_PROVIDER,
     CONF_RECOMPUTE_FROM,
+    CONF_ROOMS_ALLOCATION,
+    CONF_ROOMS_MIN_FIT_DAYS,
     CONF_SITE_ID,
     CONF_TIMEZONE,
     CONF_WEATHER,
@@ -91,6 +91,7 @@ from .core_api import (
     SeasonWindow,
     WeatherDay,
     advanced_options,
+    allocate_rooms,
     async_fetch_weather,
     baselines_in_kwh,
     build_climatology,
@@ -99,22 +100,21 @@ from .core_api import (
     compare_periods,
     daily_consumption_from_readings,
     estimate_baselines,
+    fit_room_signature,
     fit_signature,
     forecast_season,
-    allocate_rooms,
-    fit_room_signature,
     generator_configs,
     history_options,
-    merge_room_metrics,
-    output_w_per_m2_table,
-    room_configs,
-    rooms_options,
     measure_configs,
     measure_effect,
+    merge_room_metrics,
     method_options,
+    output_w_per_m2_table,
     record_flags,
     record_is_usable,
     record_to_metrics,
+    room_configs,
+    rooms_options,
     season_for,
     weather_from_ha_sensors,
     weather_signature,
@@ -484,9 +484,7 @@ class HeatprintCoordinator(DataUpdateCoordinator[HeatprintData]):
         means = await async_daily_means(self.hass, means_entities, start, end, self.tz)
         sums = await async_daily_sums(self.hass, metered, start, end, self.tz)
         missing_demand = [
-            entity
-            for entity in demand_entities
-            if not means.get(entity) and not sums.get(entity)
+            entity for entity in demand_entities if not means.get(entity) and not sums.get(entity)
         ]
         history = (
             await async_daily_from_history(self.hass, missing_demand, start, end, self.tz)
@@ -819,9 +817,7 @@ class HeatprintCoordinator(DataUpdateCoordinator[HeatprintData]):
             aggregate.gas_per_dd_classic = aggregate.gas_m3 / dd_classic
         aggregate.heat_unallocated_kwh = _total(METRIC_HEAT_UNALLOCATED)
         latest_by_room = {
-            record.room_id: record
-            for record in self._last_room_records
-            if self._last_room_records
+            record.room_id: record for record in self._last_room_records if self._last_room_records
         }
         yesterday = self.today - timedelta(days=1)
         for room in self.rooms:

@@ -215,7 +215,9 @@ def allocate_day(
     heat_to_allocate = max(0.0, float(heat_space_kwh) - heat_metered)
     cost_to_allocate: float | None = None
     if cost_space_eur is not None:
-        cost_to_allocate = max(0.0, float(cost_space_eur) - (cost_metered if has_metered_cost else 0.0))
+        cost_to_allocate = max(
+            0.0, float(cost_space_eur) - (cost_metered if has_metered_cost else 0.0)
+        )
 
     denominator = sum(weight * integral for _room, _rec, weight, integral in allocated)
     heat_allocated = 0.0

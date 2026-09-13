@@ -462,7 +462,9 @@ def _rooms_cards(
             name = str(room.get("name") or room_id)
             room_map = per_room_ids.get(room_id) if isinstance(per_room_ids, Mapping) else {}
             left.append(
-                _entities_or_note(name, _ROOM_SUMMARY_KEYS, room_map if isinstance(room_map, Mapping) else {})
+                _entities_or_note(
+                    name, _ROOM_SUMMARY_KEYS, room_map if isinstance(room_map, Mapping) else {}
+                )
             )
 
     heat_stats: list[dict[str, str]] = [

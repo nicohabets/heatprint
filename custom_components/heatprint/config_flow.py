@@ -90,9 +90,9 @@ from .const import (
     CONF_EMITTER_KIND,
     CONF_ENABLED,
     CONF_ENERGY_ENTITY,
-    CONF_FLOOR_AREA_M2,
     CONF_FACTOR,
     CONF_FALLBACK,
+    CONF_FLOOR_AREA_M2,
     CONF_GAS_CO2_FACTOR,
     CONF_GENERATOR_ID,
     CONF_HA_ENTITIES,
@@ -113,11 +113,11 @@ from .const import (
     CONF_MINDERGAS_TOKEN,
     CONF_NAME,
     CONF_NOTES,
+    CONF_OUTLIER_THRESHOLD,
     CONF_OUTPUT_W_PER_M2_ELECTRIC,
     CONF_OUTPUT_W_PER_M2_OTHER,
     CONF_OUTPUT_W_PER_M2_RADIATOR,
     CONF_OUTPUT_W_PER_M2_UNDERFLOOR,
-    CONF_OUTLIER_THRESHOLD,
     CONF_PBL_INCLUDE_SUN,
     CONF_PBL_PARAMETER_SET,
     CONF_PBL_RER_SHOULDER,
@@ -133,14 +133,14 @@ from .const import (
     CONF_PBL_WIND_SQRT_COEF,
     CONF_PRICE_ENTITY,
     CONF_PROVIDER,
-    CONF_RATED_OUTPUT_W,
     CONF_RADIATION_ENTITY,
+    CONF_RATED_OUTPUT_W,
+    CONF_RECOMPUTE_FROM,
+    CONF_ROLE,
     CONF_ROOM_ID,
     CONF_ROOM_TEMPERATURE_ENTITY,
     CONF_ROOMS_ALLOCATION,
     CONF_ROOMS_MIN_FIT_DAYS,
-    CONF_RECOMPUTE_FROM,
-    CONF_ROLE,
     CONF_SCOP,
     CONF_SEASON_START,
     CONF_SITE_ID,
@@ -173,25 +173,25 @@ from .const import (
     DEFAULT_MIN_FIT_DAYS,
     DEFAULT_OUTLIER_THRESHOLD,
     DEFAULT_OUTPUT_W_PER_M2,
-    DEFAULT_ROOMS_ALLOCATION,
-    DEFAULT_ROOMS_MIN_FIT_DAYS,
     DEFAULT_PBL_RER,
     DEFAULT_PBL_TOP,
     DEFAULT_PBL_TST,
     DEFAULT_PBL_WIND_SQRT_COEF,
+    DEFAULT_ROOMS_ALLOCATION,
+    DEFAULT_ROOMS_MIN_FIT_DAYS,
     DEFAULT_SCOP,
     DEFAULT_SUMMER_END,
     DEFAULT_SUMMER_START,
-    DHW_BASELINE,
-    DHW_MEASURED,
-    DHW_MODES,
-    DHW_OVERRIDE_KEEP,
-    DHW_OVERRIDE_OPTIONS,
     DEMAND_KIND_BINARY,
     DEMAND_KIND_METERED,
     DEMAND_KIND_PERCENTAGE,
     DEMAND_KIND_VALVE,
     DEMAND_KINDS,
+    DHW_BASELINE,
+    DHW_MEASURED,
+    DHW_MODES,
+    DHW_OVERRIDE_KEEP,
+    DHW_OVERRIDE_OPTIONS,
     DOMAIN,
     EMITTER_KIND_RADIATOR,
     EMITTER_KINDS,
@@ -1744,9 +1744,7 @@ class HeatprintOptionsFlow(OptionsFlow):
         )
         return self.async_show_form(step_id="advanced", data_schema=schema)
 
-    async def async_step_rooms(
-        self, user_input: dict[str, Any] | None = None
-    ) -> ConfigFlowResult:
+    async def async_step_rooms(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
         """Default emitter output, room-fit days and allocation on/off."""
         current = self._section(OPT_ROOMS)
         if user_input is not None:
@@ -1755,15 +1753,11 @@ class HeatprintOptionsFlow(OptionsFlow):
                 {
                     CONF_ROOMS_ALLOCATION: bool(user_input[CONF_ROOMS_ALLOCATION]),
                     CONF_ROOMS_MIN_FIT_DAYS: int(user_input[CONF_ROOMS_MIN_FIT_DAYS]),
-                    CONF_OUTPUT_W_PER_M2_RADIATOR: float(
-                        user_input[CONF_OUTPUT_W_PER_M2_RADIATOR]
-                    ),
+                    CONF_OUTPUT_W_PER_M2_RADIATOR: float(user_input[CONF_OUTPUT_W_PER_M2_RADIATOR]),
                     CONF_OUTPUT_W_PER_M2_UNDERFLOOR: float(
                         user_input[CONF_OUTPUT_W_PER_M2_UNDERFLOOR]
                     ),
-                    CONF_OUTPUT_W_PER_M2_ELECTRIC: float(
-                        user_input[CONF_OUTPUT_W_PER_M2_ELECTRIC]
-                    ),
+                    CONF_OUTPUT_W_PER_M2_ELECTRIC: float(user_input[CONF_OUTPUT_W_PER_M2_ELECTRIC]),
                     CONF_OUTPUT_W_PER_M2_OTHER: float(user_input[CONF_OUTPUT_W_PER_M2_OTHER]),
                 },
             )
@@ -2041,9 +2035,9 @@ def validate_room(hass: HomeAssistant, data: Mapping[str, Any]) -> dict[str, str
 def room_schema(defaults: Mapping[str, Any], *, show_price: bool) -> vol.Schema:
     """Schema for a room subentry."""
     fields: dict[Any, Any] = {
-        vol.Optional(CONF_AREA_ID, description=_suggested(defaults.get(CONF_AREA_ID))): AreaSelector(
-            AreaSelectorConfig()
-        ),
+        vol.Optional(
+            CONF_AREA_ID, description=_suggested(defaults.get(CONF_AREA_ID))
+        ): AreaSelector(AreaSelectorConfig()),
         vol.Required(CONF_NAME, default=defaults.get(CONF_NAME, "")): TextSelector(),
         vol.Required(
             CONF_DEMAND_ENTITY, description=_suggested(defaults.get(CONF_DEMAND_ENTITY))
@@ -2066,9 +2060,9 @@ def room_schema(defaults: Mapping[str, Any], *, show_price: bool) -> vol.Schema:
         vol.Optional(
             CONF_FLOOR_AREA_M2, description=_suggested(defaults.get(CONF_FLOOR_AREA_M2))
         ): _number(1, 200, 0.1, "m²"),
-        vol.Optional(
-            CONF_VOLUME_M3, description=_suggested(defaults.get(CONF_VOLUME_M3))
-        ): _number(1, 800, 0.1, "m³"),
+        vol.Optional(CONF_VOLUME_M3, description=_suggested(defaults.get(CONF_VOLUME_M3))): _number(
+            1, 800, 0.1, "m³"
+        ),
         vol.Required(CONF_ENABLED, default=defaults.get(CONF_ENABLED, True)): BooleanSelector(),
     }
     if show_price:
@@ -2114,9 +2108,7 @@ class RoomSubentryFlowHandler(_SubentryFlowBase):
         defaults: dict[str, Any] = dict(user_input or {})
         if user_input is None:
             defaults[CONF_DEMAND_KIND] = DEMAND_KIND_PERCENTAGE
-        elif user_input.get(CONF_DEMAND_ENTITY) and CONF_DEMAND_KIND not in (
-            user_input or {}
-        ):
+        elif user_input.get(CONF_DEMAND_ENTITY) and CONF_DEMAND_KIND not in (user_input or {}):
             defaults[CONF_DEMAND_KIND] = _detect_demand_kind(
                 self.hass, user_input.get(CONF_DEMAND_ENTITY)
             )
@@ -2151,9 +2143,7 @@ class RoomSubentryFlowHandler(_SubentryFlowBase):
                 errors[CONF_NAME] = "invalid_name"
             errors.update(validate_room(self.hass, user_input))
             if not errors:
-                room = normalize_room(
-                    user_input, set(), keep_id=str(subentry.data[CONF_ROOM_ID])
-                )
+                room = normalize_room(user_input, set(), keep_id=str(subentry.data[CONF_ROOM_ID]))
                 return self.async_update_and_abort(
                     self._config_entry, subentry, data=room, title=room[CONF_NAME]
                 )

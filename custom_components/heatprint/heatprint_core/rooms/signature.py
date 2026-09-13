@@ -48,15 +48,16 @@ def select_room_days(
         tac = getattr(site, tac_key, None)
         if tac is None:
             continue
-        days.append(
-            FitDay(record.date, float(tac), site.wind_mean, float(record.heat_room_kwh))
-        )
+        days.append(FitDay(record.date, float(tac), site.wind_mean, float(record.heat_room_kwh)))
     return days
 
 
 def _residuals(days: Sequence[FitDay], fit: GridFit) -> list[float]:
     intercept, slope = fit.result.coefficients[0], fit.result.coefficients[1]
-    return [day.heat - (intercept + slope * heating) for day, heating in zip(days, fit.heating, strict=True)]
+    return [
+        day.heat - (intercept + slope * heating)
+        for day, heating in zip(days, fit.heating, strict=True)
+    ]
 
 
 def _balance_ci(fit: GridFit) -> tuple[float, float]:
@@ -129,12 +130,12 @@ def fit_room_signature(
     days = select_room_days(room_records, site_records, period, tac_key, exclude_dates)
     indicative = _indicative_from_records(room_records, site_records, period)
     if len(days) < min_days:
-        _LOGGER.debug(
-            "room %s fit: only %d usable days (< %d)", room.id, len(days), min_days
-        )
+        _LOGGER.debug("room %s fit: only %d usable days (< %d)", room.id, len(days), min_days)
         return None
 
-    fit = grid_search(days, fit_wind=False, tb_range=tb_range, step=step, min_heating_days=min_heating_days)
+    fit = grid_search(
+        days, fit_wind=False, tb_range=tb_range, step=step, min_heating_days=min_heating_days
+    )
     if fit is None:
         _LOGGER.debug("room %s fit: no balance temperature with enough heating days", room.id)
         return None
@@ -143,7 +144,9 @@ def fit_room_signature(
     if outlier_k is not None and fit.result.rmse > 0:
         residuals = _residuals(days, fit)
         threshold = outlier_k * fit.result.rmse
-        outliers = [d.date for d, residual in zip(days, residuals, strict=True) if abs(residual) > threshold]
+        outliers = [
+            d.date for d, residual in zip(days, residuals, strict=True) if abs(residual) > threshold
+        ]
         if outliers:
             kept = [day for day in days if day.date not in set(outliers)]
             refit = (
