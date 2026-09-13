@@ -75,6 +75,18 @@ classDiagram
         +str category
         +str notes
     }
+    class Room {
+        +str id
+        +str name
+        +str area_id
+        +str demand_entity
+        +DemandKind demand_kind
+        +str temperature_entity
+        +EmitterKind emitter_kind
+        +float rated_output_w
+        +float floor_area_m2
+        +bool enabled
+    }
 
     class DailyWeather {
         +date date
@@ -116,6 +128,16 @@ classDiagram
         +float co2_kg
         +set~Flag~ flags
     }
+    class DailyRoomRecord {
+        +date date
+        +str room_id
+        +float demand_integral
+        +float t_room_mean
+        +float share
+        +float heat_room_kwh
+        +float cost_room_eur
+        +set~Flag~ flags
+    }
     class Climatology {
         +str site_id
         +int years
@@ -137,6 +159,20 @@ classDiagram
         +float intercept_a
         +float slope_b
         +float wind_c
+        +float ua_w_per_k
+        +float r2
+        +float rmse
+        +int n_days
+        +tuple ci95_slope
+        +tuple ci95_balance
+        +datetime fitted_at
+    }
+    class RoomSignatureFit {
+        +str room_id
+        +Period period
+        +float balance_temp
+        +float intercept_a
+        +float slope_b
         +float ua_w_per_k
         +float r2
         +float rmse
@@ -169,6 +205,7 @@ classDiagram
     Site "1" *-- "1" WeatherSourceConfig
     Site "1" *-- "1..*" Generator
     Site "1" *-- "0..*" Measure
+    Site "1" *-- "0..*" Room
     Site "1" *-- "1" MethodConfig
     Generator *-- CarrierInput
     Generator *-- Conversion
@@ -178,7 +215,11 @@ classDiagram
     DailyRecord ..> DailyWeather : derived from
     Site "1" o-- "1" Climatology
     Site "1" o-- "0..*" SignatureFit
+    Room "1" o-- "0..*" DailyRoomRecord
+    DailyRoomRecord ..> DailyRecord : allocated from
+    Room "1" o-- "0..*" RoomSignatureFit
     SignatureFit ..> Season
+    RoomSignatureFit ..> Season
     Comparison ..> SignatureFit
     Forecast ..> Climatology
 ```
@@ -237,6 +278,7 @@ classDiagram
 | `dhw.fixed_per_day` | float | in carrier unit |
 | `dhw.summer_start`, `dhw.summer_end` | MM-DD | 06-01, 08-31 |
 | `price_entity` | entity_id | price per unit (€/m³, €/kWh), optional |
+| `price_mode` | `flat` / `dynamic` | `flat` | `dynamic` only meaningful for an electric carrier (`heat_pump`, `electric_heater`, `air_to_air`); see METHODS §13.2 |
 | `co2_factor` | float | kg per unit, default per kind |
 
 ### 1.4 Measure (subentry type `measure`)
@@ -265,6 +307,26 @@ classDiagram
 | `house.tac_weights` | 0.65 / 0.35 | |
 | `primary` | `house` | Method for the main sensors and the forecast (falls back to `pbl` as long as no fit exists) |
 
+### 1.6 Room (subentry type `room`)
+
+Optional; a site works fully without any room configured (§12 of METHODS is additive on top of
+the existing site-level model, not a prerequisite for it).
+
+| Field | Type | Notes |
+|---|---|---|
+| `id` | slug | |
+| `name` | str | Defaults to the linked HA area's name |
+| `area_id` | HA area_id | Optional link to an HA area, for auto-suggesting `demand_entity` and display grouping |
+| `demand_entity` | entity_id | Sensor/attribute providing the room's heating-demand signal, see METHODS §12.1 |
+| `demand_kind` | `percentage` / `valve_position` / `binary` / `metered_energy` | See METHODS §12.1 |
+| `temperature_entity` | entity_id | Optional; room temperature for the indicative UA estimate and the room fit's TAC comparison (METHODS §12.4) |
+| `emitter_kind` | `radiator` / `underfloor` / `electric` / `other` | Drives the default weight (METHODS §12.2) |
+| `rated_output_w` | float | Optional; overrides the `floor_area_m2 * default` weight |
+| `floor_area_m2` | float | Optional; used for the default weight and for the per-m² sensors (METHODS §12.4) |
+| `volume_m3` | float | Optional; defaults from `floor_area_m2` if unset. Reserved for a future method (ventilation/thermal-mass), unused by any calculation in this version - see METHODS §12.4 |
+| `price_entity` | entity_id | Only relevant for `demand_kind: metered_energy`; defaults to the site's DHW-space cost per METHODS §12.5 |
+| `enabled` | bool | true | Disabling keeps history but stops daily allocation/fit updates, same convention as removing a `generator` (§CONFIG_FLOW) |
+
 ---
 
 ## 2. Facts
@@ -281,8 +343,8 @@ classDiagram
 | `gas_m3`, `electric_kwh`, `district_gj` | | Σ per carrier |
 | `heat_by_generator` | dict | `DailyEnergy` per generator |
 | `share_heat_pump` | 0-1 | `Σ Q_space(heat_pump) / heat_space_kwh` |
-| `cost_eur`, `co2_kg` | | optional |
-| `flags` | set | METHODS §10 |
+| `cost_eur`, `co2_kg` | €, kg | optional; METHODS §13 |
+| `flags` | set | METHODS §10, §12.7, §13.2, §14 |
 
 ### 2.2 Storage in Home Assistant
 
@@ -304,6 +366,13 @@ External statistics (hourly resolution is mandatory in HA; Heatprint writes one 
 | `heatprint:<site>_heat_dhw_<generator>` | sum | kWh (DHW per generator) |
 | `heatprint:<site>_electric_hp` | sum | kWh |
 | `heatprint:<site>_gas` | sum | m³ |
+| `heatprint:<site>_cost` | sum | € (METHODS §13) |
+| `heatprint:<site>_co2` | sum | kg (METHODS §13.3) |
+| `heatprint:<site>_heat_unallocated` | sum | kWh (METHODS §12.3) |
+| `heatprint:<site>_room_<room>_demand` | mean | `%` or `h` depending on `demand_kind` (METHODS §12.1) |
+| `heatprint:<site>_room_<room>_heat` | sum | kWh |
+| `heatprint:<site>_room_<room>_cost` | sum | € (only once `cost_eur` is written at site level, see ROADMAP open item 1) |
+| `heatprint:<site>_room_<room>_t_mean` | mean | °C (only if `temperature_entity` is set) |
 
 Advantages: backfill of years is possible, visible in the standard statistics graph card,
 survives entity renames, no recorder bloat (1 row/day/metric).
@@ -318,6 +387,21 @@ Per site: `tac_preset`, `tac_by_doy[366]`, `wind_by_doy[366]`, `dd_by_doy[method
 the balance temperature with which the `house` series was created). Rebuilt on the first
 run of a new calendar year, when the weather source/reference years change and when the
 fitted balance temperature changes.
+
+### 2.4 DailyRoomRecord (one row per site per room per day)
+
+See METHODS §12. Only produced for rooms with `enabled: true` and at least one qualifying day.
+
+| Column | Unit | Source |
+|---|---|---|
+| `date` | local day | |
+| `demand_integral` | 0-1 (or kWh for `metered_energy`) | METHODS §12.1 |
+| `t_room_mean` | °C | `temperature_entity`, if set |
+| `share` | 0-1 | METHODS §12.3 |
+| `heat_room_kwh` | kWh | METHODS §12.3 |
+| `cost_room_eur` | € | METHODS §12.5 |
+| `heat_kwh_per_m2` | kWh/m² | METHODS §12.4; only if `floor_area_m2` is set |
+| `flags` | set | METHODS §12.7 |
 
 ---
 
@@ -345,6 +429,13 @@ See METHODS §8.5. Fields: `season`, `method`, `k_ytd`, `days_ytd`, `days_remain
 
 Season labels: `2025/26` for a season start in October or July, `2026` for a start on
 1 January. The input `2025/2026` is also accepted.
+
+### 3.4 RoomSignatureFit
+
+See METHODS §12.4. Fields: `balance_temp`, `intercept_a`, `slope_b`, `ua_w_per_k`, `r2`, `rmse`,
+`n_days`, `ci95_slope`, `ci95_balance`, `period`, `fitted_at`. Stored per (room, period), same
+"at most 20 fits" retention as `SignatureFit`. No `wind_c`/`tac_preset` field: room fits always
+use the site TAC (house preset), per METHODS §12.4.
 
 ---
 
@@ -375,12 +466,42 @@ Statistic ids stay on the metric keys (`heatprint:<site>_heat_space`).
 | `sensor.<site>_forecast_gas_season` | m³ | gas | |
 | `sensor.<site>_forecast_electricity_season` | kWh | energy | translation key `forecast_electric_season` |
 | `sensor.<site>_hot_water_baseline` | kWh/day | measurement | translation key `dhw_baseline`; attributes per generator |
-| `sensor.<site>_data_quality` | % | measurement | share of usable days in the last 30 days; attributes: flags |
+| `sensor.<site>_data_quality` | % | measurement | share of usable days in the last 30 days; attributes: flags, `open_health_checks` (METHODS §14) |
 | `sensor.<site>_last_weather_update` | timestamp | | |
 | `binary_sensor.<site>_data_gap` | | problem | > 3 days without usable data |
 
+Data-source health checks (METHODS §14) that fire open an HA repair (per generator/room/weather
+source and failing check) rather than a dedicated entity; they close automatically once the
+check stops firing.
+
 Per generator: `sensor.<site>_<generator>_space_heating_season`, `..._hot_water_season`,
-`..._share_season`.
+`..._share_season`, and, only when `price_mode: dynamic`,
+`sensor.<site>_<generator>_avg_price_paid` (€/kWh, season-to-date weighted average, METHODS §13.2).
+
+Per room (only for rooms with `enabled: true`; a room's "heat" is always space heating only -
+DHW is never allocated to rooms, METHODS §12):
+
+| Entity | Unit | Class | Notes |
+|---|---|---|---|
+| `sensor.<site>_room_<room>_heat_yesterday` | kWh | energy/total | |
+| `sensor.<site>_room_<room>_heat_season` | kWh | energy/total | |
+| `sensor.<site>_room_<room>_share_season` | % | measurement | share of `heat_space_kwh` allocated to this room |
+| `sensor.<site>_room_<room>_cost_season` | € | monetary/total | |
+| `sensor.<site>_room_<room>_heat_loss_coefficient` | W/K | measurement | latest room fit; unavailable while `ROOM_NOT_FITTED` |
+| `sensor.<site>_room_<room>_specific_heat_loss` | W/(m²·K) | measurement | `heat_loss_coefficient / floor_area_m2`; only if `floor_area_m2` is set - the figure comparable across rooms and houses (METHODS §12.4) |
+| `sensor.<site>_room_<room>_balance_temperature` | °C | temperature | latest room fit |
+| `sensor.<site>_room_<room>_fit_quality` | - | measurement | R² of the latest room fit; attributes: n, rmse, CI |
+| `sensor.<site>_room_<room>_heat_per_m2_season` | kWh/m² | measurement | only if `floor_area_m2` is set |
+| `sensor.<site>_room_<room>_cost_per_m2_season` | €/m² | measurement | only if `floor_area_m2` is set |
+| `sensor.<site>_room_<room>_data_quality` | % | measurement | share of usable days in the last 30 days |
+
+Site-level additions for the rooms feature:
+
+| Entity | Unit | Class | Notes |
+|---|---|---|---|
+| `sensor.<site>_heat_unallocated_season` | kWh | energy/total | METHODS §12.3 |
+| `sensor.<site>_cost_space_season` | € | monetary/total | Sum of `cost_room_eur` + unallocated; reconciles against site `cost_eur` |
+| `sensor.<site>_most_expensive_room` | - | measurement | State = `room.name` of the room with the highest `cost_room_eur` this season; attributes: `ranking` (all enabled rooms, sorted by `cost_room_eur_season` desc, each with `cost_eur`, `heat_kwh` and `share`), `by_heat_loss` (same rooms sorted by `ua_w_per_k` desc, for "which room loses heat fastest" independent of how much it was actually heated). Unavailable while no room has a season total yet. |
 
 ---
 
@@ -397,13 +518,14 @@ Per generator: `sensor.<site>_<generator>_space_heating_season`, `..._hot_water_
 | `heatprint.export_daily` | `entry_id`, `start`, `end`, `path` | CSV file |
 | `heatprint.push_reading` | `entry_id`, `generator_id`, `target: mindergas`, `date` | bridge to the mindergas.nl API (optional, token in options) |
 | `heatprint.clear_statistics` | `entry_id`, optional `generator_id` | delete Heatprint external statistics of one generator or the whole site |
+| `heatprint.fit_room_signature` | `entry_id`, `room_id`, `start`, `end` or `season` | `RoomSignatureFit` as response |
 
 ---
 
 ## 6. Derived identifiers and compatibility
 
-- `site.id` and `generator.id` are slugs, unique within the installation; used in statistic ids
-  and entity ids. Renaming `name` does not change `id`.
+- `site.id`, `generator.id` and `room.id` are slugs, unique within the installation; used in
+  statistic ids and entity ids. Renaming `name` does not change `id`.
 - Version field in the JSON store and config entry (`version`, `minor_version`) for migrations.
 - CSV import format (mindergas export and generic): `datum;stand` (the mindergas column names)
   with configurable column names, date format (`%d-%m-%Y`, ISO) and decimal separator.

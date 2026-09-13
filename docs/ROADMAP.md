@@ -4,10 +4,12 @@
 |---|---|---|---|
 | 0.1.0 | Foundation + calculation core | Docs, `heatprint_core` with tests (providers, methods, heat, DHW, meter readings, fit, forecast), HA shell (config flow, coordinator, sensors, services, statistics) | done |
 | 0.1.1 | HACS installable without PyPI | Core bundled inside the integration; config-flow 500 from missing `heatprint-core` wheel fixed | done |
+| 0.1.2 | Rooms/cost/health-check specs | Per-room heat allocation & cost design (METHODS §12), cost/CO₂ formula + dynamic tariffs (§13), data-source health checks (§14) - documentation only, no implementation | done |
 | 0.2.0 | Runs on Nico's HA | Coordinator end-to-end, KNMI station 380, DSMR gas, Buienradar fallback, CSV import of mindergas export (4 gas years), reference case | planned |
 | 0.3.0 | Hybrid | Heat pump generator with thermal/electric meters, heat pump share, daily COP, season 2026/27 live | planned (when the heat pump is installed) |
 | 1.0.0 | HACS release | Measure effect with CI, mindergas bridge, cost/CO₂, COP curve, DHW monthly profile, repairs/diagnostics, HACS default | planned |
-| 2.0.0 | Visual insight | Custom card (energy signature), occupancy regressor, zone proxy (Tado), export/CLI, opt-in benchmark | idea |
+| 1.1.0 | Rooms | Per-room heat allocation from a demand signal (Tado/`tado_ce` or compatible integration), room energy signature (apparent per-room heat loss), per-room and total heating cost, unallocated bucket | planned |
+| 2.0.0 | Visual insight | Custom card (energy signature), occupancy regressor, export/CLI, opt-in benchmark | idea |
 
 ## Definition of done per release
 
@@ -30,7 +32,8 @@ Closed in this pre-alpha:
 
 Deferred (not required for a coherent pre-alpha):
 
-1. `cost_eur` and `co2_kg` are computed in the core but not written as a statistic/sensor;
+1. `cost_eur` and `co2_kg` are now specified (METHODS §13, including dynamic/day-ahead
+   tariffs, §13.2) but still computed in the core only, not written as a statistic/sensor;
    price entities are not read (`core_api.build_daily_records`, F18 / v1.0).
 2. Statistics require local midnight to fall on a whole UTC hour; time zones with a
    half-hour offset (e.g. India) are not supported. The recorder's daily buckets
@@ -44,6 +47,10 @@ Deferred (not required for a coherent pre-alpha):
 6. Post-create "Compute effect" notification after adding a measure (service exists; v1.0 UI).
 7. PDF eq. 17 sun term *outside* inertia — Heatprint keeps sun inside `T_eff` (METHODS §3);
    default practical model has `include_sun` off and therefore matches PDF eq. 20.
+8. Rooms (METHODS §12), cost/CO₂ dynamic tariffs (§13) and data-source health checks (§14)
+   are specified but not implemented — no `room` subentry, no allocation/fit code, no
+   `price_mode: dynamic` handling, and no `STUCK_VALUE`/`IMPLAUSIBLE_VALUE`/`SCALE_DRIFT`/
+   `WEATHER_STALLED` checks or repairs yet.
 
 ## Research items
 
@@ -51,3 +58,12 @@ Deferred (not required for a coherent pre-alpha):
 - Which heat pump brands provide thermal energy via HA integrations (Vaillant, Viessmann,
   NIBE, Bosch/EMS-ESP, Remeha, Daikin, Mitsubishi, Panasonic) - matrix for the docs.
 - Occupancy: presence/workday as a regressor (HA `person`, `workday`).
+- Rooms (1.1.0): default heat output per m² by emitter kind (radiator/underfloor), for the
+  weight defaults in METHODS §12.2 - verify against manufacturer data or a published NL
+  heat-loss guideline rather than shipping unverified placeholders.
+- Rooms (1.1.0): confirm the exact semantics of the Tado "heating power" percentage
+  (controller demand vs. valve opening vs. duty cycle) and build an entity/attribute matrix
+  for the other thermostat/TRV integrations mentioned in METHODS §12.6.
+- Dynamic tariff (METHODS §13.2): confirm which NL day-ahead price integrations expose hourly
+  long-term statistics on their price entity (not just live forecast attributes) - Nordpool,
+  ENTSO-E and Tibber-style integrations are the likely candidates, unverified.
