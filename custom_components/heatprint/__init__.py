@@ -8,6 +8,13 @@ statistics and exposes entities and services.
 from __future__ import annotations
 
 import logging
+import sys
+from pathlib import Path
+
+# HACS only copies this folder; heatprint_core is bundled here, not on PyPI.
+_INTEGRATION_DIR = str(Path(__file__).resolve().parent)
+if _INTEGRATION_DIR not in sys.path:
+    sys.path.insert(0, _INTEGRATION_DIR)
 
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant

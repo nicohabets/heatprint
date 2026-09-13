@@ -5,6 +5,17 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Fixed
+- HACS / Home Assistant OS install no longer depends on an unpublished PyPI package
+  (`heatprint-core==0.1.0`). The calculation core is bundled at
+  `custom_components/heatprint/heatprint_core/` and exposed on `sys.path` so the
+  config flow can load (`from heatprint_core import ...`) without a 500 error.
+
+### Changed
+- `hacs.json` keeps the default branch visible (`hide_default_branch` is false) so a
+  custom-repository install works before GitHub releases exist.
+- README documents the HACS custom-repository install path (category Integration).
+
 ## [0.1.0] - 2026-09-13
 
 ### Added

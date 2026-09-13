@@ -33,11 +33,14 @@ Homepage = "https://github.com/nicohabets/heatprint"
 Issues = "https://github.com/nicohabets/heatprint/issues"
 
 [tool.setuptools.packages.find]
+where = ["custom_components/heatprint"]
 include = ["heatprint_core*"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 asyncio_mode = "auto"
+# Same layout HACS installs: heatprint_core lives inside the integration folder.
+pythonpath = ["custom_components/heatprint"]
 
 [tool.ruff]
 line-length = 100
@@ -46,6 +49,14 @@ target-version = "py311"
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B", "SIM"]
 ignore = ["E501"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["heatprint_core"]
+
+[tool.ruff.lint.per-file-ignores]
+# sys.path must be set before heatprint_core / Home Assistant imports (HACS bundle).
+"custom_components/heatprint/__init__.py" = ["E402", "I001"]
+"custom_components/heatprint/core_api.py" = ["E402", "I001"]
 
 [tool.mypy]
 python_version = "3.11"

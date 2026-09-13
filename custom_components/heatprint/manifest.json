@@ -9,6 +9,5 @@
   "iot_class": "cloud_polling",
   "issue_tracker": "https://github.com/nicohabets/heatprint/issues",
   "loggers": ["heatprint_core"],
-  "requirements": ["heatprint-core==0.1.0"],
   "version": "0.1.0"
 }

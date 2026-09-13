@@ -6,7 +6,7 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 ![Status](https://img.shields.io/badge/status-pre--alpha-orange)
 
-Heatprint is a Home Assistant integration (plus a standalone Python core, `heatprint-core`) that
+Heatprint is a Home Assistant integration (plus a standalone Python core, `heatprint_core`) that
 answers one question no existing tool answers well:
 
 **"How much heat does my house actually need, corrected for the weather, and what did my
@@ -32,16 +32,32 @@ setup, electricity or district heat?"**
 
 ## Status
 
-Pre-alpha **v0.1.0**. Requires Home Assistant **2026.9** or newer. The calculation core (`heatprint_core`) implements the documented
+Pre-alpha **v0.1.0**. Requires Home Assistant **2026.9.0** or newer. The calculation core (`heatprint_core`) implements the documented
 pipeline end-to-end — heat conversion, DHW split, effective temperature, four degree-day
 methods, energy signature / PRISM, normalize / compare / forecast — and is covered by
 pytest on mock and synthetic data. The Home Assistant integration
 (`custom_components/heatprint`) is a thin shell around that core: config flow with
 subentries, daily coordinator, external statistics, sensors and the documented services.
+The core is **bundled inside the integration** so a HACS install on Home Assistant OS
+does not need a PyPI package.
 
 Not in this pre-alpha (see [docs/ROADMAP.md](docs/ROADMAP.md)): cost/CO₂ sensors and
 price-entity reads (v1.0), the live Heerlen four-year reference case (v0.2, needs local
 meter exports), and half-hour time-zone statistic buckets.
+
+## Installation (HACS)
+
+Heatprint is a custom integration. It is not in the HACS default store yet.
+
+1. In Home Assistant, open **HACS**.
+2. Open the three-dot menu → **Custom repositories**.
+3. Add repository URL `https://github.com/nicohabets/heatprint` with category **Integration**.
+4. Find **Heatprint** in HACS and **Download**.
+5. **Restart** Home Assistant.
+6. Go to **Settings → Devices & services → Add integration** and search for **Heatprint**.
+
+Requires Home Assistant **2026.9.0** or newer. The calculation core ships inside
+`custom_components/heatprint/heatprint_core/`; you do not install anything from PyPI.
 
 ## Documentation
 
@@ -57,12 +73,16 @@ meter exports), and half-hour time-zone statistic buckets.
 ## Repository layout
 
 ```
-custom_components/heatprint/   Home Assistant integration (HACS)
-heatprint_core/                Pure-Python calculation core (PyPI: heatprint-core)
-tests/                         pytest suite for the core
-examples/dashboards/           Dashboard YAML examples
-docs/                          Product and technical documentation
+custom_components/heatprint/                 Home Assistant integration (HACS)
+custom_components/heatprint/heatprint_core/  Pure-Python calculation core (bundled)
+tests/                                       pytest suite for the core
+examples/dashboards/                         Dashboard YAML examples
+docs/                                        Product and technical documentation
 ```
+
+`from heatprint_core import ...` still works: development uses `pip install -e .`
+(and pytest `pythonpath`); Home Assistant uses a small `sys.path` bootstrap so the
+nested package is importable after a HACS copy.
 
 HACS validation in CI ignores GitHub-only metadata (`topics`, `description`). Before a
 HACS default submission, set a repository description and topics such as
