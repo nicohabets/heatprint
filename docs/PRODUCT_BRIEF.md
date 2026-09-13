@@ -132,8 +132,10 @@ NL-calibrated, the house fit is universal.
   demand (METHODS §12).
 - Per-room apparent heat loss (energy-signature fit, same method as the site-level fit) and
   balance temperature, clearly labelled as an apparent/allocation-based estimate, not a design
-  heat-loss calculation.
-- Per-room and total heating cost, reusing generator prices; DHW and fixed charges excluded.
+  heat-loss calculation; normalized per m² (specific heat loss, W/(m²·K)) so rooms of different
+  sizes - and, later, different houses - are actually comparable.
+- Per-room and total heating cost, reusing generator prices (including dynamic/day-ahead
+  tariffs, F26); DHW and fixed charges excluded.
 - An "unallocated" bucket so the per-room breakdown always reconciles against the site total.
 - Depends on F18 (cost/CO₂ actually written as a statistic) landing first - see ROADMAP.
 
@@ -180,9 +182,10 @@ NL-calibrated, the house fit is universal.
 | F20 | Custom card, occupancy regressor, benchmark | v2 |
 | F21 | Data quality flags on every daily record and in the UI | MVP |
 | F22 | Translations NL/EN; explanation for every field | MVP |
-| F23 | Diagnostics without secrets; repairs on data gaps | v1 |
+| F23 | Diagnostics without secrets; repairs on data gaps and on ongoing data-source health checks (stuck values, implausible values, scale drift) | v1 |
 | F24 | Per-room heat allocation from a configurable demand signal (Tado/compatible integrations), with an unallocated bucket | v1.1 |
-| F25 | Per-room apparent heat loss (energy-signature fit) and per-room/total heating cost | v1.1 |
+| F25 | Per-room apparent heat loss (energy-signature fit), per-m² normalization, and per-room/total heating cost | v1.1 |
+| F26 | Dynamic/day-ahead electricity tariff support: hourly cost from the generator's and price entity's own recorded statistics, for electric-carrier generators | v1 |
 
 Non-functional: no telemetry; ≤ 1 external call per day per site in normal operation;
 daily run < 5 s; 10-year backfill < 2 min; runs on HA Green/Yellow (no numpy

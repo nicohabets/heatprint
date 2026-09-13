@@ -278,6 +278,7 @@ classDiagram
 | `dhw.fixed_per_day` | float | in carrier unit |
 | `dhw.summer_start`, `dhw.summer_end` | MM-DD | 06-01, 08-31 |
 | `price_entity` | entity_id | price per unit (€/m³, €/kWh), optional |
+| `price_mode` | `flat` / `dynamic` | `flat` | `dynamic` only meaningful for an electric carrier (`heat_pump`, `electric_heater`, `air_to_air`); see METHODS §13.2 |
 | `co2_factor` | float | kg per unit, default per kind |
 
 ### 1.4 Measure (subentry type `measure`)
@@ -321,7 +322,8 @@ the existing site-level model, not a prerequisite for it).
 | `temperature_entity` | entity_id | Optional; room temperature for the indicative UA estimate and the room fit's TAC comparison (METHODS §12.4) |
 | `emitter_kind` | `radiator` / `underfloor` / `electric` / `other` | Drives the default weight (METHODS §12.2) |
 | `rated_output_w` | float | Optional; overrides the `floor_area_m2 * default` weight |
-| `floor_area_m2` | float | Optional; used for the default weight and, later, for a per-m² view |
+| `floor_area_m2` | float | Optional; used for the default weight and for the per-m² sensors (METHODS §12.4) |
+| `volume_m3` | float | Optional; defaults from `floor_area_m2` if unset. Reserved for a future method (ventilation/thermal-mass), unused by any calculation in this version - see METHODS §12.4 |
 | `price_entity` | entity_id | Only relevant for `demand_kind: metered_energy`; defaults to the site's DHW-space cost per METHODS §12.5 |
 | `enabled` | bool | true | Disabling keeps history but stops daily allocation/fit updates, same convention as removing a `generator` (§CONFIG_FLOW) |
 
@@ -341,8 +343,8 @@ the existing site-level model, not a prerequisite for it).
 | `gas_m3`, `electric_kwh`, `district_gj` | | Σ per carrier |
 | `heat_by_generator` | dict | `DailyEnergy` per generator |
 | `share_heat_pump` | 0-1 | `Σ Q_space(heat_pump) / heat_space_kwh` |
-| `cost_eur`, `co2_kg` | | optional |
-| `flags` | set | METHODS §10 |
+| `cost_eur`, `co2_kg` | €, kg | optional; METHODS §13 |
+| `flags` | set | METHODS §10, §12.7, §13.2, §14 |
 
 ### 2.2 Storage in Home Assistant
 
@@ -364,6 +366,8 @@ External statistics (hourly resolution is mandatory in HA; Heatprint writes one 
 | `heatprint:<site>_heat_dhw_<generator>` | sum | kWh (DHW per generator) |
 | `heatprint:<site>_electric_hp` | sum | kWh |
 | `heatprint:<site>_gas` | sum | m³ |
+| `heatprint:<site>_cost` | sum | € (METHODS §13) |
+| `heatprint:<site>_co2` | sum | kg (METHODS §13.3) |
 | `heatprint:<site>_heat_unallocated` | sum | kWh (METHODS §12.3) |
 | `heatprint:<site>_room_<room>_demand` | mean | `%` or `h` depending on `demand_kind` (METHODS §12.1) |
 | `heatprint:<site>_room_<room>_heat` | sum | kWh |
@@ -396,6 +400,7 @@ See METHODS §12. Only produced for rooms with `enabled: true` and at least one 
 | `share` | 0-1 | METHODS §12.3 |
 | `heat_room_kwh` | kWh | METHODS §12.3 |
 | `cost_room_eur` | € | METHODS §12.5 |
+| `heat_kwh_per_m2` | kWh/m² | METHODS §12.4; only if `floor_area_m2` is set |
 | `flags` | set | METHODS §12.7 |
 
 ---
@@ -455,12 +460,17 @@ use the site TAC (house preset), per METHODS §12.4.
 | `sensor.<site>_forecast_gas_season` | m³ | gas | |
 | `sensor.<site>_forecast_electric_season` | kWh | energy | |
 | `sensor.<site>_dhw_baseline` | kWh/day | measurement | attributes per generator |
-| `sensor.<site>_data_quality` | % | measurement | share of usable days in the last 30 days; attributes: flags |
+| `sensor.<site>_data_quality` | % | measurement | share of usable days in the last 30 days; attributes: flags, `open_health_checks` (METHODS §14) |
 | `sensor.<site>_last_weather_update` | timestamp | | |
 | `binary_sensor.<site>_data_gap` | | problem | > 3 days without usable data |
 
+Data-source health checks (METHODS §14) that fire open an HA repair (per generator/room/weather
+source and failing check) rather than a dedicated entity; they close automatically once the
+check stops firing.
+
 Per generator: `sensor.<site>_<generator>_heat_space_season`, `..._heat_dhw_season`,
-`..._share_season`.
+`..._share_season`, and, only when `price_mode: dynamic`,
+`sensor.<site>_<generator>_avg_price_paid` (€/kWh, season-to-date weighted average, METHODS §13.2).
 
 Per room (only for rooms with `enabled: true`):
 
@@ -471,8 +481,11 @@ Per room (only for rooms with `enabled: true`):
 | `sensor.<site>_room_<room>_share_season` | % | measurement | share of `heat_space_kwh` allocated to this room |
 | `sensor.<site>_room_<room>_cost_season` | € | monetary/total | |
 | `sensor.<site>_room_<room>_heat_loss_coefficient` | W/K | measurement | latest room fit; unavailable while `ROOM_NOT_FITTED` |
+| `sensor.<site>_room_<room>_specific_heat_loss` | W/(m²·K) | measurement | `heat_loss_coefficient / floor_area_m2`; only if `floor_area_m2` is set - the figure comparable across rooms and houses (METHODS §12.4) |
 | `sensor.<site>_room_<room>_balance_temperature` | °C | temperature | latest room fit |
 | `sensor.<site>_room_<room>_fit_quality` | - | measurement | R² of the latest room fit; attributes: n, rmse, CI |
+| `sensor.<site>_room_<room>_heat_per_m2_season` | kWh/m² | measurement | only if `floor_area_m2` is set |
+| `sensor.<site>_room_<room>_cost_per_m2_season` | €/m² | measurement | only if `floor_area_m2` is set |
 | `sensor.<site>_room_<room>_data_quality` | % | measurement | share of usable days in the last 30 days |
 
 Site-level additions for the rooms feature:

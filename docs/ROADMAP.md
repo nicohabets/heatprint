@@ -18,8 +18,9 @@
 
 ## Open items from the v0.1 review (2026-09-13)
 
-1. `cost_eur` and `co2_kg` are computed but not yet written as a statistic/sensor;
-   price entities are not yet read (`core_api.build_daily_records`, v1.0).
+1. `cost_eur` and `co2_kg` are now specified (METHODS §13, including dynamic/day-ahead
+   tariffs, §13.2) but still not implemented: not yet written as a statistic/sensor, and price
+   entities are not yet read (`core_api.build_daily_records`, v1.0).
 2. Baselines are only computed for `dhw_mode = baseline`; `measured` falls back to "no
    baseline" on days without a measurement (`coordinator.py`).
 3. Statistics require local midnight to fall on a whole UTC hour; time zones with a
@@ -30,6 +31,9 @@
 5. Add the `DHW_BASELINE_MISSING` flag (METHODS §6).
 6. Service `heatprint.clear_statistics` for cleaning up the statistics of a removed
    generator.
+7. Data-source health checks (METHODS §14) are specified but not implemented - no code reads
+   for `STUCK_VALUE`/`IMPLAUSIBLE_VALUE`/`SCALE_DRIFT`/`WEATHER_STALLED` or opens the
+   corresponding repairs yet.
 
 ## Research items
 
@@ -44,3 +48,6 @@
 - Rooms (1.1.0): confirm the exact semantics of the Tado "heating power" percentage
   (controller demand vs. valve opening vs. duty cycle) and build an entity/attribute matrix
   for the other thermostat/TRV integrations mentioned in METHODS §12.6.
+- Dynamic tariff (METHODS §13.2): confirm which NL day-ahead price integrations expose hourly
+  long-term statistics on their price entity (not just live forecast attributes) - Nordpool,
+  ENTSO-E and Tibber-style integrations are the likely candidates, unverified.

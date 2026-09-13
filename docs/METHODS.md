@@ -442,6 +442,23 @@ unheated (RC identification) - is a plausible v2 refinement and is listed as a r
 item rather than specified here; it needs validation against Heatprint's synthetic-house
 approach (§12.8) before being trusted.
 
+Per-m² normalization: `UA_r` (W/K) is not comparable between a large living room and a small
+toilet, or between rooms in different houses. Where `floor_area_m2` is set, Heatprint also
+reports the **specific heat loss** `ua_w_per_k_per_m2 = UA_r / floor_area_m2` (W/(m²·K)) -
+this is the figure that is actually comparable room-to-room and, later, house-to-house - the same unit PRODUCT_BRIEF §6.4
+already names for its v2.0 anonymous benchmark idea ('W/K per m² and year of construction'). `floor_area_m2` also normalizes cost and heat
+(`heat_kwh_per_m2_season`, `cost_eur_per_m2_season`), which is the more familiar unit for most
+people (it is how Dutch EPC/energy-label figures, kWh/m²/year, are usually expressed) even
+though it is not itself directly used in the allocation of §12.3.
+
+`volume_m3` (optional; defaults to `floor_area_m2 * DEFAULT_CEILING_HEIGHT_M` if only the area
+is given) is captured on the `Room` config now but **not used by any calculation in this
+version**. It is reserved for a future refinement where it would matter physically:
+ventilation/infiltration heat loss scales with air volume, not floor area, and the RC
+thermal-mass cross-check mentioned above needs a volume to convert its time constant into a
+heat capacity. Capturing it now avoids a breaking config migration later; it does nothing on
+its own until that method exists.
+
 ### 12.5 Per-room and total cost
 
 `cost_eur` is already computed per site per day from each generator's `price_entity` (§DATA_MODEL
@@ -522,3 +539,102 @@ demand signal tracks actual delivered heat (a thermostat's percentage output is 
 output, not a calibrated flow measurement). Rooms are for **relative comparison within one house**
 (which room loses more, which room got cheaper after a measure) - they are not a substitute for
 an EN 12831-style design heat-loss calculation and Heatprint does not claim that precision.
+
+---
+
+## 13. Cost and CO₂
+
+`DailyRecord.cost_eur` and `.co2_kg` are already named in §DATA_MODEL §2.1 but this document has
+not, until now, specified how they are computed - the gap tracked as ROADMAP open item 1. This
+section closes that gap and adds dynamic-tariff support in the same pass, since both change the
+same code path.
+
+### 13.1 Flat tariff (default)
+
+Per generator with a `price_entity` set:
+
+```
+cost_eur(d)  = Σ_generators carrier_amount(d) * price(d)
+co2_kg(d)    = Σ_generators carrier_amount(d) * co2_factor
+```
+
+`price(d)` is the day's reading of `price_entity` (a slowly-changing €/unit sensor - a fixed
+contract rate, or a manually-updated one). `co2_factor` is per generator (§DATA_MODEL §1.3),
+default per kind (§1 constants), or overridden by a live CO₂-intensity sensor if one is
+configured. This is unchanged from the (previously unwritten) existing behaviour implied by
+`DailyRecord.cost_eur`/`.co2_kg` and by F18.
+
+### 13.2 Dynamic/day-ahead tariff (`price_mode: dynamic`)
+
+Available per generator, and only meaningful for an **electric** carrier (`heat_pump` via
+`carrier.electric_entity`, `electric_heater`, `air_to_air` - not `gas_boiler` or `district_heat`,
+which have no equivalent liquid hourly retail market in NL today). In the Netherlands, day-ahead
+electricity prices (Nordpool-based, exposed by several HA integrations) commonly range from
+negative to well over €0.40/kWh within one day, so a heat pump's hourly load profile relative to
+price volatility matters far more than for a flat tariff - a single daily price average hides
+that entirely.
+
+```
+cost_eur_generator(d) = Σ_h∈hours(d) electric_kwh(d,h) * price(d,h)
+```
+
+`hours(d)` is the site's local calendar day, 23/24/25 hours on a DST-transition day (same day
+definition as everywhere else in this document). Both series are read the same way Heatprint
+already reads any HA-sensor input - from the entity's own **recorded hourly statistics**
+(`recorder_source.py`'s existing `statistics_during_period`, extended to hourly instead of daily
+resolution for this calculation only):
+
+- `electric_kwh(d,h)`: hourly `sum`/`change` of the generator's `carrier.electric_entity` -
+  requires that entity to have `state_class: total_increasing`, already a requirement for any
+  `carrier.energy_entity` (§DATA_MODEL §1.3).
+- `price(d,h)`: hourly `mean` of `price_entity` - requires the price entity itself to have
+  `state_class: measurement` and hourly statistics, which is how HA dynamic-price integrations
+  commonly expose their **current/historical** price (their *forecast* attributes for
+  today/tomorrow are a separate, integration-specific shape that this calculation deliberately
+  does not depend on - see ADR 0006).
+
+If either series lacks hourly statistics for a day (heat pump with only a `cop_fixed`/SCOP
+estimate and no separate electric meter; a price entity without statistics that day), that
+generator's cost for that day falls back to §13.1 using the day's mean price, flagged
+`PRICE_ESTIMATED_FLAT`.
+
+A season-to-date `sensor.<site>_<generator>_avg_price_paid` (€/kWh, `Σ cost_eur / Σ electric_kwh`)
+reports the *actual* weighted-average price paid, which - unlike a simple daily mean - reflects
+whether the generator's own load pattern outperformed or underperformed the day's average price.
+
+Per-room cost allocation (§12.5) is unaffected: it multiplies `share_r(d)` by whatever
+`cost_space_eur(d)` §13.1/§13.2 produced that day, flat or dynamic, without needing to know which.
+
+### 13.3 CO₂
+
+CO₂ stays flat-factor-based (§13.1) in this version; a live grid carbon-intensity signal
+(analogous to dynamic pricing) is a plausible future idea but is out of scope here - it was not
+asked for and would need its own data-source research before being specified.
+
+---
+
+## 14. Data-source health checks
+
+Beyond `binary_sensor.<site>_data_gap` (missing data for >3 days, already specified), Heatprint
+should also catch data that *is* arriving but is wrong - a much more common failure mode in
+practice than a sensor going fully silent. Run once per day, in the same pass as the daily
+pipeline, over every configured generator, room demand entity and weather source:
+
+| Check | Trigger | Distinct from |
+|---|---|---|
+| `STUCK_VALUE` | A cumulative meter has not changed for ≥ 3 days while the site otherwise shows heating activity (any generator's `heat_space_kwh > 0`) | `data_gap`, which is about *no data*, not an unchanging value |
+| `IMPLAUSIBLE_VALUE` | A day's derived value (heat, degree days, room demand) is more than a configurable multiple (default 5×) of that series' own trailing 30-day robust typical value (median, not mean, to resist the outliers it is trying to catch) | `OUTLIER` (§10), which silently excludes a day from a *fit*; this check surfaces the same kind of anomaly to the user immediately, on the day it happens, independent of whether a fit is even running |
+| `SCALE_DRIFT` | A sustained order-of-magnitude step change in an otherwise stable series (e.g. an integration update changes a sensor's unit or precision) that does not correspond to any known configuration change | A one-off `IMPLAUSIBLE_VALUE` (transient); this is a persistent shift, checked by comparing two trailing windows (e.g. days 1-15 vs. 16-30) rather than a single day against history |
+| `WEATHER_STALLED` | `WEATHER_PROVISIONAL` (§2) has been set for longer than the provider's normal provisional window (1-2 days for KNMI) | routine provisional-data lag, which is expected and not a fault |
+
+Each check that fires opens (and each day it no longer fires, closes) one HA repair
+(`homeassistant.helpers.issue_registry`), naming the specific generator/room/weather source and
+which check failed, with a short "what to check" hint (e.g. `STUCK_VALUE` on a gas meter →
+"confirm the meter integration is still polling"). `sensor.<site>_data_quality` (§DATA_MODEL §4)
+gains an attribute listing any currently-open checks, alongside its existing usable-days
+percentage - so a user is not left reading a 90% "data quality" number without being told *why*
+the other 10% failed.
+
+These checks are deliberately simple threshold rules, not a statistical anomaly-detection model -
+consistent with the core's "no numpy" constraint (ADR 0002) and with keeping every rule
+explainable in one sentence, per §9 of PRODUCT_BRIEF.
