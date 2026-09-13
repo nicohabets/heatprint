@@ -192,6 +192,11 @@ async def async_write_daily_metrics(
             continue
         metadata = build_metadata(site_id, _metric_name(site_name, metric, generator_names), metric)
         async_add_external_statistics(hass, metadata, stats)
+    # Import jobs are queued on the recorder thread. The next 90-day chunk (and
+    # any later daily rewrite of the same window) reads the last stored sum
+    # before continuing; without a flush that read often misses this batch and
+    # the running total resets, so season sensors and "change" charts collapse.
+    await get_instance(hass).async_block_till_done()
     return running
 
 

@@ -350,14 +350,20 @@ Season labels: `2025/26` for a season start in October or July, `2026` for a sta
 
 ## 4. Sensor entities (per site)
 
+Entity ids follow the English translated names (`has_entity_name`). The keys
+below (`heat_space_yesterday`, `heat_dhw_season`, `dhw_baseline`,
+`forecast_electric_season`) become `space_heating_yesterday`,
+`hot_water_season`, `hot_water_baseline` and `forecast_electricity_season`.
+Statistic ids stay on the metric keys (`heatprint:<site>_heat_space`).
+
 | Entity | Unit | Class | Notes |
 |---|---|---|---|
 | `sensor.<site>_effective_temperature` | °C | temperature/measurement | yesterday's TAC (primary preset) |
 | `sensor.<site>_degree_days_yesterday` | K | measurement | primary method; attributes: all methods |
 | `sensor.<site>_degree_days_season` | K | total | primary method; attributes: all methods, season label |
-| `sensor.<site>_heat_space_yesterday` | kWh | energy/total | |
-| `sensor.<site>_heat_space_season` | kWh | energy/total | |
-| `sensor.<site>_heat_dhw_season` | kWh | energy/total | |
+| `sensor.<site>_space_heating_yesterday` | kWh | energy/total | translation key `heat_space_yesterday` |
+| `sensor.<site>_space_heating_season` | kWh | energy/total | translation key `heat_space_season` |
+| `sensor.<site>_hot_water_season` | kWh | energy/total | translation key `heat_dhw_season` |
 | `sensor.<site>_heat_per_degree_day` | kWh/K | measurement | season to date, primary method; attributes per method |
 | `sensor.<site>_gas_per_degree_day` | m³/K | measurement | mindergas-comparable (classic) |
 | `sensor.<site>_heat_pump_share_season` | % | measurement | hybrid |
@@ -367,13 +373,13 @@ Season labels: `2025/26` for a season start in October or July, `2026` for a sta
 | `sensor.<site>_fit_quality` | - | measurement | R² of the latest fit; attributes: n, rmse, CI |
 | `sensor.<site>_forecast_heat_season` | kWh | energy | |
 | `sensor.<site>_forecast_gas_season` | m³ | gas | |
-| `sensor.<site>_forecast_electric_season` | kWh | energy | |
-| `sensor.<site>_dhw_baseline` | kWh/day | measurement | attributes per generator |
+| `sensor.<site>_forecast_electricity_season` | kWh | energy | translation key `forecast_electric_season` |
+| `sensor.<site>_hot_water_baseline` | kWh/day | measurement | translation key `dhw_baseline`; attributes per generator |
 | `sensor.<site>_data_quality` | % | measurement | share of usable days in the last 30 days; attributes: flags |
 | `sensor.<site>_last_weather_update` | timestamp | | |
 | `binary_sensor.<site>_data_gap` | | problem | > 3 days without usable data |
 
-Per generator: `sensor.<site>_<generator>_heat_space_season`, `..._heat_dhw_season`,
+Per generator: `sensor.<site>_<generator>_space_heating_season`, `..._hot_water_season`,
 `..._share_season`.
 
 ---

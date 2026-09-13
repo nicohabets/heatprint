@@ -15,6 +15,7 @@ from homeassistant.components.sensor import (
 )
 from homeassistant.const import UnitOfEnergy, UnitOfTemperature, UnitOfVolume
 from homeassistant.core import HomeAssistant, callback
+from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers.device_registry import DeviceEntryType, DeviceInfo
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 from homeassistant.helpers.typing import StateType
@@ -442,14 +443,19 @@ def generator_device_info(
     coordinator: HeatprintCoordinator, generator: GeneratorConfig
 ) -> DeviceInfo:
     """Return the device info of a generator device (child of the site device)."""
-    return DeviceInfo(
-        identifiers={(DOMAIN, f"{coordinator.entry.entry_id}_{generator.generator_id}")},
-        name=f"{coordinator.site_name} {generator.name}",
-        manufacturer=MANUFACTURER,
-        model=generator.kind.replace("_", " ").title(),
-        via_device=(DOMAIN, coordinator.entry.entry_id),
-        entry_type=DeviceEntryType.SERVICE,
+    parent = dr.async_get(coordinator.hass).async_get_device(
+        identifiers={(DOMAIN, coordinator.entry.entry_id)}
     )
+    info: dict[str, Any] = {
+        "identifiers": {(DOMAIN, f"{coordinator.entry.entry_id}_{generator.generator_id}")},
+        "name": f"{coordinator.site_name} {generator.name}",
+        "manufacturer": MANUFACTURER,
+        "model": generator.kind.replace("_", " ").title(),
+        "entry_type": DeviceEntryType.SERVICE,
+    }
+    if parent is not None:
+        info["via_device_id"] = parent.id
+    return DeviceInfo(**info)
 
 
 async def async_setup_entry(

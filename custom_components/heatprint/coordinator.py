@@ -869,31 +869,42 @@ class HeatprintCoordinator(DataUpdateCoordinator[HeatprintData]):
         return f"{weather_signature(self.entry)}|{years}|{self.today.year}|{balance_text}"
 
     async def _async_refresh_climatology(self) -> None:
-        """Fetch the climatology years of weather and store the climatology (METHODS 8.1)."""
-        weather_cfg = self.entry.data.get(CONF_WEATHER, {})
-        if weather_cfg.get(CONF_PROVIDER) == PROVIDER_HA_SENSORS:
-            return
+        """Fetch the climatology years of weather and store the climatology (METHODS 8.1).
+
+        Network providers are fetched year by year; Home Assistant weather
+        sensors reuse the daily-run path so a site without KNMI/Open-Meteo
+        still gets a forecast from recorder history.
+        """
         years = int(history_options(self.entry)[CONF_CLIMATOLOGY_YEARS])
         # Refreshed once a year (the year is part of the signature), on a source change
         # and when the fitted balance temperature changes (house degree-day series).
         signature = self._climatology_signature()
         if self.store.get_meta(META_CLIMATOLOGY_SIGNATURE) == signature and self.store.climatology:
             return
-        session = async_get_clientsession(self.hass)
         end = date(self.today.year, 1, 1) - timedelta(days=1)
-        history: list[WeatherDay] = []
-        for year in range(end.year - years + 1, end.year + 1):
-            history.extend(
-                await async_fetch_weather(
-                    session,
-                    weather_cfg,
-                    float(self.entry.data[CONF_LATITUDE]),
-                    float(self.entry.data[CONF_LONGITUDE]),
-                    date(year, 1, 1),
-                    date(year, 12, 31),
-                    timezone=self.entry.data[CONF_TIMEZONE],
-                )
+        weather_cfg = self.entry.data.get(CONF_WEATHER, {})
+        if weather_cfg.get(CONF_PROVIDER) == PROVIDER_HA_SENSORS:
+            history = await self._async_weather(
+                date(end.year - years + 1, 1, 1), end
             )
+        else:
+            session = async_get_clientsession(self.hass)
+            history: list[WeatherDay] = []
+            for year in range(end.year - years + 1, end.year + 1):
+                history.extend(
+                    await async_fetch_weather(
+                        session,
+                        weather_cfg,
+                        float(self.entry.data[CONF_LATITUDE]),
+                        float(self.entry.data[CONF_LONGITUDE]),
+                        date(year, 1, 1),
+                        date(year, 12, 31),
+                        timezone=self.entry.data[CONF_TIMEZONE],
+                    )
+                )
+        if not history:
+            _LOGGER.debug("No weather history for climatology of %s", self.site_name)
+            return
         climatology = await self.hass.async_add_executor_job(
             build_climatology, self.site, history, years, self._house_balance_temp()
         )
