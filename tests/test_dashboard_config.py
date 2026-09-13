@@ -78,9 +78,7 @@ class FakeEntityRegistry:
         return self._entries.get((domain, platform, unique_id))
 
 
-def _registry_for(
-    entry_id: str, site_id: str, object_ids: dict[str, str]
-) -> FakeEntityRegistry:
+def _registry_for(entry_id: str, site_id: str, object_ids: dict[str, str]) -> FakeEntityRegistry:
     entries: dict[tuple[str, str, str], str] = {}
     for domain, key in OVERVIEW_ENTITY_SPECS:
         slug = object_ids[key]
@@ -98,8 +96,7 @@ def _english_entity_ids(site_id: str) -> dict[str, str]:
 
 def _dutch_entity_ids(site_id: str) -> dict[str, str]:
     return {
-        key: f"{domain}.{site_id}_{_DUTCH_OBJECT_IDS[key]}"
-        for domain, key in OVERVIEW_ENTITY_SPECS
+        key: f"{domain}.{site_id}_{_DUTCH_OBJECT_IDS[key]}" for domain, key in OVERVIEW_ENTITY_SPECS
     }
 
 
