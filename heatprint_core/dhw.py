@@ -16,6 +16,7 @@ Per generator with ``role = both`` the total heat is split into ``Q_dhw`` and
 from __future__ import annotations
 
 import logging
+from calendar import monthrange
 from collections.abc import Mapping
 from datetime import date, timedelta
 
@@ -42,14 +43,23 @@ def parse_mmdd(value: MonthDay) -> tuple[int, int]:
 def summer_window(
     year: int, summer_start_mmdd: MonthDay, summer_end_mmdd: MonthDay
 ) -> tuple[date, date]:
-    """Inclusive summer window for ``year``; the end wraps into the next year if needed."""
+    """Inclusive summer window for ``year``; the end wraps into the next year if needed.
+
+    Days beyond the month length (``02-29`` in a common year, ``06-31``) are clamped
+    to the last day of that month instead of raising.
+    """
     start_month, start_day = parse_mmdd(summer_start_mmdd)
     end_month, end_day = parse_mmdd(summer_end_mmdd)
-    start = date(year, start_month, start_day)
-    end = date(year, end_month, end_day)
+    start = _safe_date(year, start_month, start_day)
+    end = _safe_date(year, end_month, end_day)
     if end < start:
-        end = date(year + 1, end_month, end_day)
+        end = _safe_date(year + 1, end_month, end_day)
     return start, end
+
+
+def _safe_date(year: int, month: int, day: int) -> date:
+    """Build a date, clamping the day to the length of the month."""
+    return date(year, month, min(day, monthrange(year, month)[1]))
 
 
 def _mean(values: list[float]) -> float:
@@ -99,7 +109,7 @@ def estimate_baseline(
         if end > last_day:
             continue  # summer not complete yet
         values = [amount for day, amount in daily_amounts.items() if start <= day <= end]
-        if len(values) >= min_days:
+        if values and len(values) >= min_days:
             return _mean(values)
     fallback = lowest_rolling_mean(daily_amounts, ROLLING_DAYS, min_days)
     if fallback is None:

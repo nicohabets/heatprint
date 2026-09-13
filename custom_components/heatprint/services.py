@@ -11,7 +11,7 @@ from __future__ import annotations
 import csv
 import io
 import logging
-from datetime import date
+from datetime import date, timedelta
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
@@ -259,11 +259,14 @@ def async_setup_services(hass: HomeAssistant) -> None:
                 raise ServiceValidationError(
                     translation_domain=DOMAIN, translation_key="invalid_period"
                 ) from err
-            start, end = season.start, min(season.end, coordinator.today)
+            # Today has no complete day record yet; the running season ends yesterday.
+            start, end = season.start, min(season.end, coordinator.today - timedelta(days=1))
         elif ATTR_START in call.data and ATTR_END in call.data:
             start, end = _period(call.data[ATTR_START], call.data[ATTR_END])
         else:
-            raise ServiceValidationError(translation_domain=DOMAIN, translation_key="period_required")
+            raise ServiceValidationError(
+                translation_domain=DOMAIN, translation_key="period_required"
+            )
         try:
             return await coordinator.async_fit_signature(
                 start, end, call.data[ATTR_TAC_PRESET], call.data.get(ATTR_FIT_WIND)
@@ -313,11 +316,26 @@ def async_setup_services(hass: HomeAssistant) -> None:
         return result if call.return_response else None
 
     registrations: list[tuple[str, Any, vol.Schema, SupportsResponse]] = [
-        (SERVICE_IMPORT_READINGS, handle_import_readings, IMPORT_READINGS_SCHEMA, SupportsResponse.OPTIONAL),
+        (
+            SERVICE_IMPORT_READINGS,
+            handle_import_readings,
+            IMPORT_READINGS_SCHEMA,
+            SupportsResponse.OPTIONAL,
+        ),
         (SERVICE_RECOMPUTE, handle_recompute, RECOMPUTE_SCHEMA, SupportsResponse.OPTIONAL),
         (SERVICE_FIT_SIGNATURE, handle_fit_signature, FIT_SIGNATURE_SCHEMA, SupportsResponse.ONLY),
-        (SERVICE_COMPARE_PERIODS, handle_compare_periods, COMPARE_PERIODS_SCHEMA, SupportsResponse.ONLY),
-        (SERVICE_MEASURE_EFFECT, handle_measure_effect, MEASURE_EFFECT_SCHEMA, SupportsResponse.ONLY),
+        (
+            SERVICE_COMPARE_PERIODS,
+            handle_compare_periods,
+            COMPARE_PERIODS_SCHEMA,
+            SupportsResponse.ONLY,
+        ),
+        (
+            SERVICE_MEASURE_EFFECT,
+            handle_measure_effect,
+            MEASURE_EFFECT_SCHEMA,
+            SupportsResponse.ONLY,
+        ),
         (SERVICE_FORECAST, handle_forecast, FORECAST_SCHEMA, SupportsResponse.ONLY),
         (SERVICE_EXPORT_DAILY, handle_export_daily, EXPORT_DAILY_SCHEMA, SupportsResponse.OPTIONAL),
         (SERVICE_PUSH_READING, handle_push_reading, PUSH_READING_SCHEMA, SupportsResponse.OPTIONAL),

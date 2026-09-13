@@ -314,8 +314,10 @@ JSON-store (`.storage/heatprint.<entry_id>`): `Climatology`, laatste `SignatureF
 ### 2.3 Climatology
 
 Per site: `tac_preset`, `tac_by_doy[366]`, `wind_by_doy[366]`, `dd_by_doy[method][366]`,
-`samples_by_doy[366]`, `years`, `computed_at`. Jaarlijks ververst (1 september) of bij
-wijziging weerbron.
+`samples_by_doy[366]`, `years`, `computed_at` (plus in de HA-store `house_balance_temp`,
+de balanstemperatuur waarmee de `house`-reeks is gemaakt). Opnieuw opgebouwd bij de eerste
+run van een nieuw kalenderjaar, bij wijziging van weerbron/referentiejaren en wanneer de
+gefitte balanstemperatuur verandert.
 
 ---
 
@@ -335,10 +337,11 @@ Zie METHODS §8.2-8.4. Niet persistent; service-response. Te weinig data →
 
 ### 3.3 Forecast
 
-Zie METHODS §8.5. Velden: `season`, `method`, `k_ytd`, `days_remaining`, `heat_space_ytd`,
-`heat_dhw_ytd`, `dd_ytd`, `dd_remaining_clim`, `heat_space_forecast`,
-`heat_space_forecast_fit` (optioneel), `heat_dhw_forecast`, `heat_total_forecast`,
-`per_generator`. Dagelijks ververst tijdens het seizoen; sensorwaarden.
+Zie METHODS §8.5. Velden: `season`, `method`, `k_ytd`, `days_ytd`, `days_remaining`,
+`last_date`, `heat_space_ytd`, `dd_ytd`, `dd_remaining_clim`, `heat_space_forecast`,
+`heat_space_forecast_fit` (optioneel, uit de energiekenlijn), `heat_dhw_forecast`
+(resterend tapwater), `per_generator`. Het seizoenstotaal in de sensoren is
+`heat_space_forecast + heat_dhw_forecast`. Dagelijks ververst tijdens het seizoen.
 
 Seizoenslabels: `2025/26` bij een seizoenstart in oktober of juli, `2026` bij een start op
 1 januari. Invoer `2025/2026` wordt ook geaccepteerd.

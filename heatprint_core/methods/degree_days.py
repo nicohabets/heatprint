@@ -42,7 +42,7 @@ def dd_knmi14(t_eff_knmi: float) -> float:
 def dd_pbl(tac: float, month: int, params: PblParams | None = None) -> float:
     """PBL / KEV-SJV degree days ``RER_m * max(0, TST_m - TAC)`` [+ TOP_m] (METHODS 4.3)."""
     params = params or PblParams()
-    month_params = pbl_params(month, params.parameter_set)
+    month_params = pbl_params(month, params.parameter_set, params.custom_table)
     value = month_params.rer * max(0.0, month_params.tst - tac)
     if params.include_top:
         value += month_params.top

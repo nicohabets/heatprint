@@ -140,7 +140,9 @@ Heatprint labelt die als 'geschat'."
 |---|---|---|
 | `dhw_mode` | select: `baseline`, `fixed`, `measured`, `none` | `measured` als `dhw_entity` gezet, anders `baseline` |
 | `fixed_per_day` | number (dragereenheid/dag) | - |
-| `summer_window` | twee datums MM-DD | 06-01 t/m 08-31 |
+
+Het zomervenster voor de baseline (`summer_window`, MM-DD, standaard 06-01 t/m 08-31) is een
+site-instelling (stap 5 en options), niet per opwekker.
 
 ### 4.5 Prijs en CO₂ (optioneel, uitklapbaar)
 

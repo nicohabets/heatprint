@@ -97,6 +97,8 @@ Verantwoordelijkheden per HA-module:
 | `sensor.py` | `SensorEntityDescription` per metric, waarde uit coordinator-data | Opslag |
 | `services.py` | Schema's, response-data (`SupportsResponse.ONLY`), bestanden onder `config/heatprint/` | Rekenen (delegeert naar core) |
 | `store.py` | `homeassistant.helpers.storage.Store` versie 1 | |
+| `core_api.py` | Alle aanroepen van `heatprint_core` op één plek (adapters van entry/opties naar `Site`, records, fits, prognose, import) | Formules |
+| `mindergas.py` | Client voor de optionele mindergas.nl-brug | |
 | `diagnostics.py` | Config zonder tokens, laatste 30 dagrecords, vlaggenstatistiek | |
 
 ## 4. Dagelijkse verwerking (sequence)
@@ -154,8 +156,9 @@ ERA5-gat.
 | HA-sensoren | recorder | n.v.t. | alleen zolang statistieken bestaan | - |
 | mindergas.nl API | HTTPS POST JSON | API-token | geen terugwerkende kracht | - |
 
-Netwerkfouten: exponentiële backoff, `UpdateFailed` met behoud van laatste data, repair-melding
-na 3 dagen zonder weerdata.
+Netwerkfouten: exponentiële backoff, `UpdateFailed` met behoud van laatste data;
+`binary_sensor.<site>_data_gap` gaat aan na 3 dagen zonder bruikbare data (een repair-melding
+volgt in v1.0).
 
 ## 7. Package-layout
 
@@ -165,7 +168,7 @@ heatprint/
 │   ├── __init__.py  config_flow.py  const.py  coordinator.py
 │   ├── recorder_source.py  statistics_writer.py  store.py
 │   ├── sensor.py  binary_sensor.py  services.py  services.yaml
-│   ├── diagnostics.py  repairs.py  manifest.json  strings.json
+│   ├── core_api.py  mindergas.py  diagnostics.py  manifest.json  strings.json
 │   └── translations/{en,nl}.json
 ├── heatprint_core/                   # rekenkern (PyPI: heatprint-core)
 │   ├── models.py  constants.py  flags.py  pipeline.py  readings.py  heat.py  dhw.py

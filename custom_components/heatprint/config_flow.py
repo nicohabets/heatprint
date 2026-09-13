@@ -13,6 +13,7 @@ import math
 import re
 import zoneinfo
 from collections.abc import Mapping
+from datetime import date
 from typing import Any
 
 import voluptuous as vol
@@ -254,11 +255,14 @@ def _select(options: list[str], translation_key: str, *, multiple: bool = False)
     )
 
 
-def _number(
-    minimum: float, maximum: float, step: float, unit: str | None = None
-) -> NumberSelector:
+def _number(minimum: float, maximum: float, step: float, unit: str | None = None) -> NumberSelector:
     """Return a number box selector."""
-    config: dict[str, Any] = {"min": minimum, "max": maximum, "step": step, "mode": NumberSelectorMode.BOX}
+    config: dict[str, Any] = {
+        "min": minimum,
+        "max": maximum,
+        "step": step,
+        "mode": NumberSelectorMode.BOX,
+    }
     if unit:
         config["unit_of_measurement"] = unit
     return NumberSelector(NumberSelectorConfig(**config))
@@ -328,7 +332,9 @@ def _detect_candidates(hass: HomeAssistant) -> tuple[list[str], list[str]]:
         elif device_class == "energy" and state_class in STATE_CLASS_CUMULATIVE:
             haystack = f"{state.name} {state.entity_id}".lower()
             tokens = set(re.split(r"[^a-z0-9]+", haystack))
-            if tokens & HEAT_PUMP_NAME_TOKENS or any(part in haystack for part in HEAT_PUMP_NAME_PARTS):
+            if tokens & HEAT_PUMP_NAME_TOKENS or any(
+                part in haystack for part in HEAT_PUMP_NAME_PARTS
+            ):
                 heat_pump.append(state.entity_id)
     return sorted(gas), sorted(heat_pump)
 
@@ -399,11 +405,13 @@ def generator_base_schema(defaults: Mapping[str, Any]) -> vol.Schema:
     kind = defaults.get(CONF_KIND, KIND_GAS_BOILER)
     return vol.Schema(
         {
-            vol.Required(CONF_NAME, default=defaults.get(CONF_NAME, KIND_DEFAULTS[kind].name)): TextSelector(),
+            vol.Required(
+                CONF_NAME, default=defaults.get(CONF_NAME, KIND_DEFAULTS[kind].name)
+            ): TextSelector(),
             vol.Required(CONF_KIND, default=kind): _select(GENERATOR_KINDS, "generator_kind"),
-            vol.Required(CONF_ROLE, default=defaults.get(CONF_ROLE, KIND_DEFAULTS[kind].role)): _select(
-                ROLES, "generator_role"
-            ),
+            vol.Required(
+                CONF_ROLE, default=defaults.get(CONF_ROLE, KIND_DEFAULTS[kind].role)
+            ): _select(ROLES, "generator_role"),
         }
     )
 
@@ -412,11 +420,26 @@ def generator_details_schema(kind: str, role: str, defaults: Mapping[str, Any]) 
     """Schema for CONFIG_FLOW 4.2-4.5: sensors, conversion, DHW and pricing sections."""
     fields: dict[Any, Any] = {}
     if kind == KIND_HEAT_PUMP:
-        fields[vol.Optional(CONF_THERMAL_ENTITY, description=_suggested(defaults.get(CONF_THERMAL_ENTITY)))] = _entity(["energy"])
-        fields[vol.Optional(CONF_ELECTRIC_ENTITY, description=_suggested(defaults.get(CONF_ELECTRIC_ENTITY)))] = _entity(["energy"])
+        fields[
+            vol.Optional(
+                CONF_THERMAL_ENTITY, description=_suggested(defaults.get(CONF_THERMAL_ENTITY))
+            )
+        ] = _entity(["energy"])
+        fields[
+            vol.Optional(
+                CONF_ELECTRIC_ENTITY, description=_suggested(defaults.get(CONF_ELECTRIC_ENTITY))
+            )
+        ] = _entity(["energy"])
         if role == ROLE_BOTH:
-            fields[vol.Optional(CONF_DHW_ENTITY, description=_suggested(defaults.get(CONF_DHW_ENTITY)))] = _entity(["energy"])
-            fields[vol.Optional(CONF_DHW_ELECTRIC_ENTITY, description=_suggested(defaults.get(CONF_DHW_ELECTRIC_ENTITY)))] = _entity(["energy"])
+            fields[
+                vol.Optional(CONF_DHW_ENTITY, description=_suggested(defaults.get(CONF_DHW_ENTITY)))
+            ] = _entity(["energy"])
+            fields[
+                vol.Optional(
+                    CONF_DHW_ELECTRIC_ENTITY,
+                    description=_suggested(defaults.get(CONF_DHW_ELECTRIC_ENTITY)),
+                )
+            ] = _entity(["energy"])
     else:
         device_class: list[str] | None
         if kind == KIND_GAS_BOILER:
@@ -425,26 +448,61 @@ def generator_details_schema(kind: str, role: str, defaults: Mapping[str, Any]) 
             device_class = None
         else:
             device_class = ["energy"]
-        fields[vol.Required(CONF_ENERGY_ENTITY, description=_suggested(defaults.get(CONF_ENERGY_ENTITY)))] = _entity(device_class)
+        fields[
+            vol.Required(
+                CONF_ENERGY_ENTITY, description=_suggested(defaults.get(CONF_ENERGY_ENTITY))
+            )
+        ] = _entity(device_class)
         if kind in (KIND_GAS_BOILER, KIND_DISTRICT_HEAT) and role == ROLE_BOTH:
-            fields[vol.Optional(CONF_DHW_ENTITY, description=_suggested(defaults.get(CONF_DHW_ENTITY)))] = _entity(["energy"])
+            fields[
+                vol.Optional(CONF_DHW_ENTITY, description=_suggested(defaults.get(CONF_DHW_ENTITY)))
+            ] = _entity(["energy"])
 
     conversion: dict[Any, Any] = {}
     if kind == KIND_GAS_BOILER:
-        conversion[vol.Required(CONF_HEATING_VALUE, default=defaults.get(CONF_HEATING_VALUE, HEATING_VALUE_HS))] = _select(HEATING_VALUE_OPTIONS, "heating_value")
-        conversion[vol.Optional(CONF_HEATING_VALUE_CUSTOM, description=_suggested(defaults.get(CONF_HEATING_VALUE_CUSTOM)))] = _number(5.0, 15.0, 0.001, "kWh/m³")
-        conversion[vol.Required(CONF_EFFICIENCY, default=defaults.get(CONF_EFFICIENCY, DEFAULT_GAS_EFFICIENCY))] = _number(0.5, 1.1, 0.01)
+        conversion[
+            vol.Required(
+                CONF_HEATING_VALUE, default=defaults.get(CONF_HEATING_VALUE, HEATING_VALUE_HS)
+            )
+        ] = _select(HEATING_VALUE_OPTIONS, "heating_value")
+        conversion[
+            vol.Optional(
+                CONF_HEATING_VALUE_CUSTOM,
+                description=_suggested(defaults.get(CONF_HEATING_VALUE_CUSTOM)),
+            )
+        ] = _number(5.0, 15.0, 0.001, "kWh/m³")
+        conversion[
+            vol.Required(
+                CONF_EFFICIENCY, default=defaults.get(CONF_EFFICIENCY, DEFAULT_GAS_EFFICIENCY)
+            )
+        ] = _number(0.5, 1.1, 0.01)
     elif kind == KIND_HEAT_PUMP:
-        conversion[vol.Required(CONF_CONVERSION_MODE, default=defaults.get(CONF_CONVERSION_MODE, CONVERSION_AUTO))] = _select(HEAT_PUMP_CONVERSION_MODES, "conversion_mode")
-        conversion[vol.Required(CONF_SCOP, default=defaults.get(CONF_SCOP, DEFAULT_SCOP))] = _number(1.0, 7.0, 0.1)
+        conversion[
+            vol.Required(
+                CONF_CONVERSION_MODE, default=defaults.get(CONF_CONVERSION_MODE, CONVERSION_AUTO)
+            )
+        ] = _select(HEAT_PUMP_CONVERSION_MODES, "conversion_mode")
+        conversion[vol.Required(CONF_SCOP, default=defaults.get(CONF_SCOP, DEFAULT_SCOP))] = (
+            _number(1.0, 7.0, 0.1)
+        )
     elif kind == KIND_AIR_TO_AIR:
-        conversion[vol.Required(CONF_COP, default=defaults.get(CONF_COP, DEFAULT_COP_AIR_TO_AIR))] = _number(1.0, 7.0, 0.1)
+        conversion[
+            vol.Required(CONF_COP, default=defaults.get(CONF_COP, DEFAULT_COP_AIR_TO_AIR))
+        ] = _number(1.0, 7.0, 0.1)
     elif kind == KIND_DISTRICT_HEAT:
-        conversion[vol.Required(CONF_EFFICIENCY, default=defaults.get(CONF_EFFICIENCY, DEFAULT_DISTRICT_EFFICIENCY))] = _number(0.5, 1.1, 0.01)
+        conversion[
+            vol.Required(
+                CONF_EFFICIENCY, default=defaults.get(CONF_EFFICIENCY, DEFAULT_DISTRICT_EFFICIENCY)
+            )
+        ] = _number(0.5, 1.1, 0.01)
     elif kind == KIND_OTHER:
-        conversion[vol.Required(CONF_FACTOR, default=defaults.get(CONF_FACTOR, DEFAULT_FACTOR))] = _number(0.001, 1000.0, 0.001)
+        conversion[vol.Required(CONF_FACTOR, default=defaults.get(CONF_FACTOR, DEFAULT_FACTOR))] = (
+            _number(0.001, 1000.0, 0.001)
+        )
     if conversion:
-        fields[vol.Required(SECTION_CONVERSION)] = section(vol.Schema(conversion), {"collapsed": False})
+        fields[vol.Required(SECTION_CONVERSION)] = section(
+            vol.Schema(conversion), {"collapsed": False}
+        )
 
     if role == ROLE_BOTH:
         dhw_default = defaults.get(CONF_DHW_MODE) or (
@@ -452,13 +510,19 @@ def generator_details_schema(kind: str, role: str, defaults: Mapping[str, Any]) 
         )
         dhw = {
             vol.Required(CONF_DHW_MODE, default=dhw_default): _select(DHW_MODES, "dhw_mode"),
-            vol.Optional(CONF_DHW_FIXED_PER_DAY, description=_suggested(defaults.get(CONF_DHW_FIXED_PER_DAY))): _number(0.0, 1000.0, 0.01),
+            vol.Optional(
+                CONF_DHW_FIXED_PER_DAY, description=_suggested(defaults.get(CONF_DHW_FIXED_PER_DAY))
+            ): _number(0.0, 1000.0, 0.01),
         }
         fields[vol.Required(SECTION_DHW)] = section(vol.Schema(dhw), {"collapsed": False})
 
     pricing = {
-        vol.Optional(CONF_PRICE_ENTITY, description=_suggested(defaults.get(CONF_PRICE_ENTITY))): _entity(),
-        vol.Required(CONF_CO2_FACTOR, default=defaults.get(CONF_CO2_FACTOR, KIND_DEFAULTS[kind].co2_factor)): _number(0.0, 10.0, 0.001),
+        vol.Optional(
+            CONF_PRICE_ENTITY, description=_suggested(defaults.get(CONF_PRICE_ENTITY))
+        ): _entity(),
+        vol.Required(
+            CONF_CO2_FACTOR, default=defaults.get(CONF_CO2_FACTOR, KIND_DEFAULTS[kind].co2_factor)
+        ): _number(0.0, 10.0, 0.001),
     }
     fields[vol.Required(SECTION_PRICING)] = section(vol.Schema(pricing), {"collapsed": True})
     return vol.Schema(fields)
@@ -468,7 +532,14 @@ def flatten_sections(user_input: Mapping[str, Any]) -> dict[str, Any]:
     """Merge section dicts of a submitted form into one flat dict."""
     flat: dict[str, Any] = {}
     for key, value in user_input.items():
-        if key in (SECTION_CONVERSION, SECTION_DHW, SECTION_PRICING, SECTION_ADVANCED, SECTION_PBL, SECTION_FIT) and isinstance(value, Mapping):
+        if key in (
+            SECTION_CONVERSION,
+            SECTION_DHW,
+            SECTION_PRICING,
+            SECTION_ADVANCED,
+            SECTION_PBL,
+            SECTION_FIT,
+        ) and isinstance(value, Mapping):
             flat.update(value)
         else:
             flat[key] = value
@@ -476,7 +547,9 @@ def flatten_sections(user_input: Mapping[str, Any]) -> dict[str, Any]:
 
 
 @callback
-def validate_generator_details(hass: HomeAssistant, kind: str, role: str, data: Mapping[str, Any]) -> dict[str, str]:
+def validate_generator_details(
+    hass: HomeAssistant, kind: str, role: str, data: Mapping[str, Any]
+) -> dict[str, str]:
     """Validate the sensors of CONFIG_FLOW 4.2; return errors per field."""
     errors: dict[str, str] = {}
     if kind == KIND_HEAT_PUMP:
@@ -503,7 +576,9 @@ def validate_generator_details(hass: HomeAssistant, kind: str, role: str, data: 
         errors[CONF_ENERGY_ENTITY] = "entity_not_found"
     elif error := _validate_cumulative_entity(hass, data[CONF_ENERGY_ENTITY], units):
         errors[CONF_ENERGY_ENTITY] = error
-    if data.get(CONF_DHW_ENTITY) and (error := _validate_cumulative_entity(hass, data[CONF_DHW_ENTITY], HEAT_UNITS)):
+    if data.get(CONF_DHW_ENTITY) and (
+        error := _validate_cumulative_entity(hass, data[CONF_DHW_ENTITY], HEAT_UNITS)
+    ):
         errors[CONF_DHW_ENTITY] = error
     return errors
 
@@ -571,19 +646,43 @@ def normalize_generator(
 def methods_schema(defaults: Mapping[str, Any]) -> vol.Schema:
     """Schema for CONFIG_FLOW step 6 (also used by the options flow)."""
     advanced = {
-        vol.Required(CONF_CLASSIC_BASE_TEMP, default=defaults.get(CONF_CLASSIC_BASE_TEMP, DEFAULT_CLASSIC_BASE_TEMP)): _number(5.0, 25.0, 0.1, "°C"),
-        vol.Required(CONF_CLASSIC_HEATING_LIMIT, default=defaults.get(CONF_CLASSIC_HEATING_LIMIT, DEFAULT_CLASSIC_HEATING_LIMIT)): _number(5.0, 25.0, 0.1, "°C"),
-        vol.Required(CONF_PBL_PARAMETER_SET, default=defaults.get(CONF_PBL_PARAMETER_SET, "practical")): _select(PBL_PARAMETER_SETS, "pbl_parameter_set"),
-        vol.Required(CONF_PBL_WIND_MODE, default=defaults.get(CONF_PBL_WIND_MODE, "linear")): _select(PBL_WIND_MODES, "pbl_wind_mode"),
-        vol.Required(CONF_PBL_INCLUDE_SUN, default=defaults.get(CONF_PBL_INCLUDE_SUN, False)): BooleanSelector(),
-        vol.Required(CONF_HOUSE_FIT_WIND, default=defaults.get(CONF_HOUSE_FIT_WIND, True)): BooleanSelector(),
+        vol.Required(
+            CONF_CLASSIC_BASE_TEMP,
+            default=defaults.get(CONF_CLASSIC_BASE_TEMP, DEFAULT_CLASSIC_BASE_TEMP),
+        ): _number(5.0, 25.0, 0.1, "°C"),
+        vol.Required(
+            CONF_CLASSIC_HEATING_LIMIT,
+            default=defaults.get(CONF_CLASSIC_HEATING_LIMIT, DEFAULT_CLASSIC_HEATING_LIMIT),
+        ): _number(5.0, 25.0, 0.1, "°C"),
+        vol.Required(
+            CONF_PBL_PARAMETER_SET, default=defaults.get(CONF_PBL_PARAMETER_SET, "practical")
+        ): _select(PBL_PARAMETER_SETS, "pbl_parameter_set"),
+        vol.Required(
+            CONF_PBL_WIND_MODE, default=defaults.get(CONF_PBL_WIND_MODE, "linear")
+        ): _select(PBL_WIND_MODES, "pbl_wind_mode"),
+        vol.Required(
+            CONF_PBL_INCLUDE_SUN, default=defaults.get(CONF_PBL_INCLUDE_SUN, False)
+        ): BooleanSelector(),
+        vol.Required(
+            CONF_HOUSE_FIT_WIND, default=defaults.get(CONF_HOUSE_FIT_WIND, True)
+        ): BooleanSelector(),
     }
     return vol.Schema(
         {
-            vol.Required(CONF_SEASON_START, default=defaults.get(CONF_SEASON_START, SEASON_START_OCTOBER)): _select(SEASON_STARTS, "season_start"),
-            vol.Required(CONF_METHODS_ENABLED, default=list(defaults.get(CONF_METHODS_ENABLED, DEFAULT_METHODS_ENABLED))): _select(METHODS, "method", multiple=True),
-            vol.Required(CONF_METHODS_PRIMARY, default=defaults.get(CONF_METHODS_PRIMARY, DEFAULT_METHOD_PRIMARY)): _select(METHODS, "method"),
-            vol.Required(CONF_CLASSIC_WEIGHTED, default=defaults.get(CONF_CLASSIC_WEIGHTED, True)): BooleanSelector(),
+            vol.Required(
+                CONF_SEASON_START, default=defaults.get(CONF_SEASON_START, SEASON_START_OCTOBER)
+            ): _select(SEASON_STARTS, "season_start"),
+            vol.Required(
+                CONF_METHODS_ENABLED,
+                default=list(defaults.get(CONF_METHODS_ENABLED, DEFAULT_METHODS_ENABLED)),
+            ): _select(METHODS, "method", multiple=True),
+            vol.Required(
+                CONF_METHODS_PRIMARY,
+                default=defaults.get(CONF_METHODS_PRIMARY, DEFAULT_METHOD_PRIMARY),
+            ): _select(METHODS, "method"),
+            vol.Required(
+                CONF_CLASSIC_WEIGHTED, default=defaults.get(CONF_CLASSIC_WEIGHTED, True)
+            ): BooleanSelector(),
             vol.Required(SECTION_ADVANCED): section(vol.Schema(advanced), {"collapsed": True}),
         }
     )
@@ -593,9 +692,15 @@ def dhw_schema(defaults: Mapping[str, Any]) -> vol.Schema:
     """Schema for CONFIG_FLOW step 5 (site-level DHW defaults)."""
     return vol.Schema(
         {
-            vol.Required(CONF_DHW_OVERRIDE, default=defaults.get(CONF_DHW_OVERRIDE, DHW_OVERRIDE_KEEP)): _select(DHW_OVERRIDE_OPTIONS, "dhw_override"),
-            vol.Required(CONF_SUMMER_START, default=defaults.get(CONF_SUMMER_START, DEFAULT_SUMMER_START)): TextSelector(),
-            vol.Required(CONF_SUMMER_END, default=defaults.get(CONF_SUMMER_END, DEFAULT_SUMMER_END)): TextSelector(),
+            vol.Required(
+                CONF_DHW_OVERRIDE, default=defaults.get(CONF_DHW_OVERRIDE, DHW_OVERRIDE_KEEP)
+            ): _select(DHW_OVERRIDE_OPTIONS, "dhw_override"),
+            vol.Required(
+                CONF_SUMMER_START, default=defaults.get(CONF_SUMMER_START, DEFAULT_SUMMER_START)
+            ): TextSelector(),
+            vol.Required(
+                CONF_SUMMER_END, default=defaults.get(CONF_SUMMER_END, DEFAULT_SUMMER_END)
+            ): TextSelector(),
         }
     )
 
@@ -603,8 +708,13 @@ def dhw_schema(defaults: Mapping[str, Any]) -> vol.Schema:
 def history_schema(defaults: Mapping[str, Any], *, options: bool) -> vol.Schema:
     """Schema for CONFIG_FLOW step 7; the options variant adds "recompute from"."""
     fields: dict[Any, Any] = {
-        vol.Required(CONF_BACKFILL_YEARS, default=defaults.get(CONF_BACKFILL_YEARS, DEFAULT_BACKFILL_YEARS)): _number(0, 10, 1),
-        vol.Required(CONF_CLIMATOLOGY_YEARS, default=defaults.get(CONF_CLIMATOLOGY_YEARS, DEFAULT_CLIMATOLOGY_YEARS)): _number(10, 30, 1),
+        vol.Required(
+            CONF_BACKFILL_YEARS, default=defaults.get(CONF_BACKFILL_YEARS, DEFAULT_BACKFILL_YEARS)
+        ): _number(0, 10, 1),
+        vol.Required(
+            CONF_CLIMATOLOGY_YEARS,
+            default=defaults.get(CONF_CLIMATOLOGY_YEARS, DEFAULT_CLIMATOLOGY_YEARS),
+        ): _number(10, 30, 1),
     }
     if options:
         fields[vol.Optional(CONF_RECOMPUTE_FROM)] = DateSelector()
@@ -614,8 +724,16 @@ def history_schema(defaults: Mapping[str, Any], *, options: bool) -> vol.Schema:
 
 
 def _validate_month_day(value: str) -> bool:
-    """Return True when value is a valid MM-DD string."""
-    return bool(MONTH_DAY_RE.match(value.strip()))
+    """Return True when value is a valid MM-DD string (a real day; 02-29 is accepted)."""
+    match = MONTH_DAY_RE.match(value.strip())
+    if not match:
+        return False
+    try:
+        # A leap year so that 02-29 passes; the core clamps it in common years.
+        date(2024, int(match.group(1)), int(match.group(2)))
+    except ValueError:
+        return False
+    return True
 
 
 # --------------------------------------------------------------------------------
@@ -669,7 +787,12 @@ class HeatprintConfigFlow(ConfigFlow, domain=DOMAIN):
         }
         return vol.Schema(
             {
-                vol.Required(CONF_NAME, default=defaults.get(CONF_NAME, self.hass.config.location_name or DEFAULT_SITE_NAME)): TextSelector(),
+                vol.Required(
+                    CONF_NAME,
+                    default=defaults.get(
+                        CONF_NAME, self.hass.config.location_name or DEFAULT_SITE_NAME
+                    ),
+                ): TextSelector(),
                 vol.Required(
                     CONF_LOCATION,
                     default={
@@ -678,9 +801,14 @@ class HeatprintConfigFlow(ConfigFlow, domain=DOMAIN):
                     },
                 ): LocationSelector(LocationSelectorConfig(radius=False)),
                 vol.Required(CONF_TIMEZONE, default=default_tz): SelectSelector(
-                    SelectSelectorConfig(options=timezones, mode=SelectSelectorMode.DROPDOWN, sort=False)
+                    SelectSelectorConfig(
+                        options=timezones, mode=SelectSelectorMode.DROPDOWN, sort=False
+                    )
                 ),
-                vol.Required(CONF_COUNTRY, default=defaults.get(CONF_COUNTRY, self.hass.config.country or "NL")): CountrySelector(),
+                vol.Required(
+                    CONF_COUNTRY,
+                    default=defaults.get(CONF_COUNTRY, self.hass.config.country or "NL"),
+                ): CountrySelector(),
             }
         )
 
@@ -732,7 +860,9 @@ class HeatprintConfigFlow(ConfigFlow, domain=DOMAIN):
             return await self._async_finish_reconfigure()
         return await self.async_step_situation()
 
-    async def async_step_weather_nl(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
+    async def async_step_weather_nl(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
         """Step 2a: weather source in the Netherlands (KNMI station)."""
         errors: dict[str, str] = {}
         current = self._site.get(CONF_WEATHER, {})
@@ -744,7 +874,10 @@ class HeatprintConfigFlow(ConfigFlow, domain=DOMAIN):
                 CONF_FALLBACK: user_input[CONF_FALLBACK],
             }
             if weather[CONF_PROVIDER] == PROVIDER_HA_SENSORS:
-                self._site[CONF_WEATHER] = {**weather, CONF_HA_ENTITIES: current.get(CONF_HA_ENTITIES, {})}
+                self._site[CONF_WEATHER] = {
+                    **weather,
+                    CONF_HA_ENTITIES: current.get(CONF_HA_ENTITIES, {}),
+                }
                 return await self.async_step_weather_sensors()
             error = await _async_validate_weather(
                 self.hass, weather, self._site[CONF_LATITUDE], self._site[CONF_LONGITUDE]
@@ -756,11 +889,17 @@ class HeatprintConfigFlow(ConfigFlow, domain=DOMAIN):
                 return await self._async_after_weather()
         schema = vol.Schema(
             {
-                vol.Required(CONF_PROVIDER, default=current.get(CONF_PROVIDER, PROVIDER_KNMI)): _select(PROVIDERS_NL, "provider"),
-                vol.Required(CONF_STATION_ID, default=current.get(CONF_STATION_ID, nearest)): SelectSelector(
+                vol.Required(
+                    CONF_PROVIDER, default=current.get(CONF_PROVIDER, PROVIDER_KNMI)
+                ): _select(PROVIDERS_NL, "provider"),
+                vol.Required(
+                    CONF_STATION_ID, default=current.get(CONF_STATION_ID, nearest)
+                ): SelectSelector(
                     SelectSelectorConfig(options=options, mode=SelectSelectorMode.DROPDOWN)
                 ),
-                vol.Required(CONF_FALLBACK, default=current.get(CONF_FALLBACK, PROVIDER_OPEN_METEO)): _select(FALLBACKS, "fallback"),
+                vol.Required(
+                    CONF_FALLBACK, default=current.get(CONF_FALLBACK, PROVIDER_OPEN_METEO)
+                ): _select(FALLBACKS, "fallback"),
             }
         )
         nearest_name = KNMI_STATIONS[nearest][0]
@@ -771,14 +910,19 @@ class HeatprintConfigFlow(ConfigFlow, domain=DOMAIN):
             description_placeholders={"nearest": f"{nearest_name} ({nearest})"},
         )
 
-    async def async_step_weather_intl(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
+    async def async_step_weather_intl(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
         """Step 2b: weather source outside the Netherlands."""
         errors: dict[str, str] = {}
         current = self._site.get(CONF_WEATHER, {})
         if user_input is not None:
             weather = {CONF_PROVIDER: user_input[CONF_PROVIDER], CONF_FALLBACK: "none"}
             if weather[CONF_PROVIDER] == PROVIDER_HA_SENSORS:
-                self._site[CONF_WEATHER] = {**weather, CONF_HA_ENTITIES: current.get(CONF_HA_ENTITIES, {})}
+                self._site[CONF_WEATHER] = {
+                    **weather,
+                    CONF_HA_ENTITIES: current.get(CONF_HA_ENTITIES, {}),
+                }
                 return await self.async_step_weather_sensors()
             error = await _async_validate_weather(
                 self.hass, weather, self._site[CONF_LATITUDE], self._site[CONF_LONGITUDE]
@@ -790,18 +934,24 @@ class HeatprintConfigFlow(ConfigFlow, domain=DOMAIN):
                 return await self._async_after_weather()
         schema = vol.Schema(
             {
-                vol.Required(CONF_PROVIDER, default=current.get(CONF_PROVIDER, PROVIDER_OPEN_METEO)): _select(PROVIDERS_INTL, "provider"),
+                vol.Required(
+                    CONF_PROVIDER, default=current.get(CONF_PROVIDER, PROVIDER_OPEN_METEO)
+                ): _select(PROVIDERS_INTL, "provider"),
             }
         )
         return self.async_show_form(step_id="weather_intl", data_schema=schema, errors=errors)
 
-    async def async_step_weather_sensors(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
+    async def async_step_weather_sensors(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
         """Step 2c: weather from Home Assistant sensors (needs long-term statistics)."""
         errors: dict[str, str] = {}
         current = self._site.get(CONF_WEATHER, {}).get(CONF_HA_ENTITIES, {})
         if user_input is not None:
             for key in (CONF_TEMPERATURE_ENTITY, CONF_WIND_ENTITY, CONF_RADIATION_ENTITY):
-                if user_input.get(key) and (error := _validate_measurement_entity(self.hass, user_input[key])):
+                if user_input.get(key) and (
+                    error := _validate_measurement_entity(self.hass, user_input[key])
+                ):
                     errors[key] = error
             if not errors:
                 self._site[CONF_WEATHER] = {
@@ -809,23 +959,37 @@ class HeatprintConfigFlow(ConfigFlow, domain=DOMAIN):
                     CONF_PROVIDER: PROVIDER_HA_SENSORS,
                     CONF_HA_ENTITIES: {
                         key: user_input[key]
-                        for key in (CONF_TEMPERATURE_ENTITY, CONF_WIND_ENTITY, CONF_RADIATION_ENTITY)
+                        for key in (
+                            CONF_TEMPERATURE_ENTITY,
+                            CONF_WIND_ENTITY,
+                            CONF_RADIATION_ENTITY,
+                        )
                         if user_input.get(key)
                     },
                 }
                 return await self._async_after_weather()
         schema = vol.Schema(
             {
-                vol.Required(CONF_TEMPERATURE_ENTITY, description=_suggested(current.get(CONF_TEMPERATURE_ENTITY))): _entity(["temperature"]),
-                vol.Optional(CONF_WIND_ENTITY, description=_suggested(current.get(CONF_WIND_ENTITY))): _entity(["wind_speed"]),
-                vol.Optional(CONF_RADIATION_ENTITY, description=_suggested(current.get(CONF_RADIATION_ENTITY))): _entity(["irradiance"]),
+                vol.Required(
+                    CONF_TEMPERATURE_ENTITY,
+                    description=_suggested(current.get(CONF_TEMPERATURE_ENTITY)),
+                ): _entity(["temperature"]),
+                vol.Optional(
+                    CONF_WIND_ENTITY, description=_suggested(current.get(CONF_WIND_ENTITY))
+                ): _entity(["wind_speed"]),
+                vol.Optional(
+                    CONF_RADIATION_ENTITY,
+                    description=_suggested(current.get(CONF_RADIATION_ENTITY)),
+                ): _entity(["irradiance"]),
             }
         )
         return self.async_show_form(step_id="weather_sensors", data_schema=schema, errors=errors)
 
     # --- step 3: situation -------------------------------------------------------------
 
-    async def async_step_situation(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
+    async def async_step_situation(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
         """Step 3: heating situation; prefills the generator drafts."""
         if user_input is not None:
             situation = user_input[CONF_SITUATION]
@@ -847,7 +1011,9 @@ class HeatprintConfigFlow(ConfigFlow, domain=DOMAIN):
 
     # --- step 4: generators (repeating) -----------------------------------------------
 
-    async def async_step_generator(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
+    async def async_step_generator(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
         """Step 4.1: name, kind and role of the next generator."""
         if user_input is not None:
             self._current = dict(user_input)
@@ -867,7 +1033,9 @@ class HeatprintConfigFlow(ConfigFlow, domain=DOMAIN):
             description_placeholders={"number": str(len(self._generators) + 1)},
         )
 
-    async def async_step_generator_details(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
+    async def async_step_generator_details(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
         """Step 4.2-4.5: sensors, conversion, DHW and pricing of the generator."""
         errors: dict[str, str] = {}
         kind = self._current[CONF_KIND]
@@ -879,7 +1047,9 @@ class HeatprintConfigFlow(ConfigFlow, domain=DOMAIN):
             errors = validate_generator_details(self.hass, kind, role, flat)
             if not errors:
                 existing = {generator[CONF_GENERATOR_ID] for generator in self._generators}
-                self._generators.append(normalize_generator(self.hass, self._current, flat, existing))
+                self._generators.append(
+                    normalize_generator(self.hass, self._current, flat, existing)
+                )
                 if self._drafts:
                     self._drafts.pop(0)
                 if self._drafts:
@@ -892,13 +1062,16 @@ class HeatprintConfigFlow(ConfigFlow, domain=DOMAIN):
             description_placeholders={"name": self._current[CONF_NAME]},
         )
 
-    async def async_step_generator_more(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
+    async def async_step_generator_more(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
         """Ask whether another generator should be added."""
         return self.async_show_menu(
             step_id="generator_more",
             menu_options=["generator", "dhw"],
             description_placeholders={
-                "generators": ", ".join(generator[CONF_NAME] for generator in self._generators) or "-"
+                "generators": ", ".join(generator[CONF_NAME] for generator in self._generators)
+                or "-"
             },
         )
 
@@ -908,7 +1081,9 @@ class HeatprintConfigFlow(ConfigFlow, domain=DOMAIN):
         """Return a short per-generator DHW summary for the description."""
         parts = []
         for generator in self._generators:
-            mode = generator.get(CONF_DHW_MODE, "-" if generator[CONF_ROLE] != ROLE_BOTH else DHW_BASELINE)
+            mode = generator.get(
+                CONF_DHW_MODE, "-" if generator[CONF_ROLE] != ROLE_BOTH else DHW_BASELINE
+            )
             parts.append(f"{generator[CONF_NAME]}: {generator[CONF_ROLE]} / {mode}")
         return "; ".join(parts) or "-"
 
@@ -935,7 +1110,9 @@ class HeatprintConfigFlow(ConfigFlow, domain=DOMAIN):
 
     # --- step 6: methods and season ----------------------------------------------------
 
-    async def async_step_methods(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
+    async def async_step_methods(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
         """Step 6: degree-day methods and season start."""
         errors: dict[str, str] = {}
         defaults: Mapping[str, Any] = self._options.get(OPT_METHODS, {})
@@ -947,11 +1124,15 @@ class HeatprintConfigFlow(ConfigFlow, domain=DOMAIN):
             if not errors:
                 self._options[OPT_METHODS] = flat
                 return await self.async_step_history()
-        return self.async_show_form(step_id="methods", data_schema=methods_schema(defaults), errors=errors)
+        return self.async_show_form(
+            step_id="methods", data_schema=methods_schema(defaults), errors=errors
+        )
 
     # --- step 7: history ---------------------------------------------------------------
 
-    async def async_step_history(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
+    async def async_step_history(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
         """Step 7: backfill and climatology years."""
         if user_input is not None:
             self._options[OPT_HISTORY] = {
@@ -967,7 +1148,9 @@ class HeatprintConfigFlow(ConfigFlow, domain=DOMAIN):
 
     # --- summary -----------------------------------------------------------------------
 
-    async def async_step_summary(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
+    async def async_step_summary(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
         """Show the summary and create the entry with generator subentries."""
         if user_input is not None:
             subentries = [
@@ -988,7 +1171,9 @@ class HeatprintConfigFlow(ConfigFlow, domain=DOMAIN):
         weather = self._site.get(CONF_WEATHER, {})
         weather_text = weather.get(CONF_PROVIDER, "-")
         if weather.get(CONF_PROVIDER) == PROVIDER_KNMI and weather.get(CONF_STATION_ID):
-            station = KNMI_STATIONS.get(weather[CONF_STATION_ID], (weather[CONF_STATION_ID], 0, 0))[0]
+            station = KNMI_STATIONS.get(weather[CONF_STATION_ID], (weather[CONF_STATION_ID], 0, 0))[
+                0
+            ]
             weather_text = f"{weather_text} {station}"
         methods = self._options.get(OPT_METHODS, {})
         history = self._options.get(OPT_HISTORY, {})
@@ -1004,7 +1189,8 @@ class HeatprintConfigFlow(ConfigFlow, domain=DOMAIN):
                 "site": f"{self._site[CONF_NAME]} ({self._site[CONF_LATITUDE]:.3f}, {self._site[CONF_LONGITUDE]:.3f}, {self._site[CONF_TIMEZONE]})",
                 "weather": weather_text,
                 "generators": generators or "-",
-                "methods": ", ".join(methods.get(CONF_METHODS_ENABLED, [])) + f" (primary {methods.get(CONF_METHODS_PRIMARY, '-')})",
+                "methods": ", ".join(methods.get(CONF_METHODS_ENABLED, []))
+                + f" (primary {methods.get(CONF_METHODS_PRIMARY, '-')})",
                 "season": str(methods.get(CONF_SEASON_START, SEASON_START_OCTOBER)),
                 "backfill": str(history.get(CONF_BACKFILL_YEARS, DEFAULT_BACKFILL_YEARS)),
             },
@@ -1013,7 +1199,9 @@ class HeatprintConfigFlow(ConfigFlow, domain=DOMAIN):
 
     # --- reconfigure -------------------------------------------------------------------
 
-    async def async_step_reconfigure(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
+    async def async_step_reconfigure(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
         """Reconfigure location and time zone, then the weather source."""
         entry = self._get_reconfigure_entry()
         errors: dict[str, str] = {}
@@ -1038,10 +1226,15 @@ class HeatprintConfigFlow(ConfigFlow, domain=DOMAIN):
             {
                 vol.Required(
                     CONF_LOCATION,
-                    default={CONF_LATITUDE: entry.data[CONF_LATITUDE], CONF_LONGITUDE: entry.data[CONF_LONGITUDE]},
+                    default={
+                        CONF_LATITUDE: entry.data[CONF_LATITUDE],
+                        CONF_LONGITUDE: entry.data[CONF_LONGITUDE],
+                    },
                 ): LocationSelector(LocationSelectorConfig(radius=False)),
                 vol.Required(CONF_TIMEZONE, default=current_tz): SelectSelector(
-                    SelectSelectorConfig(options=timezones, mode=SelectSelectorMode.DROPDOWN, sort=False)
+                    SelectSelectorConfig(
+                        options=timezones, mode=SelectSelectorMode.DROPDOWN, sort=False
+                    )
                 ),
             }
         )
@@ -1057,7 +1250,9 @@ class HeatprintConfigFlow(ConfigFlow, domain=DOMAIN):
         self.hass.config_entries.async_update_entry(entry, data=self._site)
         return self.async_abort(reason="reconfigure_successful")
 
-    async def async_step_reconfigure_confirm(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
+    async def async_step_reconfigure_confirm(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
         """Confirm that the weather history is refetched and all records recomputed."""
         if user_input is not None:
             self._reconfigure_confirmed = True
@@ -1077,7 +1272,14 @@ class HeatprintOptionsFlow(OptionsFlow):
         """Show the options menu."""
         return self.async_show_menu(
             step_id="init",
-            menu_options=[OPT_METHODS, OPT_DHW, OPT_HISTORY, OPT_PRICING, OPT_INTEGRATIONS, OPT_ADVANCED],
+            menu_options=[
+                OPT_METHODS,
+                OPT_DHW,
+                OPT_HISTORY,
+                OPT_PRICING,
+                OPT_INTEGRATIONS,
+                OPT_ADVANCED,
+            ],
         )
 
     def _section(self, key: str) -> dict[str, Any]:
@@ -1088,7 +1290,9 @@ class HeatprintOptionsFlow(OptionsFlow):
         """Store one options section and finish."""
         return self.async_create_entry(data={**self.config_entry.options, key: dict(values)})
 
-    async def async_step_methods(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
+    async def async_step_methods(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
         """Methods and season."""
         errors: dict[str, str] = {}
         defaults: Mapping[str, Any] = self._section(OPT_METHODS)
@@ -1099,7 +1303,9 @@ class HeatprintOptionsFlow(OptionsFlow):
                 errors[CONF_METHODS_PRIMARY] = "primary_not_enabled"
             if not errors:
                 return self._save(OPT_METHODS, flat)
-        return self.async_show_form(step_id="methods", data_schema=methods_schema(defaults), errors=errors)
+        return self.async_show_form(
+            step_id="methods", data_schema=methods_schema(defaults), errors=errors
+        )
 
     async def async_step_dhw(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
         """Hot water and cooking defaults."""
@@ -1135,7 +1341,9 @@ class HeatprintOptionsFlow(OptionsFlow):
             )
         return "; ".join(parts) or "-"
 
-    async def async_step_history(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
+    async def async_step_history(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
         """Backfill and climatology years; optional recompute from a date."""
         if user_input is not None:
             values = {
@@ -1151,7 +1359,9 @@ class HeatprintOptionsFlow(OptionsFlow):
             step_id="history", data_schema=history_schema(self._section(OPT_HISTORY), options=True)
         )
 
-    async def async_step_pricing(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
+    async def async_step_pricing(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
         """Default CO2 factors and an optional live CO2 sensor."""
         current = self._section(OPT_PRICING)
         if user_input is not None:
@@ -1165,15 +1375,28 @@ class HeatprintOptionsFlow(OptionsFlow):
             return self._save(OPT_PRICING, values)
         schema = vol.Schema(
             {
-                vol.Required(CONF_GAS_CO2_FACTOR, default=current.get(CONF_GAS_CO2_FACTOR, DEFAULT_GAS_CO2_KG_PER_M3)): _number(0.0, 10.0, 0.001, "kg/m³"),
-                vol.Required(CONF_ELECTRIC_CO2_FACTOR, default=current.get(CONF_ELECTRIC_CO2_FACTOR, DEFAULT_ELECTRIC_CO2_KG_PER_KWH)): _number(0.0, 10.0, 0.001, "kg/kWh"),
-                vol.Required(CONF_DISTRICT_CO2_FACTOR, default=current.get(CONF_DISTRICT_CO2_FACTOR, DEFAULT_DISTRICT_CO2_KG_PER_KWH)): _number(0.0, 10.0, 0.001, "kg/kWh"),
-                vol.Optional(CONF_CO2_ENTITY, description=_suggested(current.get(CONF_CO2_ENTITY))): _entity(),
+                vol.Required(
+                    CONF_GAS_CO2_FACTOR,
+                    default=current.get(CONF_GAS_CO2_FACTOR, DEFAULT_GAS_CO2_KG_PER_M3),
+                ): _number(0.0, 10.0, 0.001, "kg/m³"),
+                vol.Required(
+                    CONF_ELECTRIC_CO2_FACTOR,
+                    default=current.get(CONF_ELECTRIC_CO2_FACTOR, DEFAULT_ELECTRIC_CO2_KG_PER_KWH),
+                ): _number(0.0, 10.0, 0.001, "kg/kWh"),
+                vol.Required(
+                    CONF_DISTRICT_CO2_FACTOR,
+                    default=current.get(CONF_DISTRICT_CO2_FACTOR, DEFAULT_DISTRICT_CO2_KG_PER_KWH),
+                ): _number(0.0, 10.0, 0.001, "kg/kWh"),
+                vol.Optional(
+                    CONF_CO2_ENTITY, description=_suggested(current.get(CONF_CO2_ENTITY))
+                ): _entity(),
             }
         )
         return self.async_show_form(step_id="pricing", data_schema=schema)
 
-    async def async_step_integrations(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
+    async def async_step_integrations(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
         """mindergas.nl bridge: token, generator and daily push."""
         current = self._section(OPT_INTEGRATIONS)
         generators = [
@@ -1183,7 +1406,9 @@ class HeatprintOptionsFlow(OptionsFlow):
         ]
         errors: dict[str, str] = {}
         if user_input is not None:
-            token = str(user_input.get(CONF_MINDERGAS_TOKEN, "")).strip() or current.get(CONF_MINDERGAS_TOKEN, "")
+            token = str(user_input.get(CONF_MINDERGAS_TOKEN, "")).strip() or current.get(
+                CONF_MINDERGAS_TOKEN, ""
+            )
             values: dict[str, Any] = {
                 CONF_MINDERGAS_TOKEN: token,
                 CONF_MINDERGAS_DAILY_PUSH: bool(user_input.get(CONF_MINDERGAS_DAILY_PUSH, False)),
@@ -1198,40 +1423,89 @@ class HeatprintOptionsFlow(OptionsFlow):
                 return self._save(OPT_INTEGRATIONS, values)
         fields: dict[Any, Any] = {
             # The stored token is never shown again; leave empty to keep it.
-            vol.Optional(CONF_MINDERGAS_TOKEN): TextSelector(TextSelectorConfig(type=TextSelectorType.PASSWORD)),
+            vol.Optional(CONF_MINDERGAS_TOKEN): TextSelector(
+                TextSelectorConfig(type=TextSelectorType.PASSWORD)
+            ),
         }
         if generators:
-            fields[vol.Optional(CONF_MINDERGAS_GENERATOR, description=_suggested(current.get(CONF_MINDERGAS_GENERATOR)))] = SelectSelector(
+            fields[
+                vol.Optional(
+                    CONF_MINDERGAS_GENERATOR,
+                    description=_suggested(current.get(CONF_MINDERGAS_GENERATOR)),
+                )
+            ] = SelectSelector(
                 SelectSelectorConfig(options=generators, mode=SelectSelectorMode.DROPDOWN)
             )
-        fields[vol.Required(CONF_MINDERGAS_DAILY_PUSH, default=current.get(CONF_MINDERGAS_DAILY_PUSH, False))] = BooleanSelector()
+        fields[
+            vol.Required(
+                CONF_MINDERGAS_DAILY_PUSH, default=current.get(CONF_MINDERGAS_DAILY_PUSH, False)
+            )
+        ] = BooleanSelector()
         return self.async_show_form(
             step_id="integrations",
             data_schema=vol.Schema(fields),
             errors=errors,
-            description_placeholders={"token_state": "set" if current.get(CONF_MINDERGAS_TOKEN) else "not set"},
+            description_placeholders={
+                "token_state": "set" if current.get(CONF_MINDERGAS_TOKEN) else "not set"
+            },
         )
 
-    async def async_step_advanced(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
+    async def async_step_advanced(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
         """PBL parameters, wind coefficient, outlier threshold and minimum fit days."""
         current = self._section(OPT_ADVANCED)
         if user_input is not None:
             return self._save(OPT_ADVANCED, flatten_sections(user_input))
         pbl = {
-            vol.Required(CONF_PBL_TST_WINTER, default=current.get(CONF_PBL_TST_WINTER, DEFAULT_PBL_TST["winter"])): _number(5.0, 25.0, 0.01, "°C"),
-            vol.Required(CONF_PBL_TST_SHOULDER, default=current.get(CONF_PBL_TST_SHOULDER, DEFAULT_PBL_TST["shoulder"])): _number(5.0, 25.0, 0.01, "°C"),
-            vol.Required(CONF_PBL_TST_TRANSITION, default=current.get(CONF_PBL_TST_TRANSITION, DEFAULT_PBL_TST["transition"])): _number(5.0, 25.0, 0.01, "°C"),
-            vol.Required(CONF_PBL_TST_SUMMER, default=current.get(CONF_PBL_TST_SUMMER, DEFAULT_PBL_TST["summer"])): _number(5.0, 25.0, 0.01, "°C"),
-            vol.Required(CONF_PBL_RER_WINTER, default=current.get(CONF_PBL_RER_WINTER, DEFAULT_PBL_RER["winter"])): _number(0.1, 2.0, 0.01),
-            vol.Required(CONF_PBL_RER_SHOULDER, default=current.get(CONF_PBL_RER_SHOULDER, DEFAULT_PBL_RER["shoulder"])): _number(0.1, 2.0, 0.01),
-            vol.Required(CONF_PBL_RER_TRANSITION, default=current.get(CONF_PBL_RER_TRANSITION, DEFAULT_PBL_RER["transition"])): _number(0.1, 2.0, 0.01),
-            vol.Required(CONF_PBL_RER_SUMMER, default=current.get(CONF_PBL_RER_SUMMER, DEFAULT_PBL_RER["summer"])): _number(0.1, 2.0, 0.01),
-            vol.Required(CONF_PBL_TOP, default=current.get(CONF_PBL_TOP, DEFAULT_PBL_TOP)): _number(0.0, 5.0, 0.01),
-            vol.Required(CONF_PBL_WIND_SQRT_COEF, default=current.get(CONF_PBL_WIND_SQRT_COEF, round(DEFAULT_PBL_WIND_SQRT_COEF, 3))): _number(0.0, 10.0, 0.001),
+            vol.Required(
+                CONF_PBL_TST_WINTER,
+                default=current.get(CONF_PBL_TST_WINTER, DEFAULT_PBL_TST["winter"]),
+            ): _number(5.0, 25.0, 0.01, "°C"),
+            vol.Required(
+                CONF_PBL_TST_SHOULDER,
+                default=current.get(CONF_PBL_TST_SHOULDER, DEFAULT_PBL_TST["shoulder"]),
+            ): _number(5.0, 25.0, 0.01, "°C"),
+            vol.Required(
+                CONF_PBL_TST_TRANSITION,
+                default=current.get(CONF_PBL_TST_TRANSITION, DEFAULT_PBL_TST["transition"]),
+            ): _number(5.0, 25.0, 0.01, "°C"),
+            vol.Required(
+                CONF_PBL_TST_SUMMER,
+                default=current.get(CONF_PBL_TST_SUMMER, DEFAULT_PBL_TST["summer"]),
+            ): _number(5.0, 25.0, 0.01, "°C"),
+            vol.Required(
+                CONF_PBL_RER_WINTER,
+                default=current.get(CONF_PBL_RER_WINTER, DEFAULT_PBL_RER["winter"]),
+            ): _number(0.1, 2.0, 0.01),
+            vol.Required(
+                CONF_PBL_RER_SHOULDER,
+                default=current.get(CONF_PBL_RER_SHOULDER, DEFAULT_PBL_RER["shoulder"]),
+            ): _number(0.1, 2.0, 0.01),
+            vol.Required(
+                CONF_PBL_RER_TRANSITION,
+                default=current.get(CONF_PBL_RER_TRANSITION, DEFAULT_PBL_RER["transition"]),
+            ): _number(0.1, 2.0, 0.01),
+            vol.Required(
+                CONF_PBL_RER_SUMMER,
+                default=current.get(CONF_PBL_RER_SUMMER, DEFAULT_PBL_RER["summer"]),
+            ): _number(0.1, 2.0, 0.01),
+            vol.Required(CONF_PBL_TOP, default=current.get(CONF_PBL_TOP, DEFAULT_PBL_TOP)): _number(
+                0.0, 5.0, 0.01
+            ),
+            vol.Required(
+                CONF_PBL_WIND_SQRT_COEF,
+                default=current.get(CONF_PBL_WIND_SQRT_COEF, round(DEFAULT_PBL_WIND_SQRT_COEF, 3)),
+            ): _number(0.0, 10.0, 0.001),
         }
         fit = {
-            vol.Required(CONF_OUTLIER_THRESHOLD, default=current.get(CONF_OUTLIER_THRESHOLD, DEFAULT_OUTLIER_THRESHOLD)): _number(2.0, 10.0, 0.1),
-            vol.Required(CONF_MIN_FIT_DAYS, default=current.get(CONF_MIN_FIT_DAYS, DEFAULT_MIN_FIT_DAYS)): _number(15, 120, 1),
+            vol.Required(
+                CONF_OUTLIER_THRESHOLD,
+                default=current.get(CONF_OUTLIER_THRESHOLD, DEFAULT_OUTLIER_THRESHOLD),
+            ): _number(2.0, 10.0, 0.1),
+            vol.Required(
+                CONF_MIN_FIT_DAYS, default=current.get(CONF_MIN_FIT_DAYS, DEFAULT_MIN_FIT_DAYS)
+            ): _number(15, 120, 1),
         }
         schema = vol.Schema(
             {
@@ -1278,7 +1552,9 @@ class GeneratorSubentryFlowHandler(_SubentryFlowBase):
             return await self.async_step_details()
         return self.async_show_form(step_id="user", data_schema=generator_base_schema({}))
 
-    async def async_step_details(self, user_input: dict[str, Any] | None = None) -> SubentryFlowResult:
+    async def async_step_details(
+        self, user_input: dict[str, Any] | None = None
+    ) -> SubentryFlowResult:
         """Sensors, conversion, DHW and pricing of a new generator."""
         errors: dict[str, str] = {}
         kind, role = self._base[CONF_KIND], self._base[CONF_ROLE]
@@ -1291,7 +1567,9 @@ class GeneratorSubentryFlowHandler(_SubentryFlowBase):
                 existing = self._existing_ids(SUBENTRY_TYPE_GENERATOR, CONF_GENERATOR_ID)
                 generator = normalize_generator(self.hass, self._base, flat, existing)
                 return self.async_create_entry(
-                    title=generator[CONF_NAME], data=generator, unique_id=generator[CONF_GENERATOR_ID]
+                    title=generator[CONF_NAME],
+                    data=generator,
+                    unique_id=generator[CONF_GENERATOR_ID],
                 )
         return self.async_show_form(
             step_id="details",
@@ -1300,15 +1578,21 @@ class GeneratorSubentryFlowHandler(_SubentryFlowBase):
             description_placeholders={"name": self._base[CONF_NAME]},
         )
 
-    async def async_step_reconfigure(self, user_input: dict[str, Any] | None = None) -> SubentryFlowResult:
+    async def async_step_reconfigure(
+        self, user_input: dict[str, Any] | None = None
+    ) -> SubentryFlowResult:
         """Change name, kind and role of an existing generator."""
         subentry = self._get_reconfigure_subentry()
         if user_input is not None:
             self._base = {**subentry.data, **user_input}
             return await self.async_step_reconfigure_details()
-        return self.async_show_form(step_id="reconfigure", data_schema=generator_base_schema(subentry.data))
+        return self.async_show_form(
+            step_id="reconfigure", data_schema=generator_base_schema(subentry.data)
+        )
 
-    async def async_step_reconfigure_details(self, user_input: dict[str, Any] | None = None) -> SubentryFlowResult:
+    async def async_step_reconfigure_details(
+        self, user_input: dict[str, Any] | None = None
+    ) -> SubentryFlowResult:
         """Change sensors, conversion, DHW and pricing of an existing generator."""
         errors: dict[str, str] = {}
         subentry = self._get_reconfigure_subentry()
@@ -1320,7 +1604,11 @@ class GeneratorSubentryFlowHandler(_SubentryFlowBase):
             errors = validate_generator_details(self.hass, kind, role, flat)
             if not errors:
                 generator = normalize_generator(
-                    self.hass, self._base, flat, set(), keep_id=str(subentry.data[CONF_GENERATOR_ID])
+                    self.hass,
+                    self._base,
+                    flat,
+                    set(),
+                    keep_id=str(subentry.data[CONF_GENERATOR_ID]),
                 )
                 # The config entry update listener reloads the entry; a changed energy entity
                 # is recomputed from the first day the new sensor has statistics.
@@ -1340,9 +1628,15 @@ def measure_schema(defaults: Mapping[str, Any]) -> vol.Schema:
     return vol.Schema(
         {
             vol.Required(CONF_NAME, default=defaults.get(CONF_NAME, "")): TextSelector(),
-            vol.Required(CONF_DATE, default=defaults.get(CONF_DATE, dt_util.now().date().isoformat())): DateSelector(),
-            vol.Required(CONF_CATEGORY, default=defaults.get(CONF_CATEGORY, "insulation")): _select(MEASURE_CATEGORIES, "measure_category"),
-            vol.Optional(CONF_NOTES, description=_suggested(defaults.get(CONF_NOTES))): TextSelector(TextSelectorConfig(multiline=True)),
+            vol.Required(
+                CONF_DATE, default=defaults.get(CONF_DATE, dt_util.now().date().isoformat())
+            ): DateSelector(),
+            vol.Required(CONF_CATEGORY, default=defaults.get(CONF_CATEGORY, "insulation")): _select(
+                MEASURE_CATEGORIES, "measure_category"
+            ),
+            vol.Optional(
+                CONF_NOTES, description=_suggested(defaults.get(CONF_NOTES))
+            ): TextSelector(TextSelectorConfig(multiline=True)),
         }
     )
 
@@ -1368,9 +1662,13 @@ class MeasureSubentryFlowHandler(_SubentryFlowBase):
                     CONF_NOTES: str(user_input.get(CONF_NOTES, "")),
                 }
                 return self.async_create_entry(title=name, data=data, unique_id=measure_id)
-        return self.async_show_form(step_id="user", data_schema=measure_schema(user_input or {}), errors=errors)
+        return self.async_show_form(
+            step_id="user", data_schema=measure_schema(user_input or {}), errors=errors
+        )
 
-    async def async_step_reconfigure(self, user_input: dict[str, Any] | None = None) -> SubentryFlowResult:
+    async def async_step_reconfigure(
+        self, user_input: dict[str, Any] | None = None
+    ) -> SubentryFlowResult:
         """Change a measure."""
         subentry = self._get_reconfigure_subentry()
         errors: dict[str, str] = {}
@@ -1386,7 +1684,11 @@ class MeasureSubentryFlowHandler(_SubentryFlowBase):
                     CONF_CATEGORY: user_input[CONF_CATEGORY],
                     CONF_NOTES: str(user_input.get(CONF_NOTES, "")),
                 }
-                return self.async_update_and_abort(self._config_entry, subentry, data=data, title=name)
+                return self.async_update_and_abort(
+                    self._config_entry, subentry, data=data, title=name
+                )
         return self.async_show_form(
-            step_id="reconfigure", data_schema=measure_schema(user_input or subentry.data), errors=errors
+            step_id="reconfigure",
+            data_schema=measure_schema(user_input or subentry.data),
+            errors=errors,
         )

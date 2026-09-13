@@ -322,13 +322,25 @@ KIND_DEFAULTS: Final[dict[str, KindDefaults]] = {
         "Heat pump", ROLE_BOTH, CONVERSION_AUTO, DEFAULT_ELECTRIC_CO2_KG_PER_KWH, ENERGY_UNITS
     ),
     KIND_ELECTRIC_HEATER: KindDefaults(
-        "Electric heating", ROLE_SPACE, CONVERSION_FACTOR, DEFAULT_ELECTRIC_CO2_KG_PER_KWH, ENERGY_UNITS
+        "Electric heating",
+        ROLE_SPACE,
+        CONVERSION_FACTOR,
+        DEFAULT_ELECTRIC_CO2_KG_PER_KWH,
+        ENERGY_UNITS,
     ),
     KIND_AIR_TO_AIR: KindDefaults(
-        "Air-to-air heat pump", ROLE_SPACE, CONVERSION_COP_FIXED, DEFAULT_ELECTRIC_CO2_KG_PER_KWH, ENERGY_UNITS
+        "Air-to-air heat pump",
+        ROLE_SPACE,
+        CONVERSION_COP_FIXED,
+        DEFAULT_ELECTRIC_CO2_KG_PER_KWH,
+        ENERGY_UNITS,
     ),
     KIND_DISTRICT_HEAT: KindDefaults(
-        "District heat", ROLE_BOTH, CONVERSION_FIXED_EFFICIENCY, DEFAULT_DISTRICT_CO2_KG_PER_KWH, HEAT_UNITS
+        "District heat",
+        ROLE_BOTH,
+        CONVERSION_FIXED_EFFICIENCY,
+        DEFAULT_DISTRICT_CO2_KG_PER_KWH,
+        HEAT_UNITS,
     ),
     KIND_OTHER: KindDefaults("Other heat source", ROLE_SPACE, CONVERSION_FACTOR, 0.0, frozenset()),
 }

@@ -125,7 +125,10 @@ def _season_dd_attributes(data: HeatprintData) -> dict[str, Any]:
 def _heat_per_dd_attributes(data: HeatprintData) -> dict[str, Any]:
     attributes: dict[str, Any] = {"method": data.primary_method, "season": data.season.label}
     attributes.update(
-        {f"kwh_per_k_{method}": round(value, 4) for method, value in data.season.heat_per_dd.items()}
+        {
+            f"kwh_per_k_{method}": round(value, 4)
+            for method, value in data.season.heat_per_dd.items()
+        }
     )
     return attributes
 
@@ -158,7 +161,9 @@ def _quality_attributes(data: HeatprintData) -> dict[str, Any]:
         "gap_days": quality.gap_days,
         "last_usable_day": quality.last_usable.isoformat() if quality.last_usable else None,
     }
-    attributes.update({f"flag_{flag.lower()}": count for flag, count in quality.flag_counts.items()})
+    attributes.update(
+        {f"flag_{flag.lower()}": count for flag, count in quality.flag_counts.items()}
+    )
     if data.latest:
         attributes["latest_flags"] = data.latest.flags
     return attributes
@@ -297,7 +302,9 @@ SITE_SENSORS: tuple[HeatprintSensorDescription, ...] = (
         icon="mdi:home-export-outline",
         suggested_display_precision=0,
         value_fn=_fit_value("ua_w_per_k"),
-        attributes_fn=lambda data: {"slope_b_kwh_per_k_day": data.fit.get("slope_b") if data.fit else None},
+        attributes_fn=lambda data: {
+            "slope_b_kwh_per_k_day": data.fit.get("slope_b") if data.fit else None
+        },
     ),
     HeatprintSensorDescription(
         key=SENSOR_BALANCE_TEMPERATURE,
@@ -414,7 +421,9 @@ def site_device_info(coordinator: HeatprintCoordinator) -> DeviceInfo:
     )
 
 
-def generator_device_info(coordinator: HeatprintCoordinator, generator: GeneratorConfig) -> DeviceInfo:
+def generator_device_info(
+    coordinator: HeatprintCoordinator, generator: GeneratorConfig
+) -> DeviceInfo:
     """Return the device info of a generator device (child of the site device)."""
     return DeviceInfo(
         identifiers={(DOMAIN, f"{coordinator.entry.entry_id}_{generator.generator_id}")},
@@ -455,7 +464,9 @@ class HeatprintSiteSensor(CoordinatorEntity[HeatprintCoordinator], SensorEntity)
     entity_description: HeatprintSensorDescription
     _attr_has_entity_name = True
 
-    def __init__(self, coordinator: HeatprintCoordinator, description: HeatprintSensorDescription) -> None:
+    def __init__(
+        self, coordinator: HeatprintCoordinator, description: HeatprintSensorDescription
+    ) -> None:
         """Initialise the sensor."""
         super().__init__(coordinator)
         self.entity_description = description
@@ -493,7 +504,9 @@ class HeatprintGeneratorSensor(CoordinatorEntity[HeatprintCoordinator], SensorEn
         super().__init__(coordinator)
         self.entity_description = description
         self._generator_id = generator.generator_id
-        self._attr_unique_id = f"{coordinator.entry.entry_id}_{generator.generator_id}_{description.key}"
+        self._attr_unique_id = (
+            f"{coordinator.entry.entry_id}_{generator.generator_id}_{description.key}"
+        )
         self._attr_device_info = generator_device_info(coordinator, generator)
 
     @callback

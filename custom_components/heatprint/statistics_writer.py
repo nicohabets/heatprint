@@ -151,7 +151,9 @@ async def async_write_daily_metrics(
     running: dict[str, float] = dict(sum_offsets or {})
     first_day = rows[0].date
 
-    present_metrics = {key for row in rows for key, value in row.values.items() if value is not None}
+    present_metrics = {
+        key for row in rows for key, value in row.values.items() if value is not None
+    }
     for key in sorted(present_metrics):
         metric = definitions.get(key)
         if metric is None:

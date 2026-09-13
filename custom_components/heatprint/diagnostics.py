@@ -102,7 +102,8 @@ async def async_get_config_entry_diagnostics(
             "weather_cache_days": len(store.data.get("weather_cache", {})),
             "flag_days": len(store.data.get("flags", {})),
             "imported_generators": {
-                generator_id: len(days) for generator_id, days in store.data.get("imported", {}).items()
+                generator_id: len(days)
+                for generator_id, days in store.data.get("imported", {}).items()
             },
         },
         "records_last_30_days": records,

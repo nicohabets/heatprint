@@ -375,6 +375,9 @@ class PblParams(JsonMixin):
     include_sun: bool = False
     include_top: bool = False
     wind_sqrt_coef: float = PBL_WIND_SQRT_COEF
+    #: Optional user override of the month table: four ``(TST, RER, TOP)`` triples for the
+    #: month groups Dec/Jan/Feb, Mar/Nov, Apr/Oct and May-Sep. ``None`` uses ``parameter_set``.
+    custom_table: tuple[tuple[float, float, float], ...] | None = None
 
 
 @dataclass(frozen=True)

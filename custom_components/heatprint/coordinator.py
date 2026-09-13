@@ -234,7 +234,9 @@ class HeatprintCoordinator(DataUpdateCoordinator[HeatprintData]):
         self.store = HeatprintStore(hass, entry.entry_id)
         self.site_id: str = entry.data[CONF_SITE_ID]
         self.site_name: str = entry.data.get(CONF_NAME, entry.title)
-        self.tz = dt_util.get_time_zone(entry.data[CONF_TIMEZONE]) or dt_util.get_default_time_zone()
+        self.tz = (
+            dt_util.get_time_zone(entry.data[CONF_TIMEZONE]) or dt_util.get_default_time_zone()
+        )
         self.generators: list[GeneratorConfig] = generator_configs(entry)
         self.measures: list[MeasureConfig] = measure_configs(entry)
         self.site: Any = None
@@ -243,6 +245,7 @@ class HeatprintCoordinator(DataUpdateCoordinator[HeatprintData]):
         self._last_weather_update: datetime | None = None
         self._lock = asyncio.Lock()
         self._tasks: set[asyncio.Task[Any]] = set()
+        self._climatology_task: asyncio.Task[Any] | None = None
 
     # --- lifecycle ---------------------------------------------------------------------
 
@@ -306,13 +309,48 @@ class HeatprintCoordinator(DataUpdateCoordinator[HeatprintData]):
         await self.store.async_save()
         await super().async_shutdown()
 
-    def _start_background(self, coro: Any, name: str) -> None:
+    def _start_background(self, coro: Any, name: str) -> asyncio.Task[Any]:
         """Run a coroutine as a background task bound to the config entry."""
         task = self.entry.async_create_background_task(
             self.hass, coro, f"{DOMAIN}_{name}_{self.entry.entry_id}"
         )
         self._tasks.add(task)
         task.add_done_callback(self._tasks.discard)
+        return task
+
+    @callback
+    def _async_schedule_climatology_refresh(self) -> None:
+        """Rebuild the climatology in the background when its signature is stale.
+
+        The signature changes once a year, with the climatology years, with the
+        weather source and when the fitted balance temperature moves by a whole
+        degree (the house degree-day series depends on it, METHODS 8.1/8.5). The
+        initial backfill builds the climatology itself.
+        """
+        if not self.store.get_meta(META_BACKFILL_DONE):
+            return
+        if self._climatology_task is not None and not self._climatology_task.done():
+            return
+        if self.store.get_meta(META_CLIMATOLOGY_SIGNATURE) == self._climatology_signature():
+            return
+        self._climatology_task = self._start_background(
+            self._async_refresh_climatology_task(), "climatology"
+        )
+
+    async def _async_refresh_climatology_task(self) -> None:
+        """Background wrapper around _async_refresh_climatology."""
+        try:
+            await self._async_refresh_climatology()
+            await self.store.async_save()
+        except asyncio.CancelledError:
+            raise
+        except (CoreError, HomeAssistantError) as err:
+            _LOGGER.warning("Climatology refresh for %s failed: %s", self.site_name, err)
+            return
+        except Exception:  # noqa: BLE001 - background task, keep the integration alive
+            _LOGGER.exception("Climatology refresh for %s failed unexpectedly", self.site_name)
+            return
+        await self.async_request_refresh()
 
     async def _async_daily_trigger(self, now: datetime) -> None:
         """Time trigger at DAILY_RUN_TIME."""
@@ -332,11 +370,13 @@ class HeatprintCoordinator(DataUpdateCoordinator[HeatprintData]):
         try:
             async with self._lock:
                 await self._async_daily_run()
-                return await self._async_build_snapshot()
+                snapshot = await self._async_build_snapshot()
         except CoreError as err:
             raise UpdateFailed(f"Weather or core error: {err}") from err
         except HomeAssistantError as err:
             raise UpdateFailed(str(err)) from err
+        self._async_schedule_climatology_refresh()
+        return snapshot
 
     async def _async_daily_run(self) -> None:
         """Process last definitive day - 2 .. yesterday."""
@@ -417,7 +457,9 @@ class HeatprintCoordinator(DataUpdateCoordinator[HeatprintData]):
         while chunk_start <= end:
             chunk_end = min(chunk_start + timedelta(days=BACKFILL_CHUNK_DAYS - 1), end)
             if locked:
-                _metrics, carried = await self._async_process_window(chunk_start, chunk_end, carried)
+                _metrics, carried = await self._async_process_window(
+                    chunk_start, chunk_end, carried
+                )
             else:
                 async with self._lock:
                     _metrics, carried = await self._async_process_window(
@@ -455,7 +497,9 @@ class HeatprintCoordinator(DataUpdateCoordinator[HeatprintData]):
         else:
             cached = self.store.cached_weather(start, end)
             missing = [
-                day for day in _daterange(start, end) if day not in cached or cached[day].provisional
+                day
+                for day in _daterange(start, end)
+                if day not in cached or cached[day].provisional
             ]
             if missing:
                 fetched = await async_fetch_weather(
@@ -806,14 +850,32 @@ class HeatprintCoordinator(DataUpdateCoordinator[HeatprintData]):
         await self.async_request_refresh()
         return days
 
+    def _house_balance_temp(self) -> float | None:
+        """Return the balance temperature of the latest fit, if any."""
+        balance = (self.store.latest_fit or {}).get("balance_temp")
+        return float(balance) if balance is not None else None
+
+    def _climatology_signature(self) -> str:
+        """Signature of the stored climatology: weather source, years, year, balance temp.
+
+        The balance temperature is rounded to whole degrees so weekly refits do not
+        trigger a rebuild (the forecast copes with small differences, see
+        core_api.forecast_season).
+        """
+        years = int(history_options(self.entry)[CONF_CLIMATOLOGY_YEARS])
+        balance = self._house_balance_temp()
+        balance_text = "-" if balance is None else str(round(balance))
+        return f"{weather_signature(self.entry)}|{years}|{self.today.year}|{balance_text}"
+
     async def _async_refresh_climatology(self) -> None:
         """Fetch the climatology years of weather and store the climatology (METHODS 8.1)."""
         weather_cfg = self.entry.data.get(CONF_WEATHER, {})
         if weather_cfg.get(CONF_PROVIDER) == PROVIDER_HA_SENSORS:
             return
         years = int(history_options(self.entry)[CONF_CLIMATOLOGY_YEARS])
-        # Refreshed once a year (the year is part of the signature) or on a source change.
-        signature = f"{weather_signature(self.entry)}|{years}|{self.today.year}"
+        # Refreshed once a year (the year is part of the signature), on a source change
+        # and when the fitted balance temperature changes (house degree-day series).
+        signature = self._climatology_signature()
         if self.store.get_meta(META_CLIMATOLOGY_SIGNATURE) == signature and self.store.climatology:
             return
         session = async_get_clientsession(self.hass)
@@ -831,10 +893,8 @@ class HeatprintCoordinator(DataUpdateCoordinator[HeatprintData]):
                     timezone=self.entry.data[CONF_TIMEZONE],
                 )
             )
-        latest_fit = self.store.latest_fit or {}
-        balance = latest_fit.get("balance_temp")
         climatology = await self.hass.async_add_executor_job(
-            build_climatology, self.site, history, years, float(balance) if balance else None
+            build_climatology, self.site, history, years, self._house_balance_temp()
         )
         self.store.set_climatology(climatology)
         self.store.set_meta(META_CLIMATOLOGY_SIGNATURE, signature)
@@ -849,6 +909,14 @@ class HeatprintCoordinator(DataUpdateCoordinator[HeatprintData]):
         consumption, flags = await self.hass.async_add_executor_job(
             daily_consumption_from_readings, readings, self.tz
         )
+        # The store keeps plain daily amounts, so days that METHODS 9 excludes
+        # (partial first/last day, meter reset) are not imported at all; interpolated
+        # days are kept (allowed in fits with weight 1).
+        consumption = {
+            day: amount
+            for day, amount in consumption.items()
+            if not EXCLUSION_FLAGS.intersection(flags.get(day, []))
+        }
         if not consumption:
             return {"imported_days": 0, "gaps": []}
         self.store.set_imported(generator.generator_id, consumption)
@@ -859,7 +927,10 @@ class HeatprintCoordinator(DataUpdateCoordinator[HeatprintData]):
             if day in consumption:
                 if gap_start is not None:
                     gaps.append(
-                        {"start": gap_start.isoformat(), "end": (day - timedelta(days=1)).isoformat()}
+                        {
+                            "start": gap_start.isoformat(),
+                            "end": (day - timedelta(days=1)).isoformat(),
+                        }
                     )
                     gap_start = None
             elif gap_start is None:
@@ -1033,7 +1104,11 @@ class HeatprintCoordinator(DataUpdateCoordinator[HeatprintData]):
                 for generator in self.generators
             ],
             "measures": [
-                {"id": measure.measure_id, "date": measure.date.isoformat(), "category": measure.category}
+                {
+                    "id": measure.measure_id,
+                    "date": measure.date.isoformat(),
+                    "category": measure.category,
+                }
                 for measure in self.measures
             ],
             "methods": method_options(self.entry),

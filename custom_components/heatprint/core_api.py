@@ -135,6 +135,7 @@ from .const import (
     HEATING_VALUE_CUSTOM,
     HEATING_VALUE_HS,
     HEATING_VALUES_KWH_PER_M3,
+    KIND_DEFAULTS,
     KIND_DISTRICT_HEAT,
     KIND_ELECTRIC_HEATER,
     KIND_GAS_BOILER,
@@ -197,6 +198,9 @@ class InsufficientData(CoreError):
 # TAC regressor used by the fit per service preset; the core supports the house and
 # the PBL effective temperature (heatprint_core.analysis.signature.TAC_KEYS).
 TAC_KEY_FOR_PRESET: dict[str, str] = {"house": "tac_house", "pbl": "tac_pbl"}
+
+# Extra key in the stored climatology dict: balance temperature of its house series.
+CLIMATOLOGY_BALANCE_KEY = "house_balance_temp"
 
 
 # --------------------------------------------------------------------------------
@@ -383,10 +387,14 @@ def generator_configs(entry: ConfigEntry) -> list[GeneratorConfig]:
         unit = data.get(CONF_UNIT, UNIT_M3 if kind == KIND_GAS_BOILER else UNIT_KWH)
         fixed = data.get(CONF_DHW_FIXED_PER_DAY)
         fixed_value = float(fixed) if fixed is not None else None
-        if fixed_value is not None and unit == UNIT_GJ:
+        co2_factor = float(data.get(CONF_CO2_FACTOR, KIND_DEFAULTS[kind].co2_factor))
+        if unit == UNIT_GJ:
             # Recorder reads are normalised to kWh (see recorder_source), so a GJ
-            # based fixed DHW amount is converted to the same canonical unit.
-            fixed_value *= GJ_TO_KWH
+            # based fixed DHW amount (GJ/day) and CO2 factor (kg/GJ) are converted
+            # to the same canonical unit.
+            if fixed_value is not None:
+                fixed_value *= GJ_TO_KWH
+            co2_factor /= GJ_TO_KWH
         generators.append(
             GeneratorConfig(
                 generator_id=data[CONF_GENERATOR_ID],
@@ -416,7 +424,7 @@ def generator_configs(entry: ConfigEntry) -> list[GeneratorConfig]:
                 dhw_mode=dhw_mode,
                 dhw_fixed_per_day=fixed_value,
                 price_entity=data.get(CONF_PRICE_ENTITY),
-                co2_factor=float(data.get(CONF_CO2_FACTOR, 0.0)),
+                co2_factor=co2_factor,
             )
         )
     return generators
@@ -479,7 +487,9 @@ def advanced_options(entry: ConfigEntry) -> dict[str, Any]:
 def history_options(entry: ConfigEntry) -> dict[str, Any]:
     """Return the history options with defaults applied."""
     opts = dict(entry.options.get(OPT_HISTORY, {}))
-    opts.setdefault(CONF_BACKFILL_YEARS, entry.data.get(CONF_BACKFILL_YEARS, DEFAULT_BACKFILL_YEARS))
+    opts.setdefault(
+        CONF_BACKFILL_YEARS, entry.data.get(CONF_BACKFILL_YEARS, DEFAULT_BACKFILL_YEARS)
+    )
     opts.setdefault(
         CONF_CLIMATOLOGY_YEARS, entry.data.get(CONF_CLIMATOLOGY_YEARS, DEFAULT_CLIMATOLOGY_YEARS)
     )
@@ -586,6 +596,30 @@ def _core_generator(config: GeneratorConfig, summer: tuple[str, str]) -> Any:
     )
 
 
+def _pbl_custom_table(advanced: dict[str, Any]) -> tuple[tuple[float, float, float], ...] | None:
+    """Return the advanced PBL month table, or ``None`` when every value is still the default."""
+    groups = (
+        (CONF_PBL_TST_WINTER, CONF_PBL_RER_WINTER, "winter"),
+        (CONF_PBL_TST_SHOULDER, CONF_PBL_RER_SHOULDER, "shoulder"),
+        (CONF_PBL_TST_TRANSITION, CONF_PBL_RER_TRANSITION, "transition"),
+        (CONF_PBL_TST_SUMMER, CONF_PBL_RER_SUMMER, "summer"),
+    )
+    top = float(advanced[CONF_PBL_TOP])
+    table = tuple(
+        (float(advanced[tst_key]), float(advanced[rer_key]), top) for tst_key, rer_key, _ in groups
+    )
+    defaults = tuple(
+        (DEFAULT_PBL_TST[name], DEFAULT_PBL_RER[name], DEFAULT_PBL_TOP) for _, _, name in groups
+    )
+    if all(
+        abs(a - b) < 1e-9
+        for row, drow in zip(table, defaults, strict=True)
+        for a, b in zip(row, drow, strict=True)
+    ):
+        return None
+    return table
+
+
 def build_site_from_entry(entry: ConfigEntry) -> Any:
     """Build the core ``Site`` model from the config entry, options and subentries."""
     data = entry.data
@@ -610,9 +644,9 @@ def build_site_from_entry(entry: ConfigEntry) -> Any:
             if value
         },
     )
-    # TODO(core-api): the PBL month parameters (TST/RER/TOP) of the advanced options have
-    # no counterpart in heatprint_core.models.PblParams yet; only the wind coefficient
-    # is passed through and the core uses its built-in PBL 2022 tables.
+    # Advanced PBL month parameters: only passed as a custom table when the user changed
+    # at least one value, so the built-in "practical"/"optimal" sets keep working.
+    custom_table = _pbl_custom_table(advanced)
     method_config = core_models.MethodConfig(
         enabled=list(methods[CONF_METHODS_ENABLED]),
         primary=methods[CONF_METHODS_PRIMARY],
@@ -627,6 +661,7 @@ def build_site_from_entry(entry: ConfigEntry) -> Any:
             include_sun=bool(methods[CONF_PBL_INCLUDE_SUN]),
             include_top=False,
             wind_sqrt_coef=float(advanced[CONF_PBL_WIND_SQRT_COEF]),
+            custom_table=custom_table,
         ),
         house=core_models.HouseParams(fit_wind=bool(methods[CONF_HOUSE_FIT_WIND])),
     )
@@ -767,12 +802,22 @@ async def async_fetch_weather(
         session, provider_name, weather.get(CONF_STATION_ID), latitude, longitude, timezone
     )
     try:
-        return await _fetch(provider, start, end)
+        days = await _fetch(provider, start, end)
     except CoreError:
         if fallback_name in (FALLBACK_NONE, None, provider_name, PROVIDER_HA_SENSORS):
             raise
+        provider_name = fallback_name
         fallback = _provider(session, fallback_name, None, latitude, longitude, timezone)
-        return await _fetch(fallback, start, end)
+        days = await _fetch(fallback, start, end)
+    if provider_name == PROVIDER_KNMI:
+        # The KNMI parser marks the last requested day provisional; for a historic
+        # window (backfill chunk) that day is definitive. Only the last two days
+        # before today can still change (METHODS 2).
+        cutoff = date.today() - timedelta(days=2)
+        for day in days:
+            if day.provisional and day.date < cutoff:
+                day.provisional = False
+    return days
 
 
 def weather_from_ha_sensors(
@@ -860,6 +905,9 @@ def build_daily_records(
     outliers = [date.fromisoformat(str(day)) for day in (house_fit or {}).get("outliers", [])]
     # TODO(core-api): per-day prices from price entities are not read from the recorder
     # yet (prices=None), so cost_eur stays None in this version.
+    # The baselines are always passed (possibly empty): with None the core would
+    # estimate them from this window alone, which for a 90-day winter chunk yields a
+    # bogus "summer" baseline. Without a baseline all heat counts as space heating.
     return core_pipeline.build_daily_records(
         site,
         to_core_weather(weather),
@@ -867,7 +915,7 @@ def build_daily_records(
         thermal_by_generator=_energy_series(energy, "thermal"),
         electric_by_generator=_energy_series(energy, "electric"),
         dhw_by_generator=_energy_series(energy, "dhw"),
-        baselines=dict(baselines) if baselines else None,
+        baselines=dict(baselines),
         house_fit=fit,
         co2_factors=dict(co2_factors) if co2_factors else None,
         outlier_dates=outliers,
@@ -879,13 +927,29 @@ def build_daily_records(
 def estimate_baselines(
     site: Any, energy: Mapping[str, Mapping[date, DailyEnergyInput]]
 ) -> dict[str, float]:
-    """Return the DHW baseline per generator (METHODS 6) from a long energy series."""
+    """Return the DHW baseline per generator (METHODS 6) from a long energy series.
+
+    Only generators that split their heat with a baseline (role ``both`` and DHW mode
+    ``baseline`` or ``measured``, the latter falls back to the baseline on days
+    without a measurement) get one; a space-only generator has no DHW share.
+    """
     result = core_pipeline.estimate_baselines(
         site, _energy_series(energy, "carrier"), _energy_series(energy, "thermal")
     )
+    wanted = {generator.id for generator in site.generators if _uses_baseline(generator)}
     return {
-        generator_id: float(value) for generator_id, value in result.items() if value is not None
+        generator_id: float(value)
+        for generator_id, value in result.items()
+        if value is not None and generator_id in wanted
     }
+
+
+def _uses_baseline(generator: Any) -> bool:
+    """Return True when the DHW split of a core generator can use a baseline."""
+    return generator.role is core_models.Role.BOTH and generator.dhw.mode in (
+        core_models.DhwMode.BASELINE,
+        core_models.DhwMode.MEASURED,
+    )
 
 
 def baselines_in_kwh(site: Any, baselines: Mapping[str, float]) -> dict[str, float]:
@@ -896,7 +960,7 @@ def baselines_in_kwh(site: Any, baselines: Mapping[str, float]) -> dict[str, flo
     result: dict[str, float] = {}
     for generator in site.generators:
         value = baselines.get(generator.id)
-        if value is None:
+        if value is None or not _uses_baseline(generator):
             continue
         if generator.carrier.energy_entity is None and generator.carrier.thermal_entity:
             result[generator.id] = float(value)
@@ -1122,16 +1186,29 @@ def forecast_season(
     generators: Iterable[GeneratorConfig],
 ) -> dict[str, Any]:
     """Forecast the running season (METHODS 8.5) and return it as a flat dict."""
-    clim = climatology_from_dict(climatology)
-    if clim is None:
+    if not climatology:
         raise InsufficientData("no climatology available yet")
+    core_fit = fit_from_dict(fit)
+    clim_data = dict(climatology)
+    if method == METHOD_HOUSE and core_fit is not None:
+        # The stored house degree-day climatology was built with the balance
+        # temperature known at that time (or the 15.5 fallback before the first
+        # fit). When it differs from the fit, k_ytd (fitted T_b) and DD_rest would
+        # disagree; drop the stale series so the core derives DD_rest from the TAC
+        # climatology with the fitted balance temperature (see build_climatology).
+        built_with = clim_data.get(CLIMATOLOGY_BALANCE_KEY)
+        if built_with is None or abs(float(built_with) - core_fit.balance_temp) > 1e-6:
+            dd_by_doy = dict(clim_data.get("dd_by_doy") or {})
+            dd_by_doy.pop(METHOD_HOUSE, None)
+            clim_data["dd_by_doy"] = dd_by_doy
+    clim = climatology_from_dict(clim_data)
     forecast = core_forecast.forecast_season(
         records,
         core_models.Season(label=season.label, start=season.start, end=season.end),
         clim,
         method=method,
         dhw_per_day=dhw_per_day,
-        fit=fit_from_dict(fit),
+        fit=core_fit,
         today=today,
     )
     plain = _to_plain(forecast)
@@ -1159,7 +1236,12 @@ def forecast_season(
 def build_climatology(
     site: Any, weather: Iterable[WeatherDay], years: int, house_balance_temp: float | None = None
 ) -> dict[str, Any]:
-    """Build the climatology (METHODS 8.1) from multi-year weather and return it as a dict."""
+    """Build the climatology (METHODS 8.1) from multi-year weather and return it as a dict.
+
+    The balance temperature used for the ``house`` degree-day series is stored under
+    ``CLIMATOLOGY_BALANCE_KEY`` (None before the first fit) so that ``forecast_season``
+    can detect a stale series; the core ignores the extra key.
+    """
     climatology = core_climatology.build_climatology(
         to_core_weather(weather).values(),
         years,
@@ -1167,7 +1249,9 @@ def build_climatology(
         method_config=site.methods,
         house_balance_temp=house_balance_temp,
     )
-    return _to_plain(climatology)
+    plain = _to_plain(climatology)
+    plain[CLIMATOLOGY_BALANCE_KEY] = house_balance_temp
+    return plain
 
 
 def parse_readings_csv(text: str, mapping: Mapping[str, Any]) -> list[tuple[datetime, float]]:

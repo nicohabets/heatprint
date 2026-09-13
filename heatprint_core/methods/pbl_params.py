@@ -61,10 +61,23 @@ PARAMETER_SETS: dict[str, tuple[PblMonthParams, ...]] = {
 }
 
 
-def pbl_params(month: int, parameter_set: str = "practical") -> PblMonthParams:
-    """Return ``(TST, RER, TOP)`` for a month (1-12) and parameter set."""
+def pbl_params(
+    month: int,
+    parameter_set: str = "practical",
+    custom_table: tuple[tuple[float, float, float], ...] | None = None,
+) -> PblMonthParams:
+    """Return ``(TST, RER, TOP)`` for a month (1-12) and parameter set.
+
+    ``custom_table`` (four ``(TST, RER, TOP)`` triples in month-group order) overrides the
+    built-in tables; it is what the "advanced" options of the integration feed in.
+    """
     if month not in MONTH_GROUP:
         raise ValueError(f"invalid month: {month}")
+    if custom_table is not None:
+        if len(custom_table) != 4:
+            raise ValueError("custom_table needs exactly four (TST, RER, TOP) triples")
+        tst, rer, top = custom_table[MONTH_GROUP[month]]
+        return PblMonthParams(tst=float(tst), rer=float(rer), top=float(top))
     try:
         table = PARAMETER_SETS[parameter_set]
     except KeyError as exc:
