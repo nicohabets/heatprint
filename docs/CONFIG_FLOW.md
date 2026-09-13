@@ -13,7 +13,7 @@ Structure in Home Assistant (2026.9+):
 
 ```mermaid
 flowchart TD
-    A([Add integration]) --> B[Step 1: Site<br/>name, location, timezone]
+    A([Add integration]) --> B[Step 1: Site<br/>name only; location/tz/country from HA]
     B --> C{Country = NL?}
     C -- yes --> D[Step 2a: Weather source<br/>KNMI station<br/>nearest suggested]
     C -- no --> E[Step 2b: Weather source<br/>Open-Meteo or HA sensors]
@@ -32,31 +32,44 @@ flowchart TD
     subgraph Later
         O[Subentry: add/edit generator]
         P[Subentry: add measure]
-        T[Subentry: add room]
-        Q[Options: methods, DHW, backfill,<br/>mindergas bridge, prices/CO2, rooms]
+        U[Subentry: add room]
+        Q[Options: methods, DHW, backfill,<br/>CSV import wizard, mindergas, prices/CO2, rooms]
         R[Reconfigure: location, weather source]
-        S[Service: CSV import of meter readings]
+        V[Lovelace dashboard auto-created]
+        S[Action: import_readings for automations]
     end
     M -.-> O
     M -.-> P
-    M -.-> T
+    M -.-> U
     M -.-> Q
     M -.-> R
     M -.-> S
+    M -.-> V
 ```
 
 ---
 
 ## Step 1 - Site
 
+First-run asks only for a **site name**. Location, time zone and country are taken
+silently from this Home Assistant installation (`hass.config.latitude` /
+`longitude`, `hass.config.time_zone`, `hass.config.country`). If country is unset,
+it is derived from the time zone or the home coordinates (no blocking form field).
+The form description shows the values that will be used.
+
 | Field | Type/selector | Default | Validation |
 |---|---|---|---|
-| `name` | text | "Home" | unique per installation |
-| `location` | location selector (map) | HA home | valid lat/lon |
-| `timezone` | select | HA time zone | |
-| `country` | select (ISO-2) | from HA | |
+| `name` | text | HA location name, else "Home" | unique per installation |
+| `location` | *(not asked)* | HA home lat/lon (or `zone.home`) | stored on the entry |
+| `timezone` | *(not asked)* | HA time zone | stored on the entry |
+| `country` | *(not asked)* | HA country, else tz/coords | stored on the entry; NL → KNMI |
 
-Errors: `name_exists`.
+Errors: `name_exists`, `invalid_name`.
+
+After setup a **stock Lovelace dashboard** is created and shown in the sidebar
+(`heatprint-<site_id>`). It uses the site slug in entity and statistic ids and
+only built-in cards (no apexcharts). Recreate with the action
+`heatprint.create_dashboard`.
 
 ## Step 2a - Weather source (NL)
 
@@ -186,8 +199,8 @@ Advanced fields live under "Advanced" (collapsed section).
 | `import_now` | boolean | false; shows an explanation of `heatprint.import_readings` |
 
 Text: "Weather history is fetched in the background. Meter readings from before your Home
-Assistant history can be imported with the action 'Import meter readings' (CSV, for example
-the export of mindergas.nl)."
+Assistant history can be imported from Configure → Import meter readings (CSV paste or
+file; a mindergas.nl export needs no extra questions)."
 
 ## Summary
 
@@ -253,20 +266,29 @@ Sections (menu):
 1. **Methods and season** - same fields as step 6.
 2. **DHW and cooking** - defaults and summer window.
 3. **History** - backfill/climatology years; button "recompute from date".
-4. **Prices and CO₂** - default factors, CO₂ sensor.
-5. **Integrations** - mindergas.nl bridge: API token (password field), generator choice,
+4. **Import meter readings** - paste CSV or pick a file under `/config`. Delimiter,
+   decimal, date format and date/reading columns are auto-detected
+   (`heatprint_core.importers.csv_readings`). A mindergas `datum;stand` export
+   needs zero extra questions. A preview of the first rows is shown; only if
+   headers are ambiguous does the wizard ask which column is date vs reading
+   (dropdowns, never a JSON `mapping`). Choose generator and unit, confirm →
+   import and recompute from the earliest imported day. The action
+   `heatprint.import_readings` remains for automations.
+5. **Prices and CO₂** - default factors, CO₂ sensor.
+6. **Integrations** - mindergas.nl bridge: API token (password field), generator choice,
    daily push on/off. The token lives in the config entry (Home Assistant does not
    encrypt `.storage`); it is never logged and is redacted from diagnostics (ARCHITECTURE §9).
-6. **Rooms** - default output per m² per `emitter_kind` (METHODS §12.2, shown as a clearly
+7. **Rooms** - default output per m² per `emitter_kind` (METHODS §12.2, shown as a clearly
    labelled placeholder/estimate); minimum days for a room fit; allocation on/off (site still
    computes `heat_space_kwh` normally when off, just skips the per-room breakdown).
-7. **Advanced** - override PBL parameters (TST/RER/TOP per month group) and wind
+8. **Advanced** - override PBL parameters (TST/RER/TOP per month group) and wind
    coefficient; outlier threshold; minimum number of days for a fit.
 
 ## Reconfigure flow
 
-Location, timezone, weather source/station. On a station change: fetch the weather history
-again and recompute all daily records (with confirmation).
+Location, timezone, country, weather source/station. First-run values came from the
+HA home; change them here for a second home. On a station change: fetch the weather
+history again and recompute all daily records (with confirmation).
 
 ---
 

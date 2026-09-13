@@ -91,7 +91,9 @@ Responsibilities per HA module:
 
 | Module | Does | Does not |
 |---|---|---|
-| `config_flow.py` | Wizard, validations, subentries, options, reconfigure | Calculations |
+| `config_flow.py` | Wizard, validations, subentries, options (incl. CSV import), reconfigure | Calculations |
+| `site_defaults.py` | HA home → lat/lon, time zone, country | UI |
+| `dashboard.py` / `dashboard_config.py` | Create/refresh the stock Lovelace overview | Custom cards |
 | `coordinator.py` | Schedules runs, fetches weather (via the core providers with HA's aiohttp session), reads the recorder, calls `pipeline.build_daily_records`, writes statistics/store, updates entities | Formulas |
 | `recorder_source.py` | `statistics_during_period` per day for energy (sum/change) and weather (mean) | Interpretation |
 | `statistics_writer.py` | `async_add_external_statistics` with idempotent daily records; rewrites on recomputation | Reading |
@@ -168,6 +170,7 @@ notification follows in v1.0).
 heatprint/
 ├── custom_components/heatprint/      # HA shell (HACS)
 │   ├── __init__.py  config_flow.py  const.py  coordinator.py
+│   ├── site_defaults.py  dashboard.py  dashboard_config.py
 │   ├── recorder_source.py  statistics_writer.py  store.py
 │   ├── sensor.py  binary_sensor.py  services.py  services.yaml
 │   ├── core_api.py  mindergas.py  diagnostics.py  manifest.json  strings.json
@@ -182,7 +185,7 @@ heatprint/
 │       ├── rooms/{allocation,signature}.py
 │       └── importers/csv_readings.py
 ├── tests/                            # pytest (core) + fixtures
-├── examples/dashboards/              # apexcharts/statistics-graph YAML
+├── examples/dashboards/              # reference copy of the auto-created overview
 ├── docs/                             # this documentation + ADRs
 └── .github/workflows/                # tests, ruff, hassfest, HACS validate
 ```

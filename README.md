@@ -32,7 +32,7 @@ setup, electricity or district heat?"**
 
 ## Status
 
-Pre-alpha **v0.1.2**. Requires Home Assistant **2026.9.0** or newer. The calculation core (`heatprint_core`) implements the documented
+Pre-alpha **v0.1.3**. Requires Home Assistant **2026.9.0** or newer. The calculation core (`heatprint_core`) implements the documented
 pipeline end-to-end — heat conversion, DHW split, effective temperature, four degree-day
 methods, energy signature / PRISM, normalize / compare / forecast — and is covered by
 pytest on mock and synthetic data. The Home Assistant integration
@@ -55,6 +55,11 @@ Heatprint is a custom integration. It is not in the HACS default store yet.
 4. Find **Heatprint** in HACS and **Download**.
 5. **Restart** Home Assistant.
 6. Go to **Settings → Devices & services → Add integration** and search for **Heatprint**.
+   The first step asks only for a site name; location, time zone and country come
+   from this Home Assistant installation. After setup a **Heatprint** dashboard
+   appears in the sidebar. Import old meter readings from
+   **Configure → Import meter readings** (paste a CSV or pick a file; a
+   mindergas.nl `datum;stand` export needs no extra questions).
 
 Requires Home Assistant **2026.9.0** or newer. The calculation core ships inside
 `custom_components/heatprint/heatprint_core/`; you do not install anything from PyPI.
@@ -76,7 +81,7 @@ Requires Home Assistant **2026.9.0** or newer. The calculation core ships inside
 custom_components/heatprint/                 Home Assistant integration (HACS)
 custom_components/heatprint/heatprint_core/  Pure-Python calculation core (bundled)
 tests/                                       pytest suite for the core
-examples/dashboards/                         Dashboard YAML examples
+examples/dashboards/                         Copy of the auto-created overview (reference)
 docs/                                        Product and technical documentation
 ```
 

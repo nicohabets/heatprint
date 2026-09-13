@@ -1,14 +1,18 @@
-# Heatprint overview - example Lovelace view.
+# Heatprint overview — reference copy of the dashboard created automatically
+# after setup (sidebar path /heatprint-<site_id>).
 #
-# Replace "home" with the slug of your site (the name you gave it in the config
-# flow, lower case, spaces as underscores). Entity ids follow the English
-# translated names (has_entity_name), e.g. heat_space_yesterday becomes
-# sensor.home_space_heating_yesterday. Statistic ids stay on the metric keys
-# (heatprint:<site>_<metric>). The last card needs the custom apexcharts-card
-# (HACS) and can be removed if it is not installed.
+# You do not need to paste this. The integration registers a Lovelace storage
+# dashboard with the same cards. Recreate it with the action
+# heatprint.create_dashboard if you deleted or heavily edited it.
+#
+# Entity ids follow the English translated names (has_entity_name), e.g.
+# heat_space_yesterday becomes sensor.<site>_space_heating_yesterday.
+# Statistic ids stay on the metric keys (heatprint:<site>_<metric>).
+# Custom cards (apexcharts) are omitted on purpose so the dashboard loads
+# without HACS frontend extras.
 
 title: Heatprint
-path: heatprint
+path: overview
 icon: mdi:home-thermometer-outline
 cards:
   - type: vertical-stack
@@ -112,51 +116,3 @@ cards:
             name: Heat pump electricity
           - entity: heatprint:home_gas
             name: Gas (m³)
-
-  # Optional: energy signature scatter with apexcharts-card (HACS).
-  # Each point is one day: x = effective temperature, y = space heating.
-  # Requires the custom card; delete this card if it is not installed.
-  - type: custom:apexcharts-card
-    header:
-      show: true
-      title: Energy signature (last 180 days)
-    graph_span: 180d
-    chart_type: scatter
-    apex_config:
-      xaxis:
-        type: numeric
-        title:
-          text: Effective temperature (°C)
-        decimalsInFloat: 1
-      yaxis:
-        title:
-          text: Space heating (kWh/day)
-        decimalsInFloat: 0
-      markers:
-        size: 4
-    series:
-      - entity: sensor.home_space_heating_yesterday
-        name: Heat vs effective temperature
-        type: scatter
-        statistics:
-          type: mean
-          period: day
-        data_generator: |
-          // Pairs the daily space heating with the daily effective temperature by
-          // reading both statistics through the websocket API of Home Assistant.
-          const end = new Date();
-          const start = new Date(end.getTime() - 180 * 24 * 3600 * 1000);
-          const ids = ["heatprint:home_heat_space", "heatprint:home_tac_pbl"];
-          const stats = await hass.callWS({
-            type: "recorder/statistics_during_period",
-            start_time: start.toISOString(),
-            end_time: end.toISOString(),
-            statistic_ids: ids,
-            period: "day",
-            types: ["change", "mean"],
-          });
-          const heat = stats["heatprint:home_heat_space"] || [];
-          const temp = new Map((stats["heatprint:home_tac_pbl"] || []).map((r) => [r.start, r.mean]));
-          return heat
-            .filter((r) => r.change !== null && temp.has(r.start))
-            .map((r) => [temp.get(r.start), r.change]);

@@ -97,7 +97,9 @@ def test_config_flow_imports_core_api_which_imports_heatprint_core() -> None:
     core_imports = [
         node
         for node in ast.walk(api_tree)
-        if isinstance(node, ast.ImportFrom) and node.module and node.module.startswith("heatprint_core")
+        if isinstance(node, ast.ImportFrom)
+        and node.module
+        and node.module.startswith("heatprint_core")
     ]
     assert core_imports, "core_api.py must import heatprint_core"
 

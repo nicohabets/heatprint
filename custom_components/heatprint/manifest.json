@@ -3,11 +3,12 @@
   "name": "Heatprint",
   "codeowners": ["@nicohabets"],
   "config_flow": true,
+  "after_dependencies": ["lovelace"],
   "dependencies": ["recorder"],
   "documentation": "https://github.com/nicohabets/heatprint",
   "integration_type": "service",
   "iot_class": "cloud_polling",
   "issue_tracker": "https://github.com/nicohabets/heatprint/issues",
   "loggers": ["heatprint_core"],
-  "version": "0.1.2"
+  "version": "0.1.3"
 }
