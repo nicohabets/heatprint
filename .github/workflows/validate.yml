@@ -29,3 +29,7 @@ jobs:
         uses: hacs/action@main
         with:
           category: integration
+          # Topics and description are GitHub repository settings, not files.
+          # Set them on the repo (description + topics such as custom-integration,
+          # hacs-integration, homeassistant) before applying for HACS default.
+          ignore: topics description

@@ -51,6 +51,7 @@ from .const import (
     DAILY_RUN_TIME,
     DATA_QUALITY_WINDOW_DAYS,
     DHW_BASELINE,
+    DHW_MEASURED,
     DOMAIN,
     EXCLUSION_FLAGS,
     FALLBACK_METHOD_PRIMARY,
@@ -113,7 +114,7 @@ from .recorder_source import (
     async_daily_sums,
     async_meter_reading_at,
 )
-from .statistics_writer import async_write_daily_metrics
+from .statistics_writer import async_clear_statistics, async_write_daily_metrics
 from .store import (
     META_BACKFILL_DONE,
     META_CLIMATOLOGY_SIGNATURE,
@@ -564,7 +565,7 @@ class HeatprintCoordinator(DataUpdateCoordinator[HeatprintData]):
         needed = [
             generator
             for generator in self.generators
-            if generator.role == ROLE_BOTH and generator.dhw_mode == DHW_BASELINE
+            if generator.role == ROLE_BOTH and generator.dhw_mode in (DHW_BASELINE, DHW_MEASURED)
         ]
         if not needed:
             return baselines
@@ -868,31 +869,42 @@ class HeatprintCoordinator(DataUpdateCoordinator[HeatprintData]):
         return f"{weather_signature(self.entry)}|{years}|{self.today.year}|{balance_text}"
 
     async def _async_refresh_climatology(self) -> None:
-        """Fetch the climatology years of weather and store the climatology (METHODS 8.1)."""
-        weather_cfg = self.entry.data.get(CONF_WEATHER, {})
-        if weather_cfg.get(CONF_PROVIDER) == PROVIDER_HA_SENSORS:
-            return
+        """Fetch the climatology years of weather and store the climatology (METHODS 8.1).
+
+        Network providers are fetched year by year; Home Assistant weather
+        sensors reuse the daily-run path so a site without KNMI/Open-Meteo
+        still gets a forecast from recorder history.
+        """
         years = int(history_options(self.entry)[CONF_CLIMATOLOGY_YEARS])
         # Refreshed once a year (the year is part of the signature), on a source change
         # and when the fitted balance temperature changes (house degree-day series).
         signature = self._climatology_signature()
         if self.store.get_meta(META_CLIMATOLOGY_SIGNATURE) == signature and self.store.climatology:
             return
-        session = async_get_clientsession(self.hass)
         end = date(self.today.year, 1, 1) - timedelta(days=1)
-        history: list[WeatherDay] = []
-        for year in range(end.year - years + 1, end.year + 1):
-            history.extend(
-                await async_fetch_weather(
-                    session,
-                    weather_cfg,
-                    float(self.entry.data[CONF_LATITUDE]),
-                    float(self.entry.data[CONF_LONGITUDE]),
-                    date(year, 1, 1),
-                    date(year, 12, 31),
-                    timezone=self.entry.data[CONF_TIMEZONE],
-                )
+        weather_cfg = self.entry.data.get(CONF_WEATHER, {})
+        if weather_cfg.get(CONF_PROVIDER) == PROVIDER_HA_SENSORS:
+            history = await self._async_weather(
+                date(end.year - years + 1, 1, 1), end
             )
+        else:
+            session = async_get_clientsession(self.hass)
+            history: list[WeatherDay] = []
+            for year in range(end.year - years + 1, end.year + 1):
+                history.extend(
+                    await async_fetch_weather(
+                        session,
+                        weather_cfg,
+                        float(self.entry.data[CONF_LATITUDE]),
+                        float(self.entry.data[CONF_LONGITUDE]),
+                        date(year, 1, 1),
+                        date(year, 12, 31),
+                        timezone=self.entry.data[CONF_TIMEZONE],
+                    )
+                )
+        if not history:
+            _LOGGER.debug("No weather history for climatology of %s", self.site_name)
+            return
         climatology = await self.hass.async_add_executor_job(
             build_climatology, self.site, history, years, self._house_balance_temp()
         )
@@ -1049,6 +1061,27 @@ class HeatprintCoordinator(DataUpdateCoordinator[HeatprintData]):
             row["flags"] = "|".join(flags.get(day, []))
             rows.append(row)
         return rows
+
+    def statistic_ids_for(self, generator_id: str | None = None) -> list[str]:
+        """Return the external statistic ids of the site, or of one generator."""
+        if generator_id:
+            generator = self.generator(generator_id)
+            return [
+                statistic_id(self.site_id, generator_metric(generator.generator_id)),
+                statistic_id(self.site_id, generator_dhw_metric(generator.generator_id)),
+            ]
+        ids = list(self._sum_ids())
+        ids.extend(
+            statistic_id(self.site_id, metric)
+            for metric in (METRIC_T_MEAN, METRIC_TAC_PBL, METRIC_TAC_HOUSE)
+        )
+        return ids
+
+    async def async_clear_statistics(self, generator_id: str | None = None) -> dict[str, Any]:
+        """Delete Heatprint external statistics for a generator or the whole site."""
+        ids = self.statistic_ids_for(generator_id)
+        await async_clear_statistics(self.hass, ids)
+        return {"cleared": ids, "generator_id": generator_id}
 
     def generator(self, generator_id: str) -> GeneratorConfig:
         """Return the generator config or raise."""

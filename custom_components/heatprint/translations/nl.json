@@ -616,7 +616,7 @@
             },
             "data_description": {
               "pbl_top": "Standaard niet in de graaddagen gebruikt; tapwater en koken worden apart behandeld.",
-              "pbl_wind_sqrt_coef": "Plaatsvervanger uit de profielenmethodiek aardgas (1/0,35) totdat de PBL-waarde is geverifieerd."
+              "pbl_wind_sqrt_coef": "c_sqrt in T − c_sqrt · √W (PBL 2022 vgl. 17/20). Standaard 1.0 voor dagelijkse KEV-SJV."
             }
           },
           "fit": {
@@ -1022,6 +1022,20 @@
           "description": "Datum van de stand (stand om middernacht aan het begin van deze dag); standaard vandaag."
         }
       }
+    },
+    "clear_statistics": {
+      "name": "Statistieken wissen",
+      "description": "Verwijdert de Heatprint-statistieken van één opwekker of van de hele site. Gebruik dit na het verwijderen van een opwekker als je ook de geschiedenis wilt wissen.",
+      "fields": {
+        "entry_id": {
+          "name": "Site",
+          "description": "De Heatprint-site."
+        },
+        "generator_id": {
+          "name": "Opwekker-id",
+          "description": "Optioneel. Met een id worden alleen de ruimteverwarming- en tapwaterstatistieken van die opwekker gewist. Leeg wist alle Heatprint-statistieken van de site."
+        }
+      }
     }
   },
   "exceptions": {
@@ -1044,7 +1058,7 @@
       "message": "Geef begin en einde op, of een seizoen."
     },
     "ha_too_old": {
-      "message": "Heatprint heeft Home Assistant 2025.3 of nieuwer nodig (config subentries)."
+      "message": "Heatprint heeft Home Assistant 2026.9 of nieuwer nodig (config subentries)."
     }
   }
 }

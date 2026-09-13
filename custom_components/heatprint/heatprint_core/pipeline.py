@@ -26,8 +26,10 @@ from .models import (
     DailyEnergy,
     DailyRecord,
     DailyWeather,
+    DhwMode,
     Generator,
     GeneratorKind,
+    Role,
     SignatureFit,
     Site,
     default_co2_factor,
@@ -337,6 +339,12 @@ def _generator_energy(
         measured_dhw_kwh=measured_dhw,
         baseline_in_kwh=baseline_is_kwh,
     )
+    uses_baseline = generator.role is Role.BOTH and (
+        generator.dhw.mode is DhwMode.BASELINE
+        or (generator.dhw.mode is DhwMode.MEASURED and measured_dhw is None)
+    )
+    if uses_baseline and baseline is None:
+        flags.add(Flag.DHW_BASELINE_MISSING)
     return DailyEnergy(
         date=day,
         generator_id=generator.id,

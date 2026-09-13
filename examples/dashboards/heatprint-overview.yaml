@@ -1,10 +1,10 @@
 # Heatprint overview - example Lovelace view.
 #
 # Replace "home" with the slug of your site (the name you gave it in the config
-# flow, lower case, spaces as underscores) and "boiler" with a generator id.
-# The statistics-graph cards read the external long-term statistics that
-# Heatprint writes (heatprint:<site>_<metric>); the entity cards show the
-# sensors of the site device. The last card needs the custom apexcharts-card
+# flow, lower case, spaces as underscores). Entity ids follow the English
+# translated names (has_entity_name), e.g. heat_space_yesterday becomes
+# sensor.home_space_heating_yesterday. Statistic ids stay on the metric keys
+# (heatprint:<site>_<metric>). The last card needs the custom apexcharts-card
 # (HACS) and can be removed if it is not installed.
 
 title: Heatprint
@@ -24,7 +24,7 @@ cards:
         entities:
           - entity: sensor.home_effective_temperature
           - entity: sensor.home_degree_days_yesterday
-          - entity: sensor.home_heat_space_yesterday
+          - entity: sensor.home_space_heating_yesterday
           - entity: sensor.home_cop_yesterday
           - entity: sensor.home_data_quality
           - entity: binary_sensor.home_data_gap
@@ -34,12 +34,12 @@ cards:
         title: Season to date
         entities:
           - entity: sensor.home_degree_days_season
-          - entity: sensor.home_heat_space_season
-          - entity: sensor.home_heat_dhw_season
+          - entity: sensor.home_space_heating_season
+          - entity: sensor.home_hot_water_season
           - entity: sensor.home_heat_per_degree_day
           - entity: sensor.home_gas_per_degree_day
           - entity: sensor.home_heat_pump_share_season
-          - entity: sensor.home_dhw_baseline
+          - entity: sensor.home_hot_water_baseline
 
       - type: entities
         title: Energy signature and forecast
@@ -49,7 +49,7 @@ cards:
           - entity: sensor.home_fit_quality
           - entity: sensor.home_forecast_heat_season
           - entity: sensor.home_forecast_gas_season
-          - entity: sensor.home_forecast_electric_season
+          - entity: sensor.home_forecast_electricity_season
 
   - type: vertical-stack
     cards:
@@ -135,7 +135,7 @@ cards:
       markers:
         size: 4
     series:
-      - entity: sensor.home_heat_space_yesterday
+      - entity: sensor.home_space_heating_yesterday
         name: Heat vs effective temperature
         type: scatter
         statistics:

@@ -283,7 +283,7 @@ GJ_TO_KWH: Final = 277.78
 DEFAULT_PBL_TST: Final = {"winter": 17.01, "shoulder": 15.26, "transition": 15.10, "summer": 13.92}
 DEFAULT_PBL_RER: Final = {"winter": 1.00, "shoulder": 1.02, "transition": 0.79, "summer": 0.61}
 DEFAULT_PBL_TOP: Final = 1.30
-DEFAULT_PBL_WIND_SQRT_COEF: Final = 1 / 0.35
+DEFAULT_PBL_WIND_SQRT_COEF: Final = 1.0
 
 
 class KindDefaults(NamedTuple):
@@ -478,6 +478,7 @@ FLAG_HEAT_ESTIMATED: Final = "HEAT_ESTIMATED"
 FLAG_HOUSE_NOT_FITTED: Final = "HOUSE_NOT_FITTED"
 FLAG_OUTLIER: Final = "OUTLIER"
 FLAG_IMPORTED: Final = "IMPORTED"
+FLAG_DHW_BASELINE_MISSING: Final = "DHW_BASELINE_MISSING"
 FLAG_NAMES: Final[tuple[str, ...]] = (
     FLAG_WEATHER_MISSING,
     FLAG_WEATHER_PARTIAL,
@@ -490,6 +491,7 @@ FLAG_NAMES: Final[tuple[str, ...]] = (
     FLAG_HOUSE_NOT_FITTED,
     FLAG_OUTLIER,
     FLAG_IMPORTED,
+    FLAG_DHW_BASELINE_MISSING,
 )
 FLAG_BITS: Final[dict[str, int]] = {name: 1 << index for index, name in enumerate(FLAG_NAMES)}
 # Days carrying one of these flags are excluded from fits and k-values.
@@ -512,6 +514,7 @@ SERVICE_MEASURE_EFFECT: Final = "measure_effect"
 SERVICE_FORECAST: Final = "forecast"
 SERVICE_EXPORT_DAILY: Final = "export_daily"
 SERVICE_PUSH_READING: Final = "push_reading"
+SERVICE_CLEAR_STATISTICS: Final = "clear_statistics"
 
 ATTR_ENTRY_ID: Final = "entry_id"
 ATTR_GENERATOR_ID: Final = "generator_id"

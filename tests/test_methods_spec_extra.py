@@ -68,14 +68,26 @@ def test_mindergas_weights_every_month(month: int) -> None:
     assert weighted == pytest.approx(10.0 * MINDERGAS_WEIGHTS[month])
 
 
+def test_compute_day_pbl_sqrt_without_sun_matches_pdf_eq_20() -> None:
+    """PBL 2022 eq. 20 (practical, no sun): TAC = 0.65*(T-√W) + 0.35*(T-1-√W-1)."""
+    yesterday = DailyWeather(date(2026, 1, 9), t_mean=2.0, wind_mean=9.0, radiation=240.0)
+    today = DailyWeather(date(2026, 1, 10), t_mean=6.0, wind_mean=4.0, radiation=480.0)
+    config = MethodConfig(pbl=PblParams(wind_mode="sqrt", include_sun=False))
+    result = compute_day(today, yesterday, config)
+    tac = 0.65 * (6.0 - math.sqrt(4.0)) + 0.35 * (2.0 - math.sqrt(9.0))
+    assert result.tac_pbl == pytest.approx(tac)
+    assert result.dd["pbl"] == pytest.approx(1.00 * (17.01 - tac))
+    assert Flag.WEATHER_PARTIAL not in result.flags
+
+
 def test_compute_day_pbl_sqrt_wind_mode_with_sun_and_inertia() -> None:
-    """PBL preset with sqrt wind, the 1/480 sun term and the 0.65/0.35 weighting."""
+    """Generic T_eff family with sun inside each day (METHODS §3; not PDF eq. 17)."""
     yesterday = DailyWeather(date(2026, 1, 9), t_mean=2.0, wind_mean=9.0, radiation=240.0)
     today = DailyWeather(date(2026, 1, 10), t_mean=6.0, wind_mean=4.0, radiation=480.0)
     config = MethodConfig(pbl=PblParams(wind_mode="sqrt", include_sun=True))
     result = compute_day(today, yesterday, config)
-    t_eff_today = 6.0 - math.sqrt(4.0) / 0.35 + 480.0 / 480
-    t_eff_yesterday = 2.0 - math.sqrt(9.0) / 0.35 + 240.0 / 480
+    t_eff_today = 6.0 - math.sqrt(4.0) + 480.0 / 480
+    t_eff_yesterday = 2.0 - math.sqrt(9.0) + 240.0 / 480
     tac = 0.65 * t_eff_today + 0.35 * t_eff_yesterday
     assert result.tac_pbl == pytest.approx(tac)
     assert result.dd["pbl"] == pytest.approx(1.00 * (17.01 - tac))
@@ -86,7 +98,7 @@ def test_compute_day_pbl_sqrt_wind_mode_with_sun_and_inertia() -> None:
     # Sun requested but no radiation: fall back to the temperature/wind variant, flagged.
     no_sun = DailyWeather(date(2026, 1, 10), t_mean=6.0, wind_mean=4.0, radiation=None)
     partial = compute_day(no_sun, None, config)
-    assert partial.tac_pbl == pytest.approx(6.0 - math.sqrt(4.0) / 0.35)
+    assert partial.tac_pbl == pytest.approx(6.0 - math.sqrt(4.0))
     assert Flag.WEATHER_PARTIAL in partial.flags
 
 
@@ -141,7 +153,20 @@ def test_pipeline_dhw_split_with_measured_sensor() -> None:
     day3 = records[2].heat_by_generator["hp"]
     assert day3.heat_dhw_kwh == pytest.approx(1.0 * 28.0 / 8.0)
     assert day3.heat_space_kwh == pytest.approx(28.0 - 3.5)
+    assert Flag.DHW_BASELINE_MISSING not in records[2].flags
     assert records[0].heat_dhw_kwh == 6.0 and records[0].heat_space_kwh == 22.0
+
+    missing = build_daily_records(
+        site,
+        weather,
+        {"hp": electric},
+        thermal_by_generator={"hp": thermal},
+        dhw_by_generator={"hp": {}},
+        baselines={"hp": None},
+    )
+    assert Flag.DHW_BASELINE_MISSING in missing[0].flags
+    assert missing[0].heat_by_generator["hp"].heat_dhw_kwh == 0.0
+    assert missing[0].heat_by_generator["hp"].heat_space_kwh == 28.0
 
 
 def test_forecast_reports_space_and_dhw_separately() -> None:

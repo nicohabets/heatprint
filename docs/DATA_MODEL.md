@@ -294,13 +294,13 @@ classDiagram
 
 | Field | Default | Notes |
 |---|---|---|
-| `enabled` | `["classic","pbl","house"]` | `knmi14` optional; all methods are always calculated, `enabled` determines which sensors/statistics are created |
+| `enabled` | `["classic","pbl","house"]` | `knmi14` optional in the UI. All four methods are always calculated **and** stored (ADR 0004); `enabled` plus `primary` choose which method the main sensors and forecast use. Degree-day attributes and statistics still include every method. |
 | `classic.base_temp` | 18.0 | |
 | `classic.heating_limit` | 18.0 | |
 | `classic.weighted` | true | mindergas weighting |
 | `classic.t_ref` | `t_mean` | or preset |
 | `pbl.parameter_set` | `practical` | or `optimal` |
-| `pbl.wind_mode` | `linear` | or `sqrt` (see METHODS §3) |
+| `pbl.wind_mode` | `linear` | or `sqrt` (authentic daily KEV-SJV: `T - √W`, coefficient 1.0; see METHODS §3) |
 | `pbl.include_sun` | false | |
 | `pbl.include_top` | false | |
 | `house.fit_wind` | true | |
@@ -441,14 +441,20 @@ use the site TAC (house preset), per METHODS §12.4.
 
 ## 4. Sensor entities (per site)
 
+Entity ids follow the English translated names (`has_entity_name`). The keys
+below (`heat_space_yesterday`, `heat_dhw_season`, `dhw_baseline`,
+`forecast_electric_season`) become `space_heating_yesterday`,
+`hot_water_season`, `hot_water_baseline` and `forecast_electricity_season`.
+Statistic ids stay on the metric keys (`heatprint:<site>_heat_space`).
+
 | Entity | Unit | Class | Notes |
 |---|---|---|---|
 | `sensor.<site>_effective_temperature` | °C | temperature/measurement | yesterday's TAC (primary preset) |
 | `sensor.<site>_degree_days_yesterday` | K | measurement | primary method; attributes: all methods |
 | `sensor.<site>_degree_days_season` | K | total | primary method; attributes: all methods, season label |
-| `sensor.<site>_heat_space_yesterday` | kWh | energy/total | |
-| `sensor.<site>_heat_space_season` | kWh | energy/total | |
-| `sensor.<site>_heat_dhw_season` | kWh | energy/total | |
+| `sensor.<site>_space_heating_yesterday` | kWh | energy/total | translation key `heat_space_yesterday` |
+| `sensor.<site>_space_heating_season` | kWh | energy/total | translation key `heat_space_season` |
+| `sensor.<site>_hot_water_season` | kWh | energy/total | translation key `heat_dhw_season` |
 | `sensor.<site>_heat_per_degree_day` | kWh/K | measurement | season to date, primary method; attributes per method |
 | `sensor.<site>_gas_per_degree_day` | m³/K | measurement | mindergas-comparable (classic) |
 | `sensor.<site>_heat_pump_share_season` | % | measurement | hybrid |
@@ -458,8 +464,8 @@ use the site TAC (house preset), per METHODS §12.4.
 | `sensor.<site>_fit_quality` | - | measurement | R² of the latest fit; attributes: n, rmse, CI |
 | `sensor.<site>_forecast_heat_season` | kWh | energy | |
 | `sensor.<site>_forecast_gas_season` | m³ | gas | |
-| `sensor.<site>_forecast_electric_season` | kWh | energy | |
-| `sensor.<site>_dhw_baseline` | kWh/day | measurement | attributes per generator |
+| `sensor.<site>_forecast_electricity_season` | kWh | energy | translation key `forecast_electric_season` |
+| `sensor.<site>_hot_water_baseline` | kWh/day | measurement | translation key `dhw_baseline`; attributes per generator |
 | `sensor.<site>_data_quality` | % | measurement | share of usable days in the last 30 days; attributes: flags, `open_health_checks` (METHODS §14) |
 | `sensor.<site>_last_weather_update` | timestamp | | |
 | `binary_sensor.<site>_data_gap` | | problem | > 3 days without usable data |
@@ -468,11 +474,12 @@ Data-source health checks (METHODS §14) that fire open an HA repair (per genera
 source and failing check) rather than a dedicated entity; they close automatically once the
 check stops firing.
 
-Per generator: `sensor.<site>_<generator>_heat_space_season`, `..._heat_dhw_season`,
+Per generator: `sensor.<site>_<generator>_space_heating_season`, `..._hot_water_season`,
 `..._share_season`, and, only when `price_mode: dynamic`,
 `sensor.<site>_<generator>_avg_price_paid` (€/kWh, season-to-date weighted average, METHODS §13.2).
 
-Per room (only for rooms with `enabled: true`):
+Per room (only for rooms with `enabled: true`; a room's "heat" is always space heating only -
+DHW is never allocated to rooms, METHODS §12):
 
 | Entity | Unit | Class | Notes |
 |---|---|---|---|
@@ -510,6 +517,7 @@ Site-level additions for the rooms feature:
 | `heatprint.forecast` | `entry_id` | `Forecast` |
 | `heatprint.export_daily` | `entry_id`, `start`, `end`, `path` | CSV file |
 | `heatprint.push_reading` | `entry_id`, `generator_id`, `target: mindergas`, `date` | bridge to the mindergas.nl API (optional, token in options) |
+| `heatprint.clear_statistics` | `entry_id`, optional `generator_id` | delete Heatprint external statistics of one generator or the whole site |
 | `heatprint.fit_room_signature` | `entry_id`, `room_id`, `start`, `end` or `season` | `RoomSignatureFit` as response |
 
 ---

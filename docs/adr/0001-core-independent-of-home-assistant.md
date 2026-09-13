@@ -17,5 +17,11 @@ handles configuration, recorder I/O, storage, entities and services, and calls t
 ## Consequences
 
 - The core can be tested with pytest (synthetic house, reference case).
-- The core is published on PyPI (`heatprint-core`) and listed as `requirements` in the manifest.
-- Two version numbers to manage (core + integration); always released together.
+- For HACS / Home Assistant OS the core is **nested** at
+  `custom_components/heatprint/heatprint_core/` and shipped with the integration.
+  The integration puts that directory on `sys.path` so `from heatprint_core import ...`
+  keeps working. `manifest.json` does not list an unpublished PyPI requirement.
+- The core remains HA-free source; only the distribution layout is nested.
+- Publishing `heatprint-core` on PyPI is a later option (notebooks/CLI), not a
+  prerequisite for installing the integration.
+- One version number in `manifest.json` and `pyproject.toml` (released together).

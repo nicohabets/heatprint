@@ -29,7 +29,7 @@ def test_preset_table() -> None:
     assert pbl.c_lin == pytest.approx(1 / 1.5) and pbl.c_sqrt == 0 and pbl.c_sun == 0
     assert (pbl.w0, pbl.w1) == (0.65, 0.35)
     pbl_sqrt = preset("pbl", pbl_wind_mode="sqrt", include_sun=True)
-    assert pbl_sqrt.c_lin == 0 and pbl_sqrt.c_sqrt == pytest.approx(1 / 0.35)
+    assert pbl_sqrt.c_lin == 0 and pbl_sqrt.c_sqrt == pytest.approx(1.0)
     assert pbl_sqrt.c_sun == pytest.approx(1 / 480)
     house = preset("house")
     assert not house.uses_wind and (house.w0, house.w1) == (0.65, 0.35)
@@ -46,9 +46,10 @@ def test_knmi_effective_temperature() -> None:
 
 
 def test_pbl_sqrt_and_sun_terms() -> None:
+    """PBL 2022 eq. 17: T_eff = T - √W + Q/480."""
     weather = DailyWeather(DAY, t_mean=5.0, wind_mean=4.0, radiation=480.0)
     value = t_eff(weather, preset("pbl", pbl_wind_mode="sqrt", include_sun=True))
-    assert value == pytest.approx(5.0 - math.sqrt(4.0) / 0.35 + 1.0)
+    assert value == pytest.approx(5.0 - math.sqrt(4.0) + 1.0)
 
 
 def test_missing_wind_falls_back_and_is_partial() -> None:

@@ -8,6 +8,13 @@ statistics and exposes entities and services.
 from __future__ import annotations
 
 import logging
+import sys
+from pathlib import Path
+
+# HACS only copies this folder; heatprint_core is bundled here, not on PyPI.
+_INTEGRATION_DIR = str(Path(__file__).resolve().parent)
+if _INTEGRATION_DIR not in sys.path:
+    sys.path.insert(0, _INTEGRATION_DIR)
 
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
@@ -36,7 +43,7 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
 async def async_setup_entry(hass: HomeAssistant, entry: HeatprintConfigEntry) -> bool:
     """Set up a Heatprint site from a config entry."""
     if not hasattr(entry, "subentries"):
-        # Config subentries arrived in Home Assistant 2025.3 (see hacs.json).
+        # Config subentries need Home Assistant 2026.9+ (see hacs.json).
         raise ConfigEntryError(translation_domain=DOMAIN, translation_key="ha_too_old")
 
     coordinator = HeatprintCoordinator(hass, entry)

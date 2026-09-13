@@ -1,7 +1,9 @@
 """Heatprint core: weather-corrected heating analytics, pure Python (see docs/METHODS.md).
 
 The package has no runtime dependencies (ADR 0002) and no Home Assistant imports
-(ADR 0001). The main entry points are re-exported here.
+(ADR 0001). It is nested under ``custom_components/heatprint/`` so HACS can ship
+it; imports stay ``from heatprint_core import ...``. The main entry points are
+re-exported here.
 """
 
 from __future__ import annotations
@@ -64,7 +66,7 @@ from .weather import (
     remaining_season_dd,
 )
 
-__version__ = "0.1.0"
+__version__ = "0.1.2"
 
 __all__ = [
     "CarrierInput",

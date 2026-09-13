@@ -194,3 +194,16 @@ push_reading:
       example: "2025-01-15"
       selector:
         date:
+
+clear_statistics:
+  fields:
+    entry_id:
+      required: true
+      selector:
+        config_entry:
+          integration: heatprint
+    generator_id:
+      required: false
+      example: boiler
+      selector:
+        text:

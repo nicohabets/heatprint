@@ -61,13 +61,37 @@ TAC(d)   = w_0 * T_eff(d) + w_1 * T_eff(d-1)          (inertia weighting, w_0 + 
 | `pbl` | see note | see note | 1/480 (optional, off by default) | 0.65 / 0.35 | PBL 2022, KEV-SJV methodology: inertia 0.65/0.35, wind as the square root of the wind speed, sun as 1/480 of the daily radiation (only in the "optimal" model). |
 | `house` | fitted | 0 | fitted (optional) | 0.65 / 0.35 (or fitted) | House-specific fit, see §7. |
 
-**Note on the PBL wind term.** The PBL report includes wind "as the square root of the wind
-speed"; the exact coefficient could not be reliably taken from the PDF when this spec was written.
-The natural gas profile methodology (Informatiecode, appendix 3) uses an hourly term
-`sqrt(wind)/0.35`. Until this has been verified (issue "PBL wind coefficient"):
+**PBL wind term (verified against PBL 2022, eq. 17 and 20).** The daily KEV-SJV effective
+temperature is
 
-- `pbl_wind_mode = "linear"` (default): `c_lin = 1/1.5`, `c_sqrt = 0`
-- `pbl_wind_mode = "sqrt"`: `c_lin = 0`, `c_sqrt = PBL_WIND_SQRT_COEF` (configurable, placeholder 1/0.35 from the Informatiecode)
+```
+T_eff(d) = t_mean(d) - sqrt(wind_mean(d))  [+ radiation(d)/480 when include_sun]
+TAC(d)   = 0.65 · T_eff(d) + 0.35 · T_eff(d-1)
+```
+
+so `c_sqrt = 1.0` (not the hourly Informatiecode term `sqrt(wind)/0.35`, which belongs to
+the gas-profile methodology and is a different formula). Heatprint exposes both wind modes:
+
+- `pbl_wind_mode = "linear"` (default, KNMI-style): `c_lin = 1/1.5`, `c_sqrt = 0`
+- `pbl_wind_mode = "sqrt"` (authentic daily KEV-SJV): `c_lin = 0`, `c_sqrt = PBL_WIND_SQRT_COEF`
+  (default `1.0`, configurable)
+
+`include_sun` is **off by default** (the practical PBL model is temperature + wind only —
+PDF eq. 20). When enabled, `c_sun = 1/480` (PBL 2022, "1/480ste van de zoninstraling")
+and the generic `T_eff` family folds radiation into each day's `T_eff` *before* the
+0.65 / 0.35 inertia:
+
+```
+T_eff,d = T_d − f_wind(W_d) + Q_d / 480
+TAC     = 0.65 · T_eff,d + 0.35 · T_eff,d−1
+```
+
+PDF eq. 17 instead adds `Q/480` **outside** the inertia (today's radiation only).
+Heatprint keeps the generic family (sun inside `T_eff`) because that is how this
+document defines the four-method stack and because `include_sun` is off in the
+default practical model. Enabling sun therefore also weights yesterday's
+radiation — a documented deviation from eq. 17. With `include_sun` off and
+`wind_mode = sqrt`, TAC matches PDF eq. 20 exactly.
 
 The house-specific fit (§7) estimates the wind sensitivity itself and is therefore the recommended
 method for a single house; the PBL preset is a nationally calibrated reference.
@@ -163,7 +187,9 @@ Rules:
   (only reported if `E_el > 0.2 kWh`).
 - Heat pump with only `E_el`, and `air_to_air` (COP-estimated): `Q_total` gets the flag
   `HEAT_ESTIMATED`. Optionally (`cop_curve`): COP based on `t_mean`
-  (`COP = cop_curve_a + cop_curve_b * t_mean`, default a = 2.2 and b = 0.08).
+  (`COP = max(1.0, cop_curve_a + cop_curve_b * t_mean)`, default a = 2.2 and b = 0.08).
+  The floor of 1.0 keeps the estimate from dropping below a resistive heater on very
+  cold days. Without `t_mean` the curve falls back to the configured SCOP.
 - Hybrid = `gas_boiler` + `heat_pump` on the same site; nothing special in the conversion.
 
 ---
@@ -183,8 +209,10 @@ For each generator with `role = both`, `Q_total` is split into `Q_dhw` and `Q_sp
 The baseline `B` is expressed in **carrier units** (m³/day, kWh/day, GJ/day; thermally measured
 heat pumps: kWh_th/day) and is converted per day using the actual conversion of that day
 (`Q_total / carrier`), which for fixed efficiencies equals `B * conversion`. If there is no
-baseline (fewer than 30 summer days), all heat counts as space heating; v0.2 adds the flag
-`DHW_BASELINE_MISSING` for this.
+baseline (fewer than 30 summer or rolling days), all heat of that generator counts as space
+heating and the day is flagged `DHW_BASELINE_MISSING` (informational; allowed in fits).
+`measured` without a measurement on that day falls back to the same baseline (and the same
+flag when the baseline is missing).
 The baseline is calculated per generator and stored as `dhw_baseline_per_day` (sensor).
 v2: monthly profile for the baseline (cold-water inlet temperature varies; summer ≈ 0.85 × winter).
 
@@ -242,8 +270,10 @@ NAC = Σ_doy [ a + b * max(0, T_b - TAC_clim(doy)) + c * wind_clim(doy) ]
 ```
 
 Saving between fit 1 (before) and fit 2 (after): `S = (NAC_1 - NAC_2) / NAC_1`.
-Confidence interval: bootstrap (200 resamples of days, fixed seed) on both fits;
-report the 2.5% and 97.5% percentiles of `S`.
+Confidence interval: bootstrap (200 resamples of days, fixed seed 42) on both fits;
+each resample refits on a **0.5 K** balance-temperature grid (no outlier pass) and
+the 2.5% and 97.5% percentiles of `S` are reported. The coarser grid is a speed
+trade-off against the 0.1 K grid of the published fit.
 
 ### 8.3 Simple period comparison (mindergas-style)
 
@@ -252,9 +282,12 @@ k_i = Q_space(period_i) / Σ dd[method](period_i)
 Δ% = (k_2 - k_1) / k_1
 ```
 
-Requirements: both periods ≥ 30 days and Σ dd ≥ 100 (classic) or ≥ 50 (other methods). With too
-little data the core raises an `InsufficientDataError` (no partial `Comparison`).
-Available for every method so that the user can see how the choice of method affects the result.
+Requirements: both periods ≥ 30 days and Σ dd ≥ 100 (classic) or ≥ 50 (other methods).
+`min_dd` can be lowered (including to 0) but Σ dd must still be **> 0**: `k = Q / Σ dd`
+is undefined otherwise, and the core raises `InsufficientDataError` rather than returning
+NaN. With too little data the core raises an `InsufficientDataError` (no partial
+`Comparison`). Available for every method so that the user can see how the choice of
+method affects the result.
 
 ### 8.4 Measure effect
 
@@ -308,6 +341,7 @@ CSV import). Output: consumption per local day.
 | `HOUSE_NOT_FITTED` | no house fit | `house` = fallback |
 | `OUTLIER` | residual > 4 × rmse | excluded after refit |
 | `IMPORTED` | from CSV | informational |
+| `DHW_BASELINE_MISSING` | no DHW baseline (and no measurement that day) | all heat of that generator as space heating; allowed in fits |
 
 ---
 
@@ -320,6 +354,8 @@ CSV import). Output: consumption per local day.
   insulation step must lie within the bootstrap interval.
 - Reference case "Heerlen": real KNMI data from station 380 plus exported meter readings
   (mindergas) from four gas years; `classic` must reproduce mindergas.nl within 1%.
+  The live export is a v0.2 item (needs Nico's files). Pre-alpha tests reproduce the
+  mindergas *formula* on fixture weather within 1%.
 
 ---
 

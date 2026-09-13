@@ -1,8 +1,8 @@
 """Adapters between the Home Assistant shell and the pure-Python heatprint_core.
 
 Every call into heatprint_core lives in this module so the names and signatures
-of the core are reconciled in one place; the remaining uncertainties are marked
-``TODO(core-api)``. The rest of the integration works with the plain dataclasses
+of the core are reconciled in one place. The rest of the integration works with
+the plain dataclasses
 defined here (``WeatherDay``, ``DailyEnergyInput``, ``DayMetrics``, ...), with
 JSON-serialisable dicts (fits, forecasts, climatology) and with opaque core
 ``DailyRecord`` objects that are only passed back into core analyses.
@@ -14,10 +14,17 @@ whole integration.
 
 from __future__ import annotations
 
+import sys
 from collections.abc import Iterable, Mapping
 from dataclasses import asdict, dataclass, is_dataclass
 from datetime import date, datetime, timedelta, tzinfo
+from pathlib import Path
 from typing import TYPE_CHECKING, Any
+
+# HACS only copies this folder; heatprint_core is bundled here, not on PyPI.
+_INTEGRATION_DIR = str(Path(__file__).resolve().parent)
+if _INTEGRATION_DIR not in sys.path:
+    sys.path.insert(0, _INTEGRATION_DIR)
 
 from aiohttp import ClientError, ClientSession
 
@@ -903,8 +910,8 @@ def build_daily_records(
     """Run the core pipeline and return core DailyRecord objects for start..end."""
     fit = fit_from_dict(house_fit)
     outliers = [date.fromisoformat(str(day)) for day in (house_fit or {}).get("outliers", [])]
-    # TODO(core-api): per-day prices from price entities are not read from the recorder
-    # yet (prices=None), so cost_eur stays None in this version.
+    # Price entities are not read from the recorder yet (v1.0 / F18); cost_eur stays
+    # None here. CO2 still uses the configured per-generator factor.
     # The baselines are always passed (possibly empty): with None the core would
     # estimate them from this window alone, which for a 90-day winter chunk yields a
     # bogus "summer" baseline. Without a baseline all heat counts as space heating.

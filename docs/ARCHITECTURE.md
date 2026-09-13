@@ -52,7 +52,7 @@ flowchart LR
 
 ```mermaid
 flowchart TB
-    subgraph core["heatprint_core (pure Python, PyPI: heatprint-core)"]
+    subgraph core["heatprint_core (pure Python, bundled in the HACS integration)"]
         M["models<br/>Site, Generator, DailyWeather,<br/>DailyEnergy, DailyRecord, Fit, ..."]
         W["weather<br/>base · knmi · open_meteo · climatology"]
         E["methods<br/>effective_temperature · degree_days<br/>(classic, knmi14, pbl, house)"]
@@ -69,9 +69,9 @@ flowchart TB
         RS["recorder_source<br/>read statistics (daily sums, daily means)"]
         ST["statistics_writer<br/>external statistics heatprint:*"]
         SE["sensor / binary_sensor<br/>entity descriptions"]
-        SV["services<br/>import · recompute · fit · compare ·<br/>measure_effect · forecast · export · push"]
+        SV["services<br/>import · recompute · fit · compare ·<br/>measure_effect · forecast · export · push · clear"]
         SR["store<br/>JSON: climatology, fits, flags, baseline"]
-        DG["diagnostics · repairs"]
+        DG["diagnostics<br/>(repairs in v1.0)"]
     end
 
     CF --> CO
@@ -171,29 +171,38 @@ heatprint/
 │   ├── recorder_source.py  statistics_writer.py  store.py
 │   ├── sensor.py  binary_sensor.py  services.py  services.yaml
 │   ├── core_api.py  mindergas.py  diagnostics.py  manifest.json  strings.json
-│   └── translations/{en,nl}.json
-├── heatprint_core/                   # calculation core (PyPI: heatprint-core)
-│   ├── models.py  constants.py  flags.py  pipeline.py  readings.py  heat.py  dhw.py
-│   ├── weather/{base,knmi,open_meteo,climatology}.py
-│   ├── methods/{effective_temperature,degree_days,pbl_params}.py
-│   ├── analysis/{signature,normalize,compare,forecast}.py
-│   ├── rooms/{allocation,signature}.py
-│   └── importers/csv_readings.py
+│   ├── _bundle.py                # sys.path bootstrap for the nested core
+│   ├── brand/icon.png            # HACS brand icon
+│   ├── translations/{en,nl}.json
+│   └── heatprint_core/           # calculation core (bundled; HA-free)
+│       ├── models.py  constants.py  flags.py  pipeline.py  readings.py  heat.py  dhw.py
+│       ├── weather/{base,knmi,open_meteo,climatology}.py
+│       ├── methods/{effective_temperature,degree_days,pbl_params}.py
+│       ├── analysis/{signature,normalize,compare,forecast}.py
+│       ├── rooms/{allocation,signature}.py
+│       └── importers/csv_readings.py
 ├── tests/                            # pytest (core) + fixtures
 ├── examples/dashboards/              # apexcharts/statistics-graph YAML
 ├── docs/                             # this documentation + ADRs
 └── .github/workflows/                # tests, ruff, hassfest, HACS validate
 ```
 
-Vendoring: HA loads `heatprint_core` as `requirements` in `manifest.json`
-(`heatprint-core==x.y.z`, the same repo, published to PyPI with every release). During
-development: `pip install -e .` in the devcontainer.
+Packaging: HACS copies only `custom_components/heatprint/` onto Home Assistant OS.
+`heatprint_core` is nested in that folder so the config flow can import
+`from heatprint_core import ...` without a PyPI wheel. The integration adds its own
+directory to `sys.path` on load (`_bundle.py`, and the same insert in `__init__.py`
+and `core_api.py`). The core stays free of Home Assistant imports (ADR 0001).
+Development still uses `pip install -e .` (setuptools discovers the nested package).
+Publishing `heatprint-core` to PyPI remains a later option; it is not required to
+install the integration.
 
 ## 8. Quality and CI
 
 - `pytest` for the core (formulas, synthetic dwelling, Heerlen reference case).
-- `ruff` + `mypy` (strict for the core).
-- `hassfest` and `hacs/action` in GitHub Actions.
+- `ruff` in CI (`ruff check .`). `mypy` is in the `dev` extra for local checks of
+  the core; a strict mypy gate is scheduled with the HA shell tests in v0.2.
+- `hassfest` and `hacs/action` in GitHub Actions. Minimum Home Assistant is 2026.9.0
+  (`hacs.json`).
 - HA shell: `pytest-homeassistant-custom-component` for config flow and coordinator
   (snapshot tests of entities) from v0.2.
 

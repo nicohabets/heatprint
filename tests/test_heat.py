@@ -59,6 +59,9 @@ def test_heat_pump_cop_curve() -> None:
     assert Flag.HEAT_ESTIMATED in flags
     # Without a temperature the curve falls back to the SCOP.
     assert carrier_to_heat(heat_pump, 10.0)[0] == pytest.approx(35.0)
+    # Very cold outdoor temperature: COP is clamped at 1.0 (resistive floor).
+    heat, _electric, _flags = carrier_to_heat(heat_pump, 10.0, t_mean=-20.0)
+    assert heat == pytest.approx(10.0)
 
 
 def test_electric_heater_and_air_to_air() -> None:

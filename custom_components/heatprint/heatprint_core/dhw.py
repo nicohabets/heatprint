@@ -6,7 +6,9 @@ Per generator with ``role = both`` the total heat is split into ``Q_dhw`` and
 - ``measured``: ``Q_dhw`` from a separate sensor, ``Q_space = max(0, Q_total - Q_dhw)``.
 - ``baseline`` (default): ``B`` = mean daily consumption over the summer window of the
   last complete summer (at least ``min_days`` days); ``Q_dhw = min(Q_total, B * conv)``.
-  Without a complete summer: the lowest rolling 30-day mean of the series.
+  Without a complete summer: the lowest rolling 30-day mean of the series. Without a
+  baseline the pipeline flags ``DHW_BASELINE_MISSING`` and counts all heat as space
+  heating.
 - ``fixed``: a fixed amount per day in carrier units.
 - ``none``: everything is space heating.
 

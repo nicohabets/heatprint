@@ -7,8 +7,9 @@
 
 Saving between fit 1 (before) and fit 2 (after): ``S = (NAC_1 - NAC_2) / NAC_1``.
 The 95% interval comes from a bootstrap: resample the days of both periods with
-replacement, refit (coarser grid, no outlier pass) and take the 2.5% and 97.5%
-percentiles of ``S``.
+replacement, refit (coarser 0.5 K grid, no outlier pass) and take the 2.5% and
+97.5% percentiles of ``S``. The coarser grid is a speed/accuracy trade-off
+documented in METHODS section 8.2.
 """
 
 from __future__ import annotations
