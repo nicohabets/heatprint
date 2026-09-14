@@ -535,7 +535,7 @@ Site-level additions for the rooms feature:
 | `heatprint.forecast` | `entry_id` | `Forecast` |
 | `heatprint.export_daily` | `entry_id`, `start`, `end`, `path` | CSV file |
 | `heatprint.push_reading` | `entry_id`, `generator_id`, `target: mindergas`, `date` | bridge to the mindergas.nl API (optional, token in options) |
-| `heatprint.clear_statistics` | `entry_id`, optional `generator_id` | delete Heatprint external statistics of one generator or the whole site |
+| `heatprint.clear_statistics` | `entry_id`, optional `generator_id` | delete Heatprint external statistics of one generator or the whole site (site clear includes room `*_demand` / `*_t_mean`) |
 | `heatprint.fit_room_signature` | `entry_id`, `room_id`, `start`, `end` or `season` | `RoomSignatureFit` as response |
 | `heatprint.create_dashboard` | `entry_id` | create or recreate the stock Heatprint overview **and** Rooms Lovelace dashboards in the sidebar |
 

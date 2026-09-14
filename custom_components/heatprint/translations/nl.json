@@ -3,7 +3,7 @@
     "step": {
       "user": {
         "title": "Dit Home Assistant-thuis gebruiken",
-        "description": "Heatprint hergebruikt het Home Assistant-thuis en de bestaande zones — je hoeft die niet opnieuw aan te maken. Site {name} op ({latitude}, {longitude}), tijdzone {timezone}, land {country}. Weer: {weather}. Warmteopwekkers die HA al kent: {generators}. Verwarmde kamers uit HA-zones: {rooms}. Overgeslagen (geen verwarmingscircuit of geen climate/vraag): {skipped}. Bevestig om de site aan te maken en die kamers te synchroniseren. Opnieuw configureren is de uitweg voor een tweede woning of een ander weerstation; voeg later zo nodig opwekkers en kamers toe of wijzig ze."
+        "description": "Heatprint hergebruikt het Home Assistant-thuis en de bestaande zones — je hoeft die niet opnieuw aan te maken. Site {name} op ({latitude}, {longitude}), tijdzone {timezone}, land {country}. Weer: {weather}. Warmteopwekkers die HA al kent: {generators}. Verwarmde kamers uit HA-zones: {rooms}. Overgeslagen (geen verwarmingscircuit of geen climate/vraag): {skipped}. Een mislukte weercheck (hieronder als fout) blokkeert de setup niet; Heatprint probeert het later opnieuw en opent een reparatie. Bevestig om de site aan te maken en die kamers te synchroniseren. Opnieuw configureren is de uitweg voor een tweede woning of een ander weerstation; voeg later zo nodig opwekkers en kamers toe of wijzig ze."
       },
       "weather_nl": {
         "title": "Weerbron (Nederland)",
@@ -43,174 +43,6 @@
           "radiation": "Optioneel. Zonwinst verlaagt de warmtevraag; gebruikt door het optimale PBL-model en de huisfit."
         }
       },
-      "situation": {
-        "title": "Verwarmingssituatie",
-        "description": "Deze keuze vult alleen de volgende stap voor. Gevonden gasmeters: {gas_candidates}. Mogelijke warmtepompmeters: {heat_pump_candidates}.",
-        "data": {
-          "situation": "Hoe wordt de woning verwarmd?"
-        },
-        "data_description": {
-          "situation": "Hybride betekent een cv-ketel plus een warmtepomp op dezelfde site. Kies anders om met een lege lijst te beginnen."
-        }
-      },
-      "generator": {
-        "title": "Warmteopwekker {number}",
-        "description": "Elke opwekker zet een energiedrager (gas, stroom, warmtenet) om in warmte. Heatprint houdt ruimteverwarming als één lijn, ook als er een warmtepomp naast de ketel komt.",
-        "data": {
-          "name": "Naam",
-          "kind": "Soort",
-          "role": "Rol"
-        },
-        "data_description": {
-          "name": "Bijvoorbeeld CV-ketel of Warmtepomp. De id die hiervan wordt afgeleid wordt gebruikt in statistieken en entiteiten.",
-          "kind": "Bepaalt welke sensoren en conversie hierna worden gevraagd.",
-          "role": "Alleen ruimteverwarming, alleen tapwater, of beide. Hybride: ketel beide, warmtepomp ruimteverwarming (of beide als die ook tapwater maakt)."
-        }
-      },
-      "generator_details": {
-        "title": "Sensoren en conversie van {name}",
-        "description": "Kies cumulatieve tellers (state class total of total_increasing). Het dagverbruik wordt afgeleid uit hun langetermijnstatistieken; een sensor later hernoemen of vervangen breekt de historie dus niet.",
-        "data": {
-          "energy_entity": "Energiemeter",
-          "thermal_entity": "Thermische energiemeter (kWh warmte)",
-          "electric_entity": "Elektrische energiemeter (kWh)",
-          "dhw_entity": "Tapwater-energiemeter",
-          "dhw_electric_entity": "Tapwater-stroommeter"
-        },
-        "data_description": {
-          "energy_entity": "Gas in m³, stroom in kWh of warmtenet in GJ/kWh. Moet een cumulatieve teller zijn.",
-          "thermal_entity": "Geleverde warmte zoals de warmtepomp die rapporteert. Met deze teller wordt de warmte gemeten in plaats van geschat.",
-          "electric_entity": "Stroomverbruik van de warmtepomp. Nodig voor de COP en voor de schatting als er geen thermische teller is.",
-          "dhw_entity": "Aparte teller voor tapwaterwarmte; maakt de gemeten tapwatersplitsing mogelijk.",
-          "dhw_electric_entity": "Stroom voor tapwater, als de warmtepomp dat apart rapporteert."
-        },
-        "sections": {
-          "conversion": {
-            "name": "Omrekening naar warmte",
-            "description": "Hoe de drager warmte wordt. Schattingen worden in de resultaten als geschat gelabeld.",
-            "data": {
-              "heating_value": "Verbrandingswaarde",
-              "heating_value_custom": "Eigen verbrandingswaarde",
-              "efficiency": "Rendement",
-              "conversion_mode": "Omrekenmethode",
-              "scop": "Seizoens-COP (SCOP)",
-              "cop": "COP",
-              "factor": "Factor (kWh warmte per eenheid)"
-            },
-            "data_description": {
-              "heating_value": "Nederlandse leveranciers factureren op bovenwaarde (Hs, 8,792 kWh/m³). Onderwaarde (Hi, 7,92) is alleen voor wie netto wil rekenen.",
-              "heating_value_custom": "Alleen gebruikt als verbrandingswaarde op eigen staat (kWh per m³).",
-              "efficiency": "Aandeel van de dragerenergie dat als warmte overblijft. Een HR-ketel zit rond 0,95 op bovenwaarde; warmtenet 1,0.",
-              "conversion_mode": "Automatisch gebruikt de thermische teller als die er is, anders stroom maal SCOP. Zonder thermische teller is de warmte een schatting; Heatprint labelt die als geschat.",
-              "scop": "Seizoensprestatiefactor om warmte uit stroom te schatten als er geen thermische teller is. 3,5 is een redelijk begin voor een moderne lucht-waterwarmtepomp.",
-              "cop": "Gemiddelde prestatiecoëfficiënt van de lucht-luchtunit tijdens verwarmen.",
-              "factor": "kWh warmte per eenheid van de meter."
-            }
-          },
-          "dhw": {
-            "name": "Tapwater en koken",
-            "description": "Tapwater en koken hangen niet van het weer af. Blijven ze in de verwarmingslijn zitten, dan lijkt de woning minder gevoelig voor kou dan ze is en verschuift de balanstemperatuur. Afsplitsen houdt de verwarmingslijn eerlijk.",
-            "data": {
-              "dhw_mode": "Splitsmethode",
-              "dhw_fixed_per_day": "Vast bedrag per dag"
-            },
-            "data_description": {
-              "dhw_mode": "Basislijn: het gemiddelde dagverbruik in het zomervenster geldt als tapwater en koken. Gemeten: een aparte tapwaterteller. Vast: een waarde die je kent, bijvoorbeeld een maandverbruik gedeeld door 30. Geen: alles telt als ruimteverwarming.",
-              "dhw_fixed_per_day": "In de eenheid van de meter per dag (m³, kWh). Alleen gebruikt bij de vaste methode."
-            }
-          },
-          "pricing": {
-            "name": "Prijs en CO2 (optioneel)",
-            "description": "Optionele kosten- en emissiecijfers per dag.",
-            "data": {
-              "price_entity": "Prijssensor",
-              "co2_factor": "CO2-factor"
-            },
-            "data_description": {
-              "price_entity": "Sensor met de prijs per eenheid van de meter (EUR per m³ of per kWh).",
-              "co2_factor": "kg CO2 per eenheid van de meter. Standaard: gas 1,78 kg/m³, stroom 0,30 kg/kWh."
-            }
-          }
-        }
-      },
-      "generator_more": {
-        "title": "Nog een opwekker?",
-        "description": "Tot nu toe ingesteld: {generators}.",
-        "menu_options": {
-          "generator": "Nog een opwekker toevoegen",
-          "dhw": "Verder"
-        }
-      },
-      "dhw": {
-        "title": "Tapwater en koken",
-        "description": "Per opwekker: {summary}. Het zomervenster wordt gebruikt voor de basislijn: het gemiddelde dagverbruik in dit venster geldt het hele jaar als het weeronafhankelijke deel (tapwater, koken).",
-        "data": {
-          "dhw_override": "Splitsmethode voor alle opwekkers overschrijven",
-          "summer_start": "Begin zomervenster (MM-DD)",
-          "summer_end": "Einde zomervenster (MM-DD)"
-        },
-        "data_description": {
-          "dhw_override": "Houd de instellingen per opwekker, of pas één methode toe op elke opwekker met rol beide.",
-          "summer_start": "Kies een venster waarin helemaal niet wordt gestookt, normaal 06-01.",
-          "summer_end": "Normaal 08-31. De laatste volledige zomer wordt gebruikt; zonder zomer wordt het laagste voortschrijdende 30-daagse gemiddelde genomen."
-        }
-      },
-      "methods": {
-        "title": "Methodes en seizoen",
-        "description": "Alle methodes worden altijd berekend en opgeslagen; ingeschakeld bepaalt welke sensoren krijgen, primair stuurt de hoofdsensoren en de prognose. De huisfit wordt primair zodra er minstens 30 bruikbare dagen zijn; tot die tijd wordt PBL gebruikt.",
-        "data": {
-          "season_start": "Begin seizoen",
-          "enabled": "Methodes met sensoren",
-          "primary": "Primaire methode",
-          "classic_weighted": "Klassiek: maandweging (mindergas-stijl)"
-        },
-        "data_description": {
-          "season_start": "1 oktober is het gasjaar dat KNMI en de meeste Nederlandse tools gebruiken; 1 januari past bij een kalenderjaar; 1 juli is handig op het zuidelijk halfrond.",
-          "enabled": "Klassiek is vergelijkbaar met mindergas en de Degree-days-integratie, KNMI 14 °C met de landelijke gasjaarstatistiek, PBL is de herziene landelijke weerscorrectie, huis is gefit op je eigen woning.",
-          "primary": "Gebruikt voor de hoofdsensoren, de k-waarde en de prognose. Moet een van de ingeschakelde methodes zijn.",
-          "classic_weighted": "Vermenigvuldigt graaddagen met de maandfactoren van mindergas (nov-feb 1,1; mrt en okt 1,0; apr-sep 0,8). Zet uit voor ongewogen graaddagen."
-        },
-        "sections": {
-          "advanced": {
-            "name": "Geavanceerd",
-            "description": "Parameters van de afzonderlijke methodes.",
-            "data": {
-              "classic_base_temp": "Klassiek: basistemperatuur",
-              "classic_heating_limit": "Klassiek: stookgrens",
-              "pbl_parameter_set": "PBL-parameterset",
-              "pbl_wind_mode": "PBL-windterm",
-              "pbl_include_sun": "PBL: zonnestraling meenemen",
-              "house_fit_wind": "Huisfit: windgevoeligheid fitten"
-            },
-            "data_description": {
-              "classic_base_temp": "18 °C is een afspraak uit de jaren zeventig, geen natuurconstante. Een goed geïsoleerde woning begint pas ver daaronder te stoken; de huisfit vindt je eigen balanstemperatuur.",
-              "classic_heating_limit": "Dagen met een etmaaltemperatuur boven deze grens tellen nul graaddagen. mindergas gebruikt 18 °C, veel gebruikers kiezen 15,5 °C.",
-              "pbl_parameter_set": "Praktisch: temperatuur en wind, De Bilt (PBL 2022 tabel 3.4). Optimaal: zes stations met zonnestraling (tabel 3.3).",
-              "pbl_wind_mode": "Lineair gebruikt de KNMI-windterm (wind gedeeld door 1,5). Wortel volgt de PBL-beschrijving; de coëfficiënt is instelbaar bij geavanceerde opties.",
-              "pbl_include_sun": "Alleen zinvol als er stralingsgegevens zijn (KNMI, Open-Meteo of een stralingssensor).",
-              "house_fit_wind": "Schat de windgevoeligheid van je woning uit de data in plaats van een landelijke waarde."
-            }
-          }
-        }
-      },
-      "history": {
-        "title": "Historie",
-        "description": "Weerhistorie wordt op de achtergrond opgehaald. Meterstanden van vóór je Home Assistant-historie importeer je daarna via Configureren → Meterstanden importeren (plak een CSV of kies een bestand; een mindergas.nl-export vraagt niets extra's).",
-        "data": {
-          "backfill_years": "Jaren historie om terug te halen",
-          "climatology_years": "Referentiejaren voor de klimatologie",
-          "import_now": "Herinner me aan het importeren van oude meterstanden"
-        },
-        "data_description": {
-          "backfill_years": "Hoe ver terug weer en dagrecords worden opgebouwd. Energiedata is alleen beschikbaar zover je recorderstatistieken of imports reiken.",
-          "climatology_years": "Jaren weer voor het normale seizoen (genormaliseerd verbruik en prognose). 20 is de gebruikelijke klimaatreferentie; 30 is het WMO-normaal.",
-          "import_now": "Toont na de installatie een melding met instructies."
-        }
-      },
-      "summary": {
-        "title": "Samenvatting",
-        "description": "Site: {site}. Weer: {weather}. Opwekkers: {generators}. Methodes: {methods}. Begin seizoen: {season}. Backfill: {backfill} jaar. Bevestig om de site aan te maken; de backfill en de eerste berekening starten op de achtergrond."
-      },
       "reconfigure": {
         "title": "Locatie en weerbron",
         "description": "De eerste setup gebruikte deze Home Assistant-installatie. Pas hier locatie, tijdzone of land aan als deze site niet het HA-thuis is; de weerbron volgt in de volgende stap.",
@@ -231,7 +63,6 @@
       }
     },
     "error": {
-      "name_exists": "Er bestaat al een site met deze naam.",
       "invalid_name": "De naam moet minstens één letter of cijfer bevatten.",
       "invalid_timezone": "Onbekende tijdzone.",
       "cannot_connect": "De weerbron is niet bereikbaar.",
@@ -801,15 +632,6 @@
         "none": "Geen"
       }
     },
-    "situation": {
-      "options": {
-        "gas": "CV-ketel op gas",
-        "hybrid": "Hybride (cv-ketel en warmtepomp)",
-        "all_electric": "All-electric (warmtepomp)",
-        "district_heat": "Warmtenet",
-        "custom": "Anders"
-      }
-    },
     "generator_kind": {
       "options": {
         "gas_boiler": "CV-ketel op gas",
@@ -1256,7 +1078,7 @@
     },
     "clear_statistics": {
       "name": "Statistieken wissen",
-      "description": "Verwijdert de Heatprint-statistieken van één opwekker of van de hele site. Gebruik dit na het verwijderen van een opwekker als je ook de geschiedenis wilt wissen.",
+      "description": "Verwijdert Heatprint-statistieken van één opwekker of van de hele site (inclusief kamer-vraag en kamertemperatuur). Gebruik dit na het verwijderen van een opwekker als je ook de historie wilt wissen.",
       "fields": {
         "entry_id": {
           "name": "Site",
@@ -1264,7 +1086,7 @@
         },
         "generator_id": {
           "name": "Opwekker-id",
-          "description": "Optioneel. Met een id worden alleen de ruimteverwarming- en tapwaterstatistieken van die opwekker gewist. Leeg wist alle Heatprint-statistieken van de site."
+          "description": "Optioneel. Indien gezet worden alleen de ruimteverwarming- en tapwaterstatistieken van deze opwekker verwijderd. Leeg: elke Heatprint-statistiek van de site, inclusief kamer-vraag en kamertemperatuur."
         }
       }
     }
@@ -1290,6 +1112,12 @@
     },
     "ha_too_old": {
       "message": "Heatprint heeft Home Assistant 2026.9 of nieuwer nodig (config subentries)."
+    }
+  },
+  "issues": {
+    "weather_check_failed": {
+      "title": "Weerbron nog niet bereikbaar",
+      "description": "De weercheck bij de eerste setup van {site} is mislukt ({error}) via {weather}. Heatprint is wel aangemaakt en blijft het opnieuw proberen. Gebruik Opnieuw configureren voor een ander station of een andere bron als dit aanhoudt."
     }
   }
 }

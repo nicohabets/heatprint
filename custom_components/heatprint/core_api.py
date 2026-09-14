@@ -1231,6 +1231,22 @@ def merge_room_metrics(
     return metrics
 
 
+def apply_room_not_fitted(
+    room_records: Iterable[Any],
+    site_records: Iterable[Any],
+    *,
+    min_days: int = DEFAULT_MIN_FIT_DAYS,
+    skip_room_ids: Iterable[str] = (),
+) -> set[str]:
+    """Add ROOM_NOT_FITTED on rooms with fewer than ``min_days`` usable fit days."""
+    return core_room_signature.apply_room_not_fitted(
+        room_records,
+        site_records,
+        min_days=min_days,
+        skip_room_ids=skip_room_ids,
+    )
+
+
 def fit_room_signature(
     room: Any,
     room_records: Iterable[Any],

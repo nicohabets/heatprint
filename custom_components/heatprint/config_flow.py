@@ -4,9 +4,7 @@ First-run is a single confirm of the Home Assistant home (location, weather,
 meters and heated areas are taken from HA). Generators and rooms become
 subentries. The options flow manages methods, DHW, history, CSV import,
 pricing, mindergas, rooms sync and advanced parameters. Reconfigure changes
-location and weather source. A leftover multi-step wizard (situation →
-generators → DHW → methods → history → summary) still exists in this module
-but is not reached from ``async_step_user``.
+location and weather source.
 """
 
 from __future__ import annotations
@@ -22,7 +20,6 @@ from typing import Any
 
 import voluptuous as vol
 from homeassistant.config_entries import (
-    SOURCE_RECONFIGURE,
     ConfigEntry,
     ConfigFlow,
     ConfigFlowResult,
@@ -102,7 +99,6 @@ from .const import (
     CONF_HEATING_VALUE,
     CONF_HEATING_VALUE_CUSTOM,
     CONF_HOUSE_FIT_WIND,
-    CONF_IMPORT_NOW,
     CONF_KIND,
     CONF_LATITUDE,
     CONF_LOCATION,
@@ -150,7 +146,6 @@ from .const import (
     CONF_SCOP,
     CONF_SEASON_START,
     CONF_SITE_ID,
-    CONF_SITUATION,
     CONF_STATION_ID,
     CONF_SUMMER_END,
     CONF_SUMMER_START,
@@ -160,6 +155,7 @@ from .const import (
     CONF_UNIT,
     CONF_VOLUME_M3,
     CONF_WEATHER,
+    CONF_WEATHER_CHECK_ERROR,
     CONF_WIND_ENTITY,
     CONVERSION_AUTO,
     DEFAULT_BACKFILL_YEARS,
@@ -248,8 +244,6 @@ from .const import (
     SECTION_FIT,
     SECTION_PBL,
     SECTION_PRICING,
-    SITUATION_DRAFTS,
-    SITUATIONS,
     SUBENTRY_TYPE_GENERATOR,
     SUBENTRY_TYPE_MEASURE,
     SUBENTRY_TYPE_ROOM,
@@ -265,6 +259,7 @@ from .core_api import (
     weather_signature_from_data,
 )
 from .first_run import default_entry_options, default_weather_config
+from .issues import async_raise_weather_check_failed
 from .room_discovery import discover_rooms_from_hass
 from .room_sync import discovered_to_subentry_payloads, sync_rooms_from_hass
 from .site_defaults import site_defaults_from_hass
@@ -700,7 +695,7 @@ def normalize_generator(
 
 
 def methods_schema(defaults: Mapping[str, Any]) -> vol.Schema:
-    """Schema for CONFIG_FLOW step 6 (also used by the options flow)."""
+    """Schema for the options-flow methods section."""
     advanced = {
         vol.Required(
             CONF_CLASSIC_BASE_TEMP,
@@ -745,7 +740,7 @@ def methods_schema(defaults: Mapping[str, Any]) -> vol.Schema:
 
 
 def dhw_schema(defaults: Mapping[str, Any]) -> vol.Schema:
-    """Schema for CONFIG_FLOW step 5 (site-level DHW defaults)."""
+    """Schema for site-level DHW defaults (options flow)."""
     return vol.Schema(
         {
             vol.Required(
@@ -761,22 +756,21 @@ def dhw_schema(defaults: Mapping[str, Any]) -> vol.Schema:
     )
 
 
-def history_schema(defaults: Mapping[str, Any], *, options: bool) -> vol.Schema:
-    """Schema for CONFIG_FLOW step 7; the options variant adds "recompute from"."""
-    fields: dict[Any, Any] = {
-        vol.Required(
-            CONF_BACKFILL_YEARS, default=defaults.get(CONF_BACKFILL_YEARS, DEFAULT_BACKFILL_YEARS)
-        ): _number(0, 10, 1),
-        vol.Required(
-            CONF_CLIMATOLOGY_YEARS,
-            default=defaults.get(CONF_CLIMATOLOGY_YEARS, DEFAULT_CLIMATOLOGY_YEARS),
-        ): _number(10, 30, 1),
-    }
-    if options:
-        fields[vol.Optional(CONF_RECOMPUTE_FROM)] = DateSelector()
-    else:
-        fields[vol.Required(CONF_IMPORT_NOW, default=False)] = BooleanSelector()
-    return vol.Schema(fields)
+def history_schema(defaults: Mapping[str, Any]) -> vol.Schema:
+    """Schema for the options-flow history section (backfill + optional recompute)."""
+    return vol.Schema(
+        {
+            vol.Required(
+                CONF_BACKFILL_YEARS,
+                default=defaults.get(CONF_BACKFILL_YEARS, DEFAULT_BACKFILL_YEARS),
+            ): _number(0, 10, 1),
+            vol.Required(
+                CONF_CLIMATOLOGY_YEARS,
+                default=defaults.get(CONF_CLIMATOLOGY_YEARS, DEFAULT_CLIMATOLOGY_YEARS),
+            ): _number(10, 30, 1),
+            vol.Optional(CONF_RECOMPUTE_FROM): DateSelector(),
+        }
+    )
 
 
 def _validate_month_day(value: str) -> bool:
@@ -806,11 +800,9 @@ class HeatprintConfigFlow(ConfigFlow, domain=DOMAIN):
     def __init__(self) -> None:
         """Initialise flow state."""
         self._site: dict[str, Any] = {}
-        self._options: dict[str, Any] = {}
-        self._generators: list[dict[str, Any]] = []
-        self._drafts: list[tuple[str, str]] = []
-        self._current: dict[str, Any] = {}
         self._reconfigure_confirmed = False
+        self._weather_error: str | None = None
+        self._weather_checked = False
 
     @staticmethod
     @callback
@@ -878,6 +870,17 @@ class HeatprintConfigFlow(ConfigFlow, domain=DOMAIN):
             return "Open-Meteo"
         return str(provider)
 
+    async def _async_first_run_weather_error(
+        self, weather: Mapping[str, Any], latitude: float, longitude: float
+    ) -> str | None:
+        """Run the first-run weather check once; failure does not block setup."""
+        if not self._weather_checked:
+            self._weather_error = await _async_validate_weather(
+                self.hass, weather, latitude, longitude
+            )
+            self._weather_checked = True
+        return self._weather_error
+
     async def async_step_user(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
         """Single confirm: reuse HA home, weather, meters and heated areas."""
         defaults = site_defaults_from_hass(self.hass)
@@ -885,6 +888,9 @@ class HeatprintConfigFlow(ConfigFlow, domain=DOMAIN):
         weather = self._auto_weather()
         discovery = discover_rooms_from_hass(self.hass)
         generators = self._auto_generators()
+        weather_error = await self._async_first_run_weather_error(
+            weather, defaults.latitude, defaults.longitude
+        )
         if user_input is not None:
             if any(
                 entry.data.get(CONF_SITE_ID) == site_id or entry.title == defaults.name
@@ -893,11 +899,6 @@ class HeatprintConfigFlow(ConfigFlow, domain=DOMAIN):
                 return self.async_abort(reason="already_configured")
             await self.async_set_unique_id(site_id)
             self._abort_if_unique_id_configured()
-            error = await _async_validate_weather(
-                self.hass, weather, defaults.latitude, defaults.longitude
-            )
-            if error:
-                _LOGGER.warning("Weather check at first-run failed (%s); continuing", error)
             site = {
                 CONF_SITE_ID: site_id,
                 CONF_NAME: defaults.name,
@@ -907,6 +908,15 @@ class HeatprintConfigFlow(ConfigFlow, domain=DOMAIN):
                 CONF_COUNTRY: defaults.country,
                 CONF_WEATHER: weather,
             }
+            if weather_error:
+                site[CONF_WEATHER_CHECK_ERROR] = weather_error
+                async_raise_weather_check_failed(
+                    self.hass,
+                    site_id=site_id,
+                    site_name=defaults.name,
+                    error=weather_error,
+                    weather_label=self._weather_label(weather),
+                )
             subentries = [
                 ConfigSubentryData(
                     data=generator,
@@ -938,9 +948,11 @@ class HeatprintConfigFlow(ConfigFlow, domain=DOMAIN):
             )
             or "—"
         )
+        errors = {"base": weather_error} if weather_error else {}
         return self.async_show_form(
             step_id="user",
             data_schema=vol.Schema({}),
+            errors=errors,
             description_placeholders={
                 "name": defaults.name,
                 "latitude": f"{defaults.latitude:.4f}",
@@ -964,10 +976,8 @@ class HeatprintConfigFlow(ConfigFlow, domain=DOMAIN):
         return await self.async_step_weather_intl()
 
     async def _async_after_weather(self) -> ConfigFlowResult:
-        """Continue after a validated weather source."""
-        if self.source == SOURCE_RECONFIGURE:
-            return await self._async_finish_reconfigure()
-        return await self.async_step_situation()
+        """Continue after a validated weather source (Reconfigure only)."""
+        return await self._async_finish_reconfigure()
 
     async def async_step_weather_nl(
         self, user_input: dict[str, Any] | None = None
@@ -1093,218 +1103,6 @@ class HeatprintConfigFlow(ConfigFlow, domain=DOMAIN):
             }
         )
         return self.async_show_form(step_id="weather_sensors", data_schema=schema, errors=errors)
-
-    # --- step 3: situation -------------------------------------------------------------
-
-    async def async_step_situation(
-        self, user_input: dict[str, Any] | None = None
-    ) -> ConfigFlowResult:
-        """Step 3: heating situation; prefills the generator drafts."""
-        if user_input is not None:
-            situation = user_input[CONF_SITUATION]
-            self._site[CONF_SITUATION] = situation
-            self._drafts = list(SITUATION_DRAFTS[situation])
-            return await self.async_step_generator()
-        gas, heat_pump = _detect_candidates(self.hass)
-        schema = vol.Schema(
-            {vol.Required(CONF_SITUATION, default="gas"): _select(SITUATIONS, "situation")}
-        )
-        return self.async_show_form(
-            step_id="situation",
-            data_schema=schema,
-            description_placeholders={
-                "gas_candidates": ", ".join(gas) or "-",
-                "heat_pump_candidates": ", ".join(heat_pump) or "-",
-            },
-        )
-
-    # --- step 4: generators (repeating) -----------------------------------------------
-
-    async def async_step_generator(
-        self, user_input: dict[str, Any] | None = None
-    ) -> ConfigFlowResult:
-        """Step 4.1: name, kind and role of the next generator."""
-        if user_input is not None:
-            self._current = dict(user_input)
-            return await self.async_step_generator_details()
-        if self._drafts:
-            kind, role = self._drafts[0]
-        else:
-            kind, role = KIND_GAS_BOILER, ROLE_BOTH
-        taken = {generator[CONF_NAME] for generator in self._generators}
-        name = KIND_DEFAULTS[kind].name
-        if name in taken:
-            name = f"{name} {len(self._generators) + 1}"
-        defaults = {CONF_NAME: name, CONF_KIND: kind, CONF_ROLE: role}
-        return self.async_show_form(
-            step_id="generator",
-            data_schema=generator_base_schema(defaults),
-            description_placeholders={"number": str(len(self._generators) + 1)},
-        )
-
-    async def async_step_generator_details(
-        self, user_input: dict[str, Any] | None = None
-    ) -> ConfigFlowResult:
-        """Step 4.2-4.5: sensors, conversion, DHW and pricing of the generator."""
-        errors: dict[str, str] = {}
-        kind = self._current[CONF_KIND]
-        role = self._current[CONF_ROLE]
-        defaults: Mapping[str, Any] = self._current
-        if user_input is not None:
-            flat = flatten_sections(user_input)
-            defaults = {**self._current, **flat}
-            errors = validate_generator_details(self.hass, kind, role, flat)
-            if not errors:
-                existing = {generator[CONF_GENERATOR_ID] for generator in self._generators}
-                self._generators.append(
-                    normalize_generator(self.hass, self._current, flat, existing)
-                )
-                if self._drafts:
-                    self._drafts.pop(0)
-                if self._drafts:
-                    return await self.async_step_generator()
-                return await self.async_step_generator_more()
-        return self.async_show_form(
-            step_id="generator_details",
-            data_schema=generator_details_schema(kind, role, defaults),
-            errors=errors,
-            description_placeholders={"name": self._current[CONF_NAME]},
-        )
-
-    async def async_step_generator_more(
-        self, user_input: dict[str, Any] | None = None
-    ) -> ConfigFlowResult:
-        """Ask whether another generator should be added."""
-        return self.async_show_menu(
-            step_id="generator_more",
-            menu_options=["generator", "dhw"],
-            description_placeholders={
-                "generators": ", ".join(generator[CONF_NAME] for generator in self._generators)
-                or "-"
-            },
-        )
-
-    # --- step 5: DHW ---------------------------------------------------------------------
-
-    def _dhw_summary(self) -> str:
-        """Return a short per-generator DHW summary for the description."""
-        parts = []
-        for generator in self._generators:
-            mode = generator.get(
-                CONF_DHW_MODE, "-" if generator[CONF_ROLE] != ROLE_BOTH else DHW_BASELINE
-            )
-            parts.append(f"{generator[CONF_NAME]}: {generator[CONF_ROLE]} / {mode}")
-        return "; ".join(parts) or "-"
-
-    async def async_step_dhw(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
-        """Step 5: site-level hot water and cooking defaults."""
-        errors: dict[str, str] = {}
-        if user_input is not None:
-            for key in (CONF_SUMMER_START, CONF_SUMMER_END):
-                if not _validate_month_day(user_input[key]):
-                    errors[key] = "invalid_month_day"
-            if not errors:
-                self._options[OPT_DHW] = {
-                    CONF_DHW_OVERRIDE: user_input[CONF_DHW_OVERRIDE],
-                    CONF_SUMMER_START: user_input[CONF_SUMMER_START].strip(),
-                    CONF_SUMMER_END: user_input[CONF_SUMMER_END].strip(),
-                }
-                return await self.async_step_methods()
-        return self.async_show_form(
-            step_id="dhw",
-            data_schema=dhw_schema(user_input or self._options.get(OPT_DHW, {})),
-            errors=errors,
-            description_placeholders={"summary": self._dhw_summary()},
-        )
-
-    # --- step 6: methods and season ----------------------------------------------------
-
-    async def async_step_methods(
-        self, user_input: dict[str, Any] | None = None
-    ) -> ConfigFlowResult:
-        """Step 6: degree-day methods and season start."""
-        errors: dict[str, str] = {}
-        defaults: Mapping[str, Any] = self._options.get(OPT_METHODS, {})
-        if user_input is not None:
-            flat = flatten_sections(user_input)
-            defaults = flat
-            if flat[CONF_METHODS_PRIMARY] not in flat[CONF_METHODS_ENABLED]:
-                errors[CONF_METHODS_PRIMARY] = "primary_not_enabled"
-            if not errors:
-                self._options[OPT_METHODS] = flat
-                return await self.async_step_history()
-        return self.async_show_form(
-            step_id="methods", data_schema=methods_schema(defaults), errors=errors
-        )
-
-    # --- step 7: history ---------------------------------------------------------------
-
-    async def async_step_history(
-        self, user_input: dict[str, Any] | None = None
-    ) -> ConfigFlowResult:
-        """Step 7: backfill and climatology years."""
-        if user_input is not None:
-            self._options[OPT_HISTORY] = {
-                CONF_BACKFILL_YEARS: int(user_input[CONF_BACKFILL_YEARS]),
-                CONF_CLIMATOLOGY_YEARS: int(user_input[CONF_CLIMATOLOGY_YEARS]),
-                CONF_IMPORT_NOW: bool(user_input.get(CONF_IMPORT_NOW, False)),
-            }
-            return await self.async_step_summary()
-        return self.async_show_form(
-            step_id="history",
-            data_schema=history_schema(self._options.get(OPT_HISTORY, {}), options=False),
-        )
-
-    # --- summary -----------------------------------------------------------------------
-
-    async def async_step_summary(
-        self, user_input: dict[str, Any] | None = None
-    ) -> ConfigFlowResult:
-        """Show the summary and create the entry with generator subentries."""
-        if user_input is not None:
-            subentries = [
-                ConfigSubentryData(
-                    data=generator,
-                    subentry_type=SUBENTRY_TYPE_GENERATOR,
-                    title=generator[CONF_NAME],
-                    unique_id=generator[CONF_GENERATOR_ID],
-                )
-                for generator in self._generators
-            ]
-            return self.async_create_entry(
-                title=self._site[CONF_NAME],
-                data=self._site,
-                options=self._options,
-                subentries=subentries,
-            )
-        weather = self._site.get(CONF_WEATHER, {})
-        weather_text = weather.get(CONF_PROVIDER, "-")
-        if weather.get(CONF_PROVIDER) == PROVIDER_KNMI and weather.get(CONF_STATION_ID):
-            station = KNMI_STATIONS.get(weather[CONF_STATION_ID], (weather[CONF_STATION_ID], 0, 0))[
-                0
-            ]
-            weather_text = f"{weather_text} {station}"
-        methods = self._options.get(OPT_METHODS, {})
-        history = self._options.get(OPT_HISTORY, {})
-        generators = "; ".join(
-            f"{generator[CONF_NAME]} ({generator[CONF_KIND]}, {generator[CONF_ROLE]}, "
-            f"{generator.get(CONF_CONVERSION_MODE, '-')}, DHW {generator.get(CONF_DHW_MODE, '-')})"
-            for generator in self._generators
-        )
-        return self.async_show_form(
-            step_id="summary",
-            data_schema=vol.Schema({}),
-            description_placeholders={
-                "site": f"{self._site[CONF_NAME]} ({self._site[CONF_LATITUDE]:.3f}, {self._site[CONF_LONGITUDE]:.3f}, {self._site[CONF_TIMEZONE]})",
-                "weather": weather_text,
-                "generators": generators or "-",
-                "methods": ", ".join(methods.get(CONF_METHODS_ENABLED, []))
-                + f" (primary {methods.get(CONF_METHODS_PRIMARY, '-')})",
-                "season": str(methods.get(CONF_SEASON_START, SEASON_START_OCTOBER)),
-                "backfill": str(history.get(CONF_BACKFILL_YEARS, DEFAULT_BACKFILL_YEARS)),
-            },
-            last_step=True,
-        )
 
     # --- reconfigure -------------------------------------------------------------------
 
@@ -1678,7 +1476,7 @@ class HeatprintOptionsFlow(OptionsFlow):
                 values["recompute_token"] = dt_util.utcnow().isoformat()
             return self._save(OPT_HISTORY, values)
         return self.async_show_form(
-            step_id="history", data_schema=history_schema(self._section(OPT_HISTORY), options=True)
+            step_id="history", data_schema=history_schema(self._section(OPT_HISTORY))
         )
 
     async def async_step_pricing(
@@ -1850,9 +1648,7 @@ class HeatprintOptionsFlow(OptionsFlow):
                 CONF_ROOMS_EXCLUDE_AREAS: list(exclude),
                 CONF_ROOMS_MIN_FIT_DAYS: int(user_input[CONF_ROOMS_MIN_FIT_DAYS]),
                 CONF_OUTPUT_W_PER_M2_RADIATOR: float(user_input[CONF_OUTPUT_W_PER_M2_RADIATOR]),
-                CONF_OUTPUT_W_PER_M2_UNDERFLOOR: float(
-                    user_input[CONF_OUTPUT_W_PER_M2_UNDERFLOOR]
-                ),
+                CONF_OUTPUT_W_PER_M2_UNDERFLOOR: float(user_input[CONF_OUTPUT_W_PER_M2_UNDERFLOOR]),
                 CONF_OUTPUT_W_PER_M2_ELECTRIC: float(user_input[CONF_OUTPUT_W_PER_M2_ELECTRIC]),
                 CONF_OUTPUT_W_PER_M2_OTHER: float(user_input[CONF_OUTPUT_W_PER_M2_OTHER]),
             }
@@ -1873,9 +1669,7 @@ class HeatprintOptionsFlow(OptionsFlow):
                     CONF_ROOMS_EXCLUDE_AREAS,
                     description=_suggested(current.get(CONF_ROOMS_EXCLUDE_AREAS) or []),
                 ): AreaSelector(AreaSelectorConfig(multiple=True)),
-                vol.Required(
-                    CONF_ROOMS_SYNC_NOW, default=False
-                ): BooleanSelector(),
+                vol.Required(CONF_ROOMS_SYNC_NOW, default=False): BooleanSelector(),
                 vol.Required(
                     CONF_ROOMS_MIN_FIT_DAYS,
                     default=current.get(CONF_ROOMS_MIN_FIT_DAYS, DEFAULT_ROOMS_MIN_FIT_DAYS),
@@ -2272,10 +2066,10 @@ class RoomSubentryFlowHandler(_SubentryFlowBase):
                 return self.async_create_entry(
                     title=room[CONF_NAME], data=room, unique_id=room[CONF_ROOM_ID]
                 )
-        show_price = (user_input or {}).get(CONF_DEMAND_KIND) == DEMAND_KIND_METERED
+        # Price/cost sensors are deferred (METHODS §13 / 0.2.4); hide until they land.
         return self.async_show_form(
             step_id="user",
-            data_schema=room_schema(defaults, show_price=show_price or True),
+            data_schema=room_schema(defaults, show_price=False),
             errors=errors,
         )
 
@@ -2298,6 +2092,6 @@ class RoomSubentryFlowHandler(_SubentryFlowBase):
                 )
         return self.async_show_form(
             step_id="reconfigure",
-            data_schema=room_schema(defaults, show_price=True),
+            data_schema=room_schema(defaults, show_price=False),
             errors=errors,
         )

@@ -92,6 +92,7 @@ from .core_api import (
     WeatherDay,
     advanced_options,
     allocate_rooms,
+    apply_room_not_fitted,
     async_fetch_weather,
     baselines_in_kwh,
     build_climatology,
@@ -120,6 +121,8 @@ from .core_api import (
     weather_signature,
 )
 from .history_values import demand_requires_history
+from .issues import async_clear_weather_check_failed
+from .metric_ids import generator_clear_statistic_ids, site_clear_statistic_ids
 from .mindergas import MindergasError, async_push_reading
 from .recorder_source import (
     async_daily_from_history,
@@ -572,6 +575,13 @@ class HeatprintCoordinator(DataUpdateCoordinator[HeatprintData]):
                 day.provisional = True
         if self._rooms_allocation_enabled():
             room_records, unallocated = await self._async_allocate_rooms(records, start, end)
+            min_days = int(rooms_options(self.entry)[CONF_ROOMS_MIN_FIT_DAYS])
+            apply_room_not_fitted(
+                room_records,
+                records,
+                min_days=min_days,
+                skip_room_ids=self.store.all_latest_room_fits(),
+            )
             merge_room_metrics(metrics, room_records, unallocated, self.rooms)
             self._last_room_records = room_records
             for record in room_records:
@@ -675,6 +685,8 @@ class HeatprintCoordinator(DataUpdateCoordinator[HeatprintData]):
             days = [cached[day] for day in sorted(cached)]
         self.store.update_weather_cache(days)
         self._last_weather_update = dt_util.utcnow()
+        if days:
+            async_clear_weather_check_failed(self.hass, self.site_id)
         return days
 
     async def _async_energy(
@@ -1364,17 +1376,18 @@ class HeatprintCoordinator(DataUpdateCoordinator[HeatprintData]):
     def statistic_ids_for(self, generator_id: str | None = None) -> list[str]:
         """Return the external statistic ids of the site, or of one generator."""
         if generator_id:
-            generator = self.generator(generator_id)
-            return [
-                statistic_id(self.site_id, generator_metric(generator.generator_id)),
-                statistic_id(self.site_id, generator_dhw_metric(generator.generator_id)),
-            ]
-        ids = list(self._sum_ids())
-        ids.extend(
-            statistic_id(self.site_id, metric)
-            for metric in (METRIC_T_MEAN, METRIC_TAC_PBL, METRIC_TAC_HOUSE)
+            self.generator(generator_id)
+            return generator_clear_statistic_ids(self.site_id, generator_id)
+        return site_clear_statistic_ids(
+            self.site_id,
+            generator_ids=[generator.generator_id for generator in self.generators],
+            dhw_generator_ids=[
+                generator.generator_id
+                for generator in self.generators
+                if generator.role in (ROLE_BOTH, ROLE_DHW)
+            ],
+            room_ids=[room.room_id for room in self.rooms],
         )
-        return ids
 
     async def async_clear_statistics(self, generator_id: str | None = None) -> dict[str, Any]:
         """Delete Heatprint external statistics for a generator or the whole site."""

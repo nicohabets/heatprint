@@ -41,6 +41,8 @@ STORAGE_KEY_TEMPLATE: Final = "heatprint.{entry_id}"
 
 NOTIFICATION_BACKFILL: Final = "heatprint_backfill_{entry_id}"
 NOTIFICATION_IMPORT_HINT: Final = "heatprint_import_hint_{entry_id}"
+NOTIFICATION_WEATHER_CHECK: Final = "heatprint_weather_check_{site_id}"
+ISSUE_WEATHER_CHECK: Final = "weather_check_{site_id}"
 
 # --- Site (config entry data) ---------------------------------------------------
 CONF_SITE_ID: Final = "site_id"
@@ -58,7 +60,7 @@ CONF_HA_ENTITIES: Final = "ha_entities"
 CONF_TEMPERATURE_ENTITY: Final = "temperature"
 CONF_WIND_ENTITY: Final = "wind"
 CONF_RADIATION_ENTITY: Final = "radiation"
-CONF_SITUATION: Final = "situation"
+CONF_WEATHER_CHECK_ERROR: Final = "weather_check_error"
 
 DEFAULT_SITE_NAME: Final = "Home"
 
@@ -184,19 +186,6 @@ PROVIDERS_NL: Final = [PROVIDER_KNMI, PROVIDER_OPEN_METEO, PROVIDER_HA_SENSORS]
 PROVIDERS_INTL: Final = [PROVIDER_OPEN_METEO, PROVIDER_HA_SENSORS]
 FALLBACK_NONE: Final = "none"
 FALLBACKS: Final = [PROVIDER_OPEN_METEO, FALLBACK_NONE]
-
-SITUATION_GAS: Final = "gas"
-SITUATION_HYBRID: Final = "hybrid"
-SITUATION_ALL_ELECTRIC: Final = "all_electric"
-SITUATION_DISTRICT_HEAT: Final = "district_heat"
-SITUATION_CUSTOM: Final = "custom"
-SITUATIONS: Final = [
-    SITUATION_GAS,
-    SITUATION_HYBRID,
-    SITUATION_ALL_ELECTRIC,
-    SITUATION_DISTRICT_HEAT,
-    SITUATION_CUSTOM,
-]
 
 KIND_GAS_BOILER: Final = "gas_boiler"
 KIND_HEAT_PUMP: Final = "heat_pump"
@@ -400,15 +389,6 @@ KIND_DEFAULTS: Final[dict[str, KindDefaults]] = {
         HEAT_UNITS,
     ),
     KIND_OTHER: KindDefaults("Other heat source", ROLE_SPACE, CONVERSION_FACTOR, 0.0, frozenset()),
-}
-
-# Generator drafts prefilled by the "heating situation" wizard step (CONFIG_FLOW step 3).
-SITUATION_DRAFTS: Final[dict[str, list[tuple[str, str]]]] = {
-    SITUATION_GAS: [(KIND_GAS_BOILER, ROLE_BOTH)],
-    SITUATION_HYBRID: [(KIND_GAS_BOILER, ROLE_BOTH), (KIND_HEAT_PUMP, ROLE_SPACE)],
-    SITUATION_ALL_ELECTRIC: [(KIND_HEAT_PUMP, ROLE_BOTH)],
-    SITUATION_DISTRICT_HEAT: [(KIND_DISTRICT_HEAT, ROLE_BOTH)],
-    SITUATION_CUSTOM: [],
 }
 
 # --- KNMI automatic weather stations with daily TG/FG/Q data (station, name, lat, lon)

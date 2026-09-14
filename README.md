@@ -32,7 +32,7 @@ setup, electricity or district heat?"**
 
 ## Status
 
-Pre-alpha **v0.2.2**. Requires Home Assistant **2026.9.0** or newer. The calculation core (`heatprint_core`) implements the documented
+Pre-alpha **v0.2.3**. Requires Home Assistant **2026.9.0** or newer. The calculation core (`heatprint_core`) implements the documented
 pipeline end-to-end — heat conversion, DHW split, effective temperature, four degree-day
 methods, energy signature / PRISM, normalize / compare / forecast, and **per-room heat
 allocation** (METHODS §12) — and is covered by pytest on mock and synthetic data. The Home Assistant integration

@@ -21,6 +21,7 @@ from heatprint_core.rooms import (
     RoomDayInput,
     allocate_day,
     allocate_period,
+    apply_room_not_fitted,
     daily_demand_integral,
     fit_room_signature,
     indicative_ua_w_per_k,
@@ -356,3 +357,52 @@ def test_room_fit_none_before_thirty_days() -> None:
         min_days=30,
     )
     assert fit is None
+    assert all(Flag.ROOM_NOT_FITTED in record.flags for record in room_records)
+
+
+def _short_room_series(n_days: int, room_id: str = "tiny"):
+    site_records = [
+        DailyRecord(
+            date=date(2026, 1, 1) + timedelta(days=i),
+            site_id="home",
+            tac_house=5.0,
+            heat_space_kwh=10.0,
+            t_mean=4.0,
+        )
+        for i in range(n_days)
+    ]
+    from heatprint_core.models import DailyRoomRecord
+
+    room_records = [
+        DailyRoomRecord(
+            date=record.date,
+            room_id=room_id,
+            demand_integral=0.5,
+            heat_room_kwh=5.0,
+            share=0.5,
+        )
+        for record in site_records
+    ]
+    return site_records, room_records
+
+
+def test_apply_room_not_fitted_when_below_min_days() -> None:
+    site_records, room_records = _short_room_series(10)
+    flagged = apply_room_not_fitted(room_records, site_records, min_days=30)
+    assert flagged == {"tiny"}
+    assert Flag.ROOM_NOT_FITTED in room_records[0].flags
+    assert Flag.ROOM_NOT_FITTED in room_records[-1].flags
+
+
+def test_apply_room_not_fitted_skips_already_fitted_rooms() -> None:
+    site_records, room_records = _short_room_series(10)
+    flagged = apply_room_not_fitted(room_records, site_records, min_days=30, skip_room_ids={"tiny"})
+    assert flagged == set()
+    assert Flag.ROOM_NOT_FITTED not in room_records[0].flags
+
+
+def test_apply_room_not_fitted_not_emitted_with_enough_days() -> None:
+    site_records, room_records = _short_room_series(40)
+    flagged = apply_room_not_fitted(room_records, site_records, min_days=30)
+    assert flagged == set()
+    assert Flag.ROOM_NOT_FITTED not in room_records[0].flags

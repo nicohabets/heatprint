@@ -5,6 +5,37 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.2.3] - 2026-09-14
+
+### Removed
+- Unreachable multi-step first-run wizard in `config_flow.py` (`situation` →
+  `generator` → DHW → methods → history → `summary`) and its unused
+  translation keys / `situation` selector. First-run stays one confirm.
+  Reconfigure, Options, and generator / measure / room subentries are unchanged.
+
+### Added
+- First-run weather check is still non-blocking, but no longer silent: the
+  confirm step shows `cannot_connect` / `no_data_for_station`, and setup opens
+  a warning repair plus a persistent notification that names the failure.
+  A later successful weather fetch dismisses both.
+- `ROOM_NOT_FITTED` is written on room-days when a room has fewer than the
+  configured minimum fit days (skipped once a room fit exists).
+
+### Fixed
+- `heatprint.clear_statistics` (whole site) also deletes room `*_demand` and
+  `*_t_mean` mean statistics, not only room heat sums.
+
+### Changed
+- Manual add/reconfigure of a room no longer shows `price_entity` (`show_price
+  or True`). Cost/CO₂ sensors are still deferred (METHODS §13).
+- Unused `name_exists` config-flow error string dropped.
+- Version lockstep is 0.2.3 (`manifest.json`, `pyproject.toml`,
+  `heatprint_core.__version__`).
+
+### Notes (follow-up 0.2.4 / 0.3)
+- Full F18 cost/CO₂ + dynamic tariffs (METHODS §13) and §14 health-check
+  repairs are **not** in this PR. Do not half-implement cost.
+
 ## [0.2.2] - 2026-09-14
 
 ### Changed
@@ -16,12 +47,10 @@ All notable changes to this project are documented here. The format follows
   `heatprint_core.__version__`).
 
 ### Notes (code gaps, unchanged)
-- Leftover multi-step wizard in `config_flow.py` is unreachable from first-run.
 - Site `cost_eur` / `co2_kg` statistics and room cost sensors still deferred
   (METHODS §13 / ROADMAP open item 1). `cost_space_season` and `avg_price_paid`
   are specified only.
 - METHODS §14 health-check repairs and `open_health_checks` are specified only.
-- `ROOM_NOT_FITTED` is never written to stored flags.
 - `import_now` has no Options control; `co2_entity` is collected but not read.
 - Strict mypy / `pytest-homeassistant-custom-component` still planned.
 

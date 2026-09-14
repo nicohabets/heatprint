@@ -19,9 +19,9 @@ from datetime import UTC, date, datetime
 from ..analysis.ols import t_quantile_975
 from ..analysis.signature import FitDay, GridFit, grid_search
 from ..constants import W_PER_K_FROM_KWH_PER_K_DAY
-from ..flags import is_room_usable, is_usable
+from ..flags import Flag, is_room_usable, is_usable
 from ..models import DailyRecord, DailyRoomRecord, Period, Room, RoomSignatureFit
-from .allocation import indicative_ua_w_per_k
+from .allocation import indicative_ua_w_per_k, room_records_by_id
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -105,6 +105,36 @@ def _indicative_from_records(
     return (estimates[mid - 1] + estimates[mid]) / 2.0
 
 
+def apply_room_not_fitted(
+    room_records: Iterable[DailyRoomRecord],
+    site_records: Iterable[DailyRecord],
+    *,
+    min_days: int = 30,
+    skip_room_ids: Iterable[str] = (),
+    tac_key: str = "tac_house",
+) -> set[str]:
+    """Add ``ROOM_NOT_FITTED`` on rooms with fewer than ``min_days`` usable fit days.
+
+    Rooms in ``skip_room_ids`` (already fitted) are left unchanged. Returns the
+    room ids that were flagged. Mutates ``record.flags`` in place.
+    """
+    records = list(room_records)
+    if not records:
+        return set()
+    skip = set(skip_room_ids)
+    period = Period(min(record.date for record in records), max(record.date for record in records))
+    flagged: set[str] = set()
+    for room_id, rows in room_records_by_id(records).items():
+        if room_id in skip:
+            continue
+        days = select_room_days(rows, site_records, period, tac_key)
+        if len(days) < min_days:
+            flagged.add(room_id)
+            for row in rows:
+                row.flags.add(Flag.ROOM_NOT_FITTED)
+    return flagged
+
+
 def fit_room_signature(
     room: Room,
     room_records: Iterable[DailyRoomRecord],
@@ -131,6 +161,12 @@ def fit_room_signature(
     indicative = _indicative_from_records(room_records, site_records, period)
     if len(days) < min_days:
         _LOGGER.debug("room %s fit: only %d usable days (< %d)", room.id, len(days), min_days)
+        apply_room_not_fitted(
+            room_records,
+            site_records,
+            min_days=min_days,
+            tac_key=tac_key,
+        )
         return None
 
     fit = grid_search(
