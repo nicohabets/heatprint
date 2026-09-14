@@ -3,7 +3,7 @@
     "step": {
       "user": {
         "title": "Use this Home Assistant home",
-        "description": "Heatprint reuses the Home Assistant home and its areas — it does not ask you to recreate them. Site {name} at ({latitude}, {longitude}), time zone {timezone}, country {country}. Weather: {weather}. Heat generators already in HA: {generators}. Heated rooms from HA areas: {rooms}. Skipped (no heating circuit or no climate/demand): {skipped}. A failed weather check (shown as an error below) does not block setup; Heatprint retries and opens a repair. Confirm to create the site and sync those rooms. Reconfigure is the escape hatch for a second home or a different weather station; add or edit generators and rooms later if needed."
+        "description": "Heatprint uses this Home Assistant home — it will not ask you to recreate it.\n\n**{name}** · {country} · {weather}\n{generator_count} heat generator(s) · {room_count} heated room(s) · {skipped_count} area(s) skipped.\n\nA weather error below does not block setup. Confirm to create the site. Use Reconfigure later for a second home or another weather station."
       },
       "weather_nl": {
         "title": "Weather source (Netherlands)",

@@ -95,6 +95,16 @@ def _nico_fixture() -> tuple[list[RegistryArea], list[RegistryEntity]]:
     return areas, entities
 
 
+def test_confirm_counts_are_short_not_entity_dumps() -> None:
+    result = discover_rooms(*_nico_fixture())
+    counts = result.confirm_counts()
+    assert counts == {"room_count": "4", "skipped_count": "5"}
+    assert "sensor." not in counts["room_count"]
+    summary = result.room_summary()
+    assert "sensor.woonkamer_woonkamer_verwarming" in summary
+    assert "Keldertrap" in result.skipped_summary()
+
+
 def test_nico_areas_skip_no_heating_and_empty_hal() -> None:
     rooms, skipped = (
         discover_rooms(*_nico_fixture()).rooms,

@@ -317,8 +317,8 @@ the existing site-level model, not a prerequisite for it).
 | Field | Type | Notes |
 |---|---|---|
 | `id` | slug | |
-| `name` | str | Defaults to the linked HA area's name |
-| `area_id` | HA area_id | Link to an HA area. Auto-sync matches on this id (`unique_id` `area:<area_id>`) so rooms are not duplicated when an area is renamed |
+| `name` | str | Defaults to the linked HA area's name. The HA **device** name is `Heatprint {name}`, not `{site} {name}` |
+| `area_id` | HA area_id | Link to an HA area. Auto-sync matches on this id (`unique_id` `area:<area_id>`) so rooms are not duplicated when an area is renamed. The room device's HA area is set from this id (`suggested_area` / device registry) so first-run does not ask to pick the area again |
 | `demand_entity` | entity_id | Sensor/attribute providing the room's heating-demand signal, see METHODS §12.1 |
 | `demand_kind` | `percentage` / `valve_position` / `binary` / `metered_energy` | See METHODS §12.1 |
 | `temperature_entity` | entity_id | Optional; room temperature for the indicative UA estimate and the room fit's TAC comparison (METHODS §12.4) |

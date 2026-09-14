@@ -32,12 +32,13 @@ setup, electricity or district heat?"**
 
 ## Status
 
-Pre-alpha **v0.2.5**. Requires Home Assistant **2026.9.0** or newer. The calculation core (`heatprint_core`) implements the documented
+Pre-alpha **v0.2.6**. Requires Home Assistant **2026.9.0** or newer. The calculation core (`heatprint_core`) implements the documented
 pipeline end-to-end — heat conversion, DHW split, effective temperature, four degree-day
 methods, energy signature / PRISM, normalize / compare / forecast, **per-room heat
 allocation** (METHODS §12), and **site/room cost and CO₂** (METHODS §13) — and is covered by pytest on mock and synthetic data. The Home Assistant integration
 (`custom_components/heatprint`) is a thin shell around that core: a one-screen first-run
-that reuses the HA home and heated areas, config flow with
+that reuses the HA home and heated areas (short confirm; room devices inherit those
+areas and are named `Heatprint {room}`), config flow with
 subentries (including auto-synced rooms), daily coordinator, external statistics, sensors and the documented services.
 The core is **bundled inside the integration** so a HACS install on Home Assistant OS
 does not need a PyPI package.

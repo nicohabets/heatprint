@@ -40,8 +40,12 @@ flowchart TD
 
 ## Step 1 - Confirm this Home Assistant home
 
-First-run is **one confirm screen** with no extra fields. Heatprint reuses what
-Home Assistant already has and does not ask the user to recreate a home:
+First-run is **one confirm screen** with no extra fields. The description is a
+short summary (site name, country, weather, counts of generators / heated rooms /
+skipped areas) so it stays readable on a phone. Per-room entity ids and skip
+reasons are written to the log and shown later under **Configure → Sync rooms
+from HA areas**, not on the confirm step. Heatprint reuses what Home Assistant
+already has and does not ask the user to recreate a home:
 
 | Value | Source | Notes |
 |---|---|---|
@@ -71,6 +75,14 @@ After setup a **stock Lovelace dashboard** is created and shown in the sidebar
 `unique_id` (so a Dutch or other non-English UI does not get "Entity not
 found"). Statistic ids stay `heatprint:<site>_<metric>`. Only built-in cards
 (no apexcharts). Recreate with the action `heatprint.create_dashboard`.
+
+Room devices are named `Heatprint {room}` (not `{site_name} {room}`) and get
+`suggested_area` / `area_id` from the HA area they were discovered from, so the
+post-setup "Name and assign" dialog does not ask to pick every room's area
+again. The site device and config-entry title keep the HA home name (e.g.
+`Thuis`). Existing devices: empty areas are filled on reload; a user-assigned
+area or a custom device rename is left alone. The old auto name
+`{site_name} {room}` is cleared so the branded default can show.
 
 ## Later - Weather source (NL) — Reconfigure only
 

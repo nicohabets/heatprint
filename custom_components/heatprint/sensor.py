@@ -82,6 +82,7 @@ from .const import (
 )
 from .coordinator import GeneratorAggregate, HeatprintCoordinator, HeatprintData, RoomAggregate
 from .core_api import GeneratorConfig, RoomConfig
+from .device_registry_ux import branded_device_name, suggested_area_name
 
 PARALLEL_UPDATES = 0
 
@@ -677,11 +678,14 @@ def room_device_info(coordinator: HeatprintCoordinator, room: RoomConfig) -> Dev
     )
     info: dict[str, Any] = {
         "identifiers": {(DOMAIN, f"{coordinator.entry.entry_id}_{room.room_id}")},
-        "name": f"{coordinator.site_name} {room.name}",
+        "name": branded_device_name(room.name),
         "manufacturer": MANUFACTURER,
         "model": f"Room ({room.emitter_kind.replace('_', ' ')})",
         "entry_type": DeviceEntryType.SERVICE,
     }
+    suggested = suggested_area_name(coordinator.hass, room.area_id, room.name)
+    if suggested:
+        info["suggested_area"] = suggested
     if parent is not None:
         info["via_device_id"] = parent.id
     return DeviceInfo(**info)
@@ -696,7 +700,7 @@ def generator_device_info(
     )
     info: dict[str, Any] = {
         "identifiers": {(DOMAIN, f"{coordinator.entry.entry_id}_{generator.generator_id}")},
-        "name": f"{coordinator.site_name} {generator.name}",
+        "name": branded_device_name(generator.name),
         "manufacturer": MANUFACTURER,
         "model": generator.kind.replace("_", " ").title(),
         "entry_type": DeviceEntryType.SERVICE,

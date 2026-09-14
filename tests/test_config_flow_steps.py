@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import ast
+import json
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parents[1]
@@ -113,3 +114,48 @@ def test_name_exists_string_removed() -> None:
         encoding="utf-8"
     )
     assert '"name_exists"' not in strings
+
+
+def _user_step_description(filename: str) -> str:
+    path = REPO / "custom_components" / "heatprint" / filename
+    data = json.loads(path.read_text(encoding="utf-8"))
+    return data["config"]["step"]["user"]["description"]
+
+
+def test_first_run_confirm_description_is_short() -> None:
+    """Confirm stays a few lines of counts — not every entity id and skip reason."""
+    placeholders = (
+        "{name}",
+        "{country}",
+        "{weather}",
+        "{generator_count}",
+        "{room_count}",
+        "{skipped_count}",
+    )
+    for filename in ("strings.json", "translations/en.json", "translations/nl.json"):
+        description = _user_step_description(filename)
+        assert len(description) < 450
+        assert description.count("\n") >= 2
+        for key in placeholders:
+            assert key in description
+        assert "{latitude}" not in description
+        assert "{generators}" not in description
+        assert "{rooms}" not in description
+        assert "{skipped}" not in description
+        assert "entity" not in description.lower()
+    expanded = _user_step_description("translations/nl.json").format(
+        name="Thuis",
+        country="NL",
+        weather="KNMI Maastricht (380)",
+        generator_count="1",
+        room_count="6",
+        skipped_count="4",
+    )
+    assert len(expanded) < 500
+    assert "sensor." not in expanded
+    source = FLOW.read_text(encoding="utf-8")
+    init = (REPO / "custom_components" / "heatprint" / "__init__.py").read_text(encoding="utf-8")
+    assert "generator_count" in source
+    assert "confirm_counts()" in source
+    assert "discovery.room_summary()" in source  # logs + Sync rooms, not confirm placeholders
+    assert "align_heatprint_devices" in init
