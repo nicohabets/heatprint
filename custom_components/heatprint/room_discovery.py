@@ -142,13 +142,20 @@ class SkippedArea:
 
 @dataclass(frozen=True, slots=True)
 class DiscoveryResult:
-    """Included rooms plus skipped areas (for the confirm / sync UI)."""
+    """Included rooms plus skipped areas (counts for confirm; detail for sync/logs)."""
 
     rooms: tuple[DiscoveredRoom, ...]
     skipped: tuple[SkippedArea, ...]
 
+    def confirm_counts(self) -> dict[str, str]:
+        """Short counts for the first-run confirm placeholders."""
+        return {
+            "room_count": str(len(self.rooms)),
+            "skipped_count": str(len(self.skipped)),
+        }
+
     def room_summary(self) -> str:
-        """Human-readable included-room list for flow placeholders."""
+        """Human-readable included-room list for logs and Sync rooms."""
         if not self.rooms:
             return "—"
         parts: list[str] = []
@@ -160,7 +167,7 @@ class DiscoveryResult:
         return "; ".join(parts)
 
     def skipped_summary(self) -> str:
-        """Human-readable skipped-area list for flow placeholders."""
+        """Human-readable skipped-area list for logs and Sync rooms."""
         if not self.skipped:
             return "—"
         return "; ".join(f"{item.name} ({item.reason})" for item in self.skipped)

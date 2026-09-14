@@ -13,6 +13,7 @@
 | 0.2.3 | First-run cleanup | Delete dead wizard; surface weather-check failures; emit `ROOM_NOT_FITTED`; `clear_statistics` room means | done |
 | 0.2.4 | Cost + CO₂ | F18 site `cost_eur`/`co2_kg` statistics, `price_mode: dynamic` (ADR 0006), room cost allocation, `cost_space_season` / `avg_price_paid` / `co2_season` | done |
 | 0.2.5 | Data-source health checks | METHODS §14 `STUCK_VALUE` / `IMPLAUSIBLE_VALUE` / `SCALE_DRIFT` / `WEATHER_STALLED` as HA repairs + `open_health_checks` | done |
+| 0.2.6 | First-run / device registry UX | Short confirm description; room devices inherit the discovered HA area; default names `Heatprint {room}` not `{site} {room}` | done |
 | 0.3.0 | Hybrid | Heat pump generator with thermal/electric meters, heat pump share, daily COP, season 2026/27 live | planned (when the heat pump is installed) |
 | 1.0.0 | HACS release | Measure effect with CI, mindergas bridge, COP curve, DHW monthly profile, repairs/diagnostics, HACS default | planned |
 | 2.0.0 | Visual insight | Custom card (energy signature), occupancy regressor, export/CLI, opt-in benchmark | idea |
@@ -47,6 +48,9 @@ Closed in this pre-alpha:
 - METHODS §14 health-check repairs (0.2.5): `STUCK_VALUE` / `IMPLAUSIBLE_VALUE` /
   `SCALE_DRIFT` / `WEATHER_STALLED` open and auto-close HA repairs;
   `open_health_checks` is on `sensor.<site>_data_quality`.
+- First-run / device registry UX (0.2.6): confirm step is a short count +
+  site/weather summary; room devices inherit the discovered HA area and default
+  to `Heatprint {room}` (not `{site_name} {room}`).
 
 Still open (not this release):
 

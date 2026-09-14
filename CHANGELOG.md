@@ -5,6 +5,24 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.2.6] - 2026-09-14
+
+### Fixed
+- First-run confirm is a few scannable lines (site, country, weather, counts of
+  generators / heated rooms / skipped areas) instead of a wall of entity ids
+  and skip reasons. Detail stays in the log and under Configure → Sync rooms.
+- Room devices inherit the Home Assistant area they were discovered from
+  (`suggested_area` on create; empty `area_id` filled on reload). User-assigned
+  areas and custom device renames are left alone.
+- Default room and generator device names are `Heatprint {name}` (integration
+  + room/generator), not `{site_name} {name}`. The site/home name (e.g. Thuis)
+  remains the config-entry title and site device. The old auto name
+  `{site} {room}` is cleared on reload so the branded default can show.
+
+### Changed
+- Version lockstep is 0.2.6 (`manifest.json`, `pyproject.toml`,
+  `heatprint_core.__version__`).
+
 ## [0.2.5] - 2026-09-14
 
 ### Added

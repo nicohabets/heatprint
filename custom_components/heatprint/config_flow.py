@@ -960,6 +960,14 @@ class HeatprintConfigFlow(ConfigFlow, domain=DOMAIN):
             )
             or "—"
         )
+        _LOGGER.info(
+            "Heatprint first-run discovery for %s: weather=%s generators=[%s] rooms=[%s] skipped=[%s]",
+            defaults.name,
+            self._weather_label(weather),
+            generator_text,
+            discovery.room_summary(),
+            discovery.skipped_summary(),
+        )
         errors = {"base": weather_error} if weather_error else {}
         return self.async_show_form(
             step_id="user",
@@ -967,14 +975,10 @@ class HeatprintConfigFlow(ConfigFlow, domain=DOMAIN):
             errors=errors,
             description_placeholders={
                 "name": defaults.name,
-                "latitude": f"{defaults.latitude:.4f}",
-                "longitude": f"{defaults.longitude:.4f}",
-                "timezone": defaults.timezone,
                 "country": defaults.country or "—",
                 "weather": self._weather_label(weather),
-                "generators": generator_text,
-                "rooms": discovery.room_summary(),
-                "skipped": discovery.skipped_summary(),
+                "generator_count": str(len(generators)),
+                **discovery.confirm_counts(),
             },
             last_step=True,
         )

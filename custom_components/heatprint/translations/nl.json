@@ -3,7 +3,7 @@
     "step": {
       "user": {
         "title": "Dit Home Assistant-thuis gebruiken",
-        "description": "Heatprint hergebruikt het Home Assistant-thuis en de bestaande zones — je hoeft die niet opnieuw aan te maken. Site {name} op ({latitude}, {longitude}), tijdzone {timezone}, land {country}. Weer: {weather}. Warmteopwekkers die HA al kent: {generators}. Verwarmde kamers uit HA-zones: {rooms}. Overgeslagen (geen verwarmingscircuit of geen climate/vraag): {skipped}. Een mislukte weercheck (hieronder als fout) blokkeert de setup niet; Heatprint probeert het later opnieuw en opent een reparatie. Bevestig om de site aan te maken en die kamers te synchroniseren. Opnieuw configureren is de uitweg voor een tweede woning of een ander weerstation; voeg later zo nodig opwekkers en kamers toe of wijzig ze."
+        "description": "Heatprint gebruikt dit Home Assistant-thuis — je hoeft het niet opnieuw aan te maken.\n\n**{name}** · {country} · {weather}\n{generator_count} warmteopwekker(s) · {room_count} verwarmde kamer(s) · {skipped_count} zone(s) overgeslagen.\n\nEen weerfout hieronder blokkeert de setup niet. Bevestig om de site aan te maken. Gebruik later Opnieuw configureren voor een tweede woning of een ander weerstation."
       },
       "weather_nl": {
         "title": "Weerbron (Nederland)",

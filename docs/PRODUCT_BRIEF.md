@@ -112,8 +112,9 @@ NL-calibrated, the house fit is universal.
 - Services: `import_readings` (CSV, mindergas export), `recompute`, `fit_signature`,
   `compare_periods`, `forecast`, `export_daily`.
 - Forecast for the current season (20-year climatology).
-- First-run: one confirm of the HA home (location / time zone / country never asked);
+- First-run: one short confirm of the HA home (location / time zone / country never asked);
   weather and heated rooms auto; detected gas / heat-pump meters become generators.
+  Room devices are named `Heatprint {room}` and inherit the discovered HA area.
   Subentries for generators, measures and rooms; options and reconfigure.
 - Translations NL and EN. Stock Lovelace overview + Rooms dashboards (built-in
   cards only; no apexcharts).
@@ -256,7 +257,8 @@ Privacy: no data leaves the house except coordinates/station to the weather prov
 | 4 - v1.0 | Measure effect polish, bridge, HACS default | 3-4 weeks |
 | 4a - v0.2 | Rooms **heat**: allocation, apparent UA, auto-discovery, Rooms dashboard | shipped 0.2.0 / 0.2.1 |
 | 4b - v0.2.4 | Rooms **cost** + site F18 cost/CO₂ / dynamic tariffs | shipped 0.2.4 |
-| 4c - v0.2.5 | METHODS §14 health-check repairs + `open_health_checks` | this PR |
+| 4c - v0.2.5 | METHODS §14 health-check repairs + `open_health_checks` | shipped 0.2.5 |
+| 4d - v0.2.6 | First-run confirm + device registry UX (short confirm, auto area, Heatprint names) | this PR |
 | 5 - v2.0 | Card, occupancy, benchmark | later |
 
 ## 14. Open questions and decisions

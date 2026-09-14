@@ -100,16 +100,17 @@ Responsibilities per HA module:
 
 | Module | Does | Does not |
 |---|---|---|
-| `config_flow.py` | One-confirm first-run, validations, subentries (generator/measure/room), options (incl. CSV import + room sync), reconfigure. First-run weather failure is a confirm-step error + repair, not a hard abort | Calculations |
+| `config_flow.py` | One-confirm first-run (short count + site/weather summary; room/skip detail in logs and Sync rooms), validations, subentries (generator/measure/room), options (incl. CSV import + room sync), reconfigure. First-run weather failure is a confirm-step error + repair, not a hard abort | Calculations |
 | `first_run.py` | Default weather, methods, DHW, history and rooms options | UI |
 | `site_defaults.py` | HA home → name, lat/lon, time zone, country | UI |
 | `room_discovery.py` | Heated HA areas → room drafts (METHODS §12.6) | Persistence |
 | `room_sync.py` | Idempotent create/update of `room` subentries; preserves user overrides | Deleting missing areas |
+| `device_registry_ux.py` | `Heatprint {room}` / `{generator}` device names; `suggested_area` + best-effort empty-area fill from discovery `area_id` | Overwriting user area assignments or custom renames |
 | `dashboard.py` / `dashboard_config.py` | Create/refresh the stock Lovelace overview and Rooms dashboards; entity cards resolve `entity_id` via unique_id | Custom cards, English object-id guesses |
 | `coordinator.py` | Schedules runs, fetches weather (via the core providers with HA's aiohttp session), reads the recorder, calls `pipeline.build_daily_records`, writes statistics/store, updates entities | Formulas |
 | `recorder_source.py` | `statistics_during_period` per day for energy (sum/change) and weather (mean); hourly `change`/`mean` for `price_mode: dynamic` (ADR 0006) | Interpretation |
 | `statistics_writer.py` | `async_add_external_statistics` with idempotent daily records; rewrites on recomputation | Reading |
-| `sensor.py` | `SensorEntityDescription` per metric, value from coordinator data | Storage |
+| `sensor.py` | `SensorEntityDescription` per metric, value from coordinator data; room/generator `DeviceInfo` uses branded names and `suggested_area` | Storage |
 | `services.py` | Schemas, response data (`SupportsResponse.ONLY`), files under `config/heatprint/` | Calculating (delegates to the core) |
 | `store.py` | `homeassistant.helpers.storage.Store` version 1 | |
 | `core_api.py` | All calls into `heatprint_core` in one place (adapters from entry/options to `Site`, records, fits, forecast, import) | Formulas |
@@ -185,7 +186,7 @@ heatprint/
 ├── custom_components/heatprint/      # HA shell (HACS)
 │   ├── __init__.py  config_flow.py  const.py  coordinator.py
 │   ├── first_run.py  site_defaults.py  dashboard.py  dashboard_config.py
-│   ├── room_discovery.py  room_sync.py  history_values.py
+│   ├── room_discovery.py  room_sync.py  device_registry_ux.py  history_values.py
 │   ├── recorder_source.py  statistics_writer.py  store.py
 │   ├── sensor.py  binary_sensor.py  services.py  services.yaml
 │   ├── core_api.py  mindergas.py  diagnostics.py  issues.py

@@ -25,6 +25,7 @@ from homeassistant.helpers.typing import ConfigType
 from .const import DOMAIN, PLATFORMS
 from .coordinator import HeatprintCoordinator
 from .dashboard import async_ensure_rooms_dashboard, async_setup_entry_dashboard
+from .device_registry_ux import align_heatprint_devices
 from .room_sync import sync_rooms_if_auto
 from .services import async_setup_services
 from .store import HeatprintStore
@@ -55,6 +56,10 @@ async def async_setup_entry(hass: HomeAssistant, entry: HeatprintConfigEntry) ->
     entry.runtime_data = coordinator
 
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
+    try:
+        align_heatprint_devices(hass, coordinator)
+    except Exception:  # noqa: BLE001 - area/name alignment must not fail setup
+        _LOGGER.exception("Could not align Heatprint device areas or legacy names")
     entry.async_on_unload(entry.add_update_listener(_async_update_listener))
     coordinator.async_start()
     await async_setup_entry_dashboard(hass, entry)
