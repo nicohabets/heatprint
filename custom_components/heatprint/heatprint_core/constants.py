@@ -77,6 +77,41 @@ DEFAULT_OUTPUT_W_PER_M2: dict[str, float] = {
     "other": 70.0,
 }
 
+# --- Data-source health checks (METHODS section 14) --------------------------------------------
+
+#: Consecutive zero-increment days before ``STUCK_VALUE`` fires.
+HEALTH_STUCK_DAYS: int = 3
+
+#: A day is implausible when it exceeds this multiple of the trailing median.
+HEALTH_IMPLAUSIBLE_MULTIPLE: float = 5.0
+
+#: Lookback window for the implausible-value median (days before the checked day).
+HEALTH_IMPLAUSIBLE_LOOKBACK_DAYS: int = 30
+
+#: Minimum samples in that lookback before ``IMPLAUSIBLE_VALUE`` may fire.
+HEALTH_IMPLAUSIBLE_MIN_SAMPLES: int = 7
+
+#: Length of each trailing window compared by ``SCALE_DRIFT`` (days 1-15 vs 16-30).
+HEALTH_SCALE_WINDOW_DAYS: int = 15
+
+#: Order-of-magnitude ratio between the two scale-drift window medians.
+HEALTH_SCALE_RATIO: float = 10.0
+
+#: Minimum samples in each scale-drift window.
+HEALTH_SCALE_MIN_SAMPLES: int = 7
+
+#: Skip heat/demand scale-drift when the two windows' median degree days differ
+#: by more than this factor (seasonal drop, not a sensor unit change).
+HEALTH_SCALE_DD_COMPARABLE_RATIO: float = 3.0
+
+#: Normal provisional-weather window per provider. Longer than this is stalled.
+#: KNMI: 1-2 days (METHODS §2). Open-Meteo: ERA5 archive delay (8 days).
+HEALTH_PROVISIONAL_WINDOW_DAYS: dict[str, int] = {
+    "knmi": 2,
+    "open_meteo": 8,
+    "ha_sensors": 2,
+}
+
 # --- mindergas month weights (METHODS section 4.1) ---------------------------------------------
 
 #: Month factors of the classic weighted degree days: Nov-Feb 1.1, Mar and Oct 1.0, Apr-Sep 0.8.

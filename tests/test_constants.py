@@ -34,6 +34,12 @@ def test_conversion_constants() -> None:
         "other",
     }
     assert constants.DEFAULT_OUTPUT_W_PER_M2["radiator"] == 70.0
+    assert constants.HEALTH_STUCK_DAYS == 3
+    assert constants.HEALTH_IMPLAUSIBLE_MULTIPLE == 5.0
+    assert constants.HEALTH_SCALE_WINDOW_DAYS == 15
+    assert constants.HEALTH_SCALE_RATIO == 10.0
+    assert constants.HEALTH_PROVISIONAL_WINDOW_DAYS["knmi"] == 2
+    assert constants.HEALTH_PROVISIONAL_WINDOW_DAYS["open_meteo"] == 8
 
 
 def test_month_weights_mindergas() -> None:

@@ -26,6 +26,15 @@ from .cost import (
 )
 from .dhw import estimate_baseline, split_dhw
 from .flags import Flag
+from .health import (
+    HealthCheckConfig,
+    HealthCheckName,
+    HealthFinding,
+    HealthSourceKind,
+    WeatherSourceRef,
+    findings_as_attributes,
+    run_health_checks,
+)
 from .heat import carrier_to_heat, cop_day
 from .importers import CsvInspection, inspect_readings_csv, parse_readings_csv
 from .methods import compute_all, compute_day, preset, t_eff, tac_series
@@ -89,7 +98,7 @@ from .weather import (
     remaining_season_dd,
 )
 
-__version__ = "0.2.4"
+__version__ = "0.2.5"
 
 __all__ = [
     "CarrierInput",
@@ -112,6 +121,10 @@ __all__ = [
     "Forecast",
     "Generator",
     "GeneratorKind",
+    "HealthCheckConfig",
+    "HealthCheckName",
+    "HealthFinding",
+    "HealthSourceKind",
     "HouseParams",
     "InsufficientDataError",
     "KnmiClient",
@@ -133,7 +146,9 @@ __all__ = [
     "Site",
     "WeatherProvider",
     "WeatherSourceConfig",
+    "WeatherSourceRef",
     "__version__",
+    "findings_as_attributes",
     "allocate_day",
     "allocate_period",
     "apply_room_not_fitted",
@@ -166,6 +181,7 @@ __all__ = [
     "readings_to_daily",
     "remaining_season_dd",
     "room_weight",
+    "run_health_checks",
     "saving_between",
     "season_for",
     "season_window",

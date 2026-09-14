@@ -1143,6 +1143,22 @@
     "weather_check_failed": {
       "title": "Weather source not reachable yet",
       "description": "The first-run weather check for {site} failed ({error}) using {weather}. Heatprint was still created and will keep retrying. Use Reconfigure to pick another station or provider if this persists."
+    },
+    "health_stuck_value": {
+      "title": "Stuck meter: {source}",
+      "description": "The cumulative meter of {source} on {site} has not changed for at least 3 days while other heating is being recorded. Confirm the meter integration is still polling. Distinct from a data gap: readings are arriving, but the value is not moving."
+    },
+    "health_implausible_value": {
+      "title": "Implausible value: {source}",
+      "description": "Yesterday's heat, degree days or room demand from {source} on {site} is more than five times the typical value of the previous 30 days. Check yesterday's reading and whether the sensor unit is still correct."
+    },
+    "health_scale_drift": {
+      "title": "Scale drift: {source}",
+      "description": "The last 15 days from {source} on {site} differ by an order of magnitude from the 15 days before that, without a matching weather change. Check whether an integration update changed the sensor unit or precision."
+    },
+    "health_weather_stalled": {
+      "title": "Weather stalled: {source}",
+      "description": "{source} on {site} has been marked provisional longer than that provider's normal window. Routine 1–2 day KNMI lag is expected; this repair means the source is stuck on provisional data. Check the station or provider."
     }
   }
 }

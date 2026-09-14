@@ -76,7 +76,7 @@ flowchart TB
         SV["services<br/>import · recompute · fit · compare ·<br/>measure_effect · forecast · export · push · clear ·<br/>fit_room · create_dashboard"]
         SR["store<br/>JSON: climatology, fits, room_fits, flags, baseline, weather cache"]
         DB["dashboard / dashboard_config<br/>stock Lovelace via unique_id"]
-        DG["diagnostics<br/>(repairs in v1.0)"]
+        DG["diagnostics<br/>(§14 health-check repairs)"]
     end
 
     CF --> FR
@@ -173,8 +173,10 @@ ERA5 gap.
 | Room demand signal (Tado/`tado_ce` or compatible) | recorder (statistics/history of an existing entity) | n/a | only from when the entity's statistics/history begin | none - room omitted from allocation for that day |
 
 Network errors: exponential backoff, `UpdateFailed` while keeping the last data;
-`binary_sensor.<site>_data_gap` turns on after 3 days without usable data (a repair
-notification follows in v1.0).
+`binary_sensor.<site>_data_gap` turns on after 3 days without usable data.
+METHODS §14 health checks (`STUCK_VALUE`, `IMPLAUSIBLE_VALUE`, `SCALE_DRIFT`,
+`WEATHER_STALLED`) open and auto-close HA repairs that name the generator,
+room or weather source.
 
 ## 7. Package layout
 
@@ -186,7 +188,8 @@ heatprint/
 │   ├── room_discovery.py  room_sync.py  history_values.py
 │   ├── recorder_source.py  statistics_writer.py  store.py
 │   ├── sensor.py  binary_sensor.py  services.py  services.yaml
-│   ├── core_api.py  mindergas.py  diagnostics.py  manifest.json  strings.json
+│   ├── core_api.py  mindergas.py  diagnostics.py  issues.py
+│   ├── manifest.json  strings.json
 │   ├── _bundle.py                # sys.path bootstrap for the nested core
 │   ├── brand/icon.png            # HACS brand icon
 │   ├── translations/{en,nl}.json
@@ -196,6 +199,7 @@ heatprint/
 │       ├── weather/{base,knmi,open_meteo,climatology}.py
 │       ├── methods/{effective_temperature,degree_days,pbl_params}.py
 │       ├── analysis/{signature,normalize,compare,forecast}.py
+│       ├── health.py              # METHODS §14 threshold checks
 │       ├── rooms/{allocation,signature}.py
 │       └── importers/csv_readings.py
 ├── tests/                            # pytest (core) + fixtures

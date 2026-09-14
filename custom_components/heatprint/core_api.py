@@ -29,6 +29,7 @@ if _INTEGRATION_DIR not in sys.path:
 from aiohttp import ClientError, ClientSession
 
 from heatprint_core import flags as core_flags
+from heatprint_core import health as core_health
 from heatprint_core import heat as core_heat
 from heatprint_core import models as core_models
 from heatprint_core import pipeline as core_pipeline
@@ -1182,6 +1183,16 @@ def record_flags(record: Any) -> list[str]:
 def record_is_usable(record: Any) -> bool:
     """Return True when the record carries no exclusion flag."""
     return core_flags.is_usable(getattr(record, "flags", ()))
+
+
+def run_health_checks(*args: Any, **kwargs: Any) -> list[Any]:
+    """Run METHODS §14 data-source health checks (pure core)."""
+    return core_health.run_health_checks(*args, **kwargs)
+
+
+def findings_as_attributes(findings: Any) -> list[dict[str, str]]:
+    """Serialise health findings for ``sensor.<site>_data_quality``."""
+    return core_health.findings_as_attributes(findings)
 
 
 def record_to_metrics(record: Any, generators: Iterable[GeneratorConfig]) -> DayMetrics:

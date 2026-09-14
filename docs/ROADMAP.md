@@ -12,7 +12,7 @@
 | 0.2.2 | Docs vs codebase audit | Align ARCHITECTURE / CONFIG_FLOW / DATA_MODEL / PRODUCT_BRIEF with shipped 0.2.1; list remaining code gaps | done (docs) |
 | 0.2.3 | First-run cleanup | Delete dead wizard; surface weather-check failures; emit `ROOM_NOT_FITTED`; `clear_statistics` room means | done |
 | 0.2.4 | Cost + CO₂ | F18 site `cost_eur`/`co2_kg` statistics, `price_mode: dynamic` (ADR 0006), room cost allocation, `cost_space_season` / `avg_price_paid` / `co2_season` | done |
-| 0.3 | Health checks | METHODS §14 data-source health-check repairs (`STUCK_VALUE`, `IMPLAUSIBLE_VALUE`, `SCALE_DRIFT`, `WEATHER_STALLED`) | planned |
+| 0.2.5 | Data-source health checks | METHODS §14 `STUCK_VALUE` / `IMPLAUSIBLE_VALUE` / `SCALE_DRIFT` / `WEATHER_STALLED` as HA repairs + `open_health_checks` | done |
 | 0.3.0 | Hybrid | Heat pump generator with thermal/electric meters, heat pump share, daily COP, season 2026/27 live | planned (when the heat pump is installed) |
 | 1.0.0 | HACS release | Measure effect with CI, mindergas bridge, COP curve, DHW monthly profile, repairs/diagnostics, HACS default | planned |
 | 2.0.0 | Visual insight | Custom card (energy signature), occupancy regressor, export/CLI, opt-in benchmark | idea |
@@ -44,6 +44,9 @@ Closed in this pre-alpha:
   remain out of scope.
 - Multi-step first-run wizard removed in 0.2.3. `ROOM_NOT_FITTED` is written when
   a room has fewer than the minimum fit days.
+- METHODS §14 health-check repairs (0.2.5): `STUCK_VALUE` / `IMPLAUSIBLE_VALUE` /
+  `SCALE_DRIFT` / `WEATHER_STALLED` open and auto-close HA repairs;
+  `open_health_checks` is on `sensor.<site>_data_quality`.
 
 Still open (not this release):
 
@@ -60,8 +63,9 @@ Still open (not this release):
 5. Post-create "Compute effect" notification after adding a measure (service exists; v1.0 UI).
 6. PDF eq. 17 sun term *outside* inertia — Heatprint keeps sun inside `T_eff` (METHODS §3);
    default practical model has `include_sun` off and therefore matches PDF eq. 20.
-7. METHODS §14 data-source health-check repairs — still specified only
-   (`STUCK_VALUE` / `IMPLAUSIBLE_VALUE` / `SCALE_DRIFT` / `WEATHER_STALLED`).
+7. A dedicated `data_gap` repair (F23) is still v1; the
+   `binary_sensor.<site>_data_gap` problem entity already exists. Health-check
+   repairs shipped in 0.2.5.
 8. First-run weather validation is still non-blocking (offline must not stall
    setup). **0.2.3** shows the failure on the confirm step and opens a repair /
    persistent notification. Reconfigure still blocks on `cannot_connect` /

@@ -1,8 +1,10 @@
-"""Repair issues and first-run notifications (weather check visibility)."""
+"""Repair issues and first-run notifications (weather check + METHODS §14)."""
 
 from __future__ import annotations
 
 import logging
+from collections.abc import Sequence
+from typing import Any
 
 from homeassistant.components import persistent_notification
 from homeassistant.core import HomeAssistant, callback
@@ -10,6 +12,7 @@ from homeassistant.helpers import issue_registry as ir
 
 from .const import (
     DOMAIN,
+    ISSUE_HEALTH_PREFIX,
     ISSUE_WEATHER_CHECK,
     NOTIFICATION_WEATHER_CHECK,
 )
@@ -75,3 +78,34 @@ def async_clear_weather_check_failed(hass: HomeAssistant, site_id: str) -> None:
     """Dismiss the weather-check repair and notification once weather works."""
     ir.async_delete_issue(hass, DOMAIN, ISSUE_WEATHER_CHECK.format(site_id=site_id))
     persistent_notification.async_dismiss(hass, NOTIFICATION_WEATHER_CHECK.format(site_id=site_id))
+
+
+@callback
+def async_sync_health_checks(
+    hass: HomeAssistant,
+    *,
+    site_id: str,
+    site_name: str,
+    findings: Sequence[Any],
+) -> None:
+    """Open a repair per firing check; close those that no longer fire."""
+    wanted = {finding.issue_id(site_id): finding for finding in findings}
+    registry = ir.async_get(hass)
+    existing = [issue_id for (domain, issue_id) in registry.issues if domain == DOMAIN]
+    prefix = ISSUE_HEALTH_PREFIX.format(site_id=site_id)
+    for issue_id in existing:
+        if issue_id.startswith(prefix) and issue_id not in wanted:
+            ir.async_delete_issue(hass, DOMAIN, issue_id)
+    for issue_id, finding in wanted.items():
+        ir.async_create_issue(
+            hass,
+            DOMAIN,
+            issue_id,
+            is_fixable=False,
+            severity=ir.IssueSeverity.WARNING,
+            translation_key=f"health_{finding.check.value}",
+            translation_placeholders={
+                "site": site_name,
+                "source": finding.source_name,
+            },
+        )
