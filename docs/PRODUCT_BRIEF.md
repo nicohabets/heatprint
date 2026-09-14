@@ -186,7 +186,7 @@ NL-calibrated, the house fit is universal.
 | F20 | Custom card, occupancy regressor, benchmark | v2 |
 | F21 | Data quality flags on every daily record and in the UI | MVP |
 | F22 | Translations NL/EN; explanation for every field | MVP |
-| F23 | Diagnostics without secrets; repairs on data gaps and on ongoing data-source health checks (stuck values, implausible values, scale drift) | v1 |
+| F23 | Diagnostics without secrets; repairs on data gaps and on ongoing data-source health checks (stuck values, implausible values, scale drift) | health-check repairs 0.2.5; data-gap repair still v1 |
 | F24 | Per-room heat allocation from a configurable demand signal (Tado/compatible integrations), with an unallocated bucket | 0.2.0 (heat) |
 | F25 | Per-room apparent heat loss (energy-signature fit), per-m² normalization, and per-room/total heating cost | 0.2.0 heat-loss / per-m²; cost in 0.2.4 |
 | F26 | Dynamic/day-ahead electricity tariff support: hourly cost from the generator's and price entity's own recorded statistics, for electric-carrier generators | 0.2.4 |
@@ -253,9 +253,10 @@ Privacy: no data leaves the house except coordinates/station to the weather prov
 | 1 - Core | Providers, methods, heat/DHW, meter readings, fit, forecast; Heerlen reference case | 2-3 weeks of evening work |
 | 2 - HA shell MVP | Config flow, coordinator, statistics, sensors, services; run on own HA | 2-3 weeks |
 | 3 - Winter 2026/27 | Run live alongside mindergas; connect the hybrid heat pump; bugs; docs | ongoing |
-| 4 - v1.0 | Measure effect polish, bridge, health-check repairs, HACS default | 3-4 weeks |
+| 4 - v1.0 | Measure effect polish, bridge, HACS default | 3-4 weeks |
 | 4a - v0.2 | Rooms **heat**: allocation, apparent UA, auto-discovery, Rooms dashboard | shipped 0.2.0 / 0.2.1 |
 | 4b - v0.2.4 | Rooms **cost** + site F18 cost/CO₂ / dynamic tariffs | shipped 0.2.4 |
+| 4c - v0.2.5 | METHODS §14 health-check repairs + `open_health_checks` | this PR |
 | 5 - v2.0 | Card, occupancy, benchmark | later |
 
 ## 14. Open questions and decisions

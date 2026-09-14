@@ -93,6 +93,7 @@ async def async_get_config_entry_diagnostics(
                 "usable_share": data.data_quality.usable_share,
                 "gap_days": data.data_quality.gap_days,
                 "flag_counts": data.data_quality.flag_counts,
+                "open_health_checks": data.data_quality.open_health_checks,
             }
             if data
             else None,

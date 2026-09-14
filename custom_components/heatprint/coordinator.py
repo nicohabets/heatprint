@@ -61,6 +61,7 @@ from .const import (
     EXCLUSION_FLAGS,
     FALLBACK_METHOD_PRIMARY,
     FIT_REFRESH_DAYS,
+    HEALTH_CHECK_LOOKBACK_DAYS,
     METHOD_HOUSE,
     METHOD_TO_DD_METRIC,
     METRIC_CO2,
@@ -110,6 +111,7 @@ from .core_api import (
     daily_consumption_from_readings,
     effective_co2_factors,
     estimate_baselines,
+    findings_as_attributes,
     fit_room_signature,
     fit_signature,
     forecast_season,
@@ -126,12 +128,13 @@ from .core_api import (
     record_to_metrics,
     room_configs,
     rooms_options,
+    run_health_checks,
     season_for,
     weather_from_ha_sensors,
     weather_signature,
 )
 from .history_values import demand_requires_history
-from .issues import async_clear_weather_check_failed
+from .issues import async_clear_weather_check_failed, async_sync_health_checks
 from .metric_ids import generator_clear_statistic_ids, site_clear_statistic_ids
 from .mindergas import MindergasError, async_push_reading
 from .recorder_source import (
@@ -261,6 +264,7 @@ class DataQuality:
     flag_counts: dict[str, int]
     gap_days: int
     last_usable: date | None
+    open_health_checks: list[dict[str, str]] = field(default_factory=list)
 
 
 @dataclass(slots=True)
@@ -869,6 +873,24 @@ class HeatprintCoordinator(DataUpdateCoordinator[HeatprintData]):
         primary = method_options(self.entry)[CONF_METHODS_PRIMARY]
         if primary == METHOD_HOUSE and fit is None:
             primary = FALLBACK_METHOD_PRIMARY
+        health_records = await self._async_health_records(records, yesterday)
+        room_records = await self._async_health_room_records(health_records, yesterday)
+        findings = await self.hass.async_add_executor_job(
+            lambda: run_health_checks(
+                health_records,
+                site=self.site,
+                room_records=room_records,
+                as_of=yesterday,
+                primary_method=primary,
+            )
+        )
+        async_sync_health_checks(
+            self.hass,
+            site_id=self.site_id,
+            site_name=self.site_name,
+            findings=findings,
+        )
+        quality.open_health_checks = findings_as_attributes(findings)
         return HeatprintData(
             latest=self._latest_day(),
             season=aggregate,
@@ -1244,6 +1266,22 @@ class HeatprintCoordinator(DataUpdateCoordinator[HeatprintData]):
             gap_days=gap,
             last_usable=last_usable,
         )
+
+    async def _async_health_records(self, season_records: list[Any], yesterday: date) -> list[Any]:
+        """Daily records covering the METHODS §14 lookback, not only this season."""
+        health_start = yesterday - timedelta(days=HEALTH_CHECK_LOOKBACK_DAYS - 1)
+        if season_records and season_records[0].date <= health_start:
+            return [record for record in season_records if record.date >= health_start]
+        extra, _weather = await self._async_build_records(health_start, yesterday)
+        return extra
+
+    async def _async_health_room_records(self, records: list[Any], yesterday: date) -> list[Any]:
+        """Room-days for the health-check window (empty when allocation is off)."""
+        if not self._rooms_allocation_enabled() or not records:
+            return []
+        start = min(record.date for record in records)
+        room_records, _unallocated = await self._async_allocate_rooms(records, start, yesterday)
+        return room_records
 
     # --- backfill / recompute ----------------------------------------------------------
 

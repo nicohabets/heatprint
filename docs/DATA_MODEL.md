@@ -354,7 +354,7 @@ Site options (`options.rooms`):
 | `heat_by_generator` | dict | `DailyEnergy` per generator |
 | `share_heat_pump` | 0-1 | `Σ Q_space(heat_pump) / heat_space_kwh` |
 | `cost_eur`, `cost_space_eur`, `co2_kg` | €, €, kg | optional; METHODS §13 / §12.5. `cost_space_eur` is each generator's cost × (`heat_space / heat_total`); rooms allocate from this, not from total cost |
-| `flags` | set | METHODS §10, §12.7, §13.2, §14 |
+| `flags` | set | METHODS §10, §12.7, §13.2. Health checks (§14) are repairs, not day flags |
 
 ### 2.2 Storage in Home Assistant
 
@@ -484,14 +484,14 @@ The table below shows **English-UI** entity ids as examples.
 | `sensor.<site>_forecast_gas_season` | m³ | gas | |
 | `sensor.<site>_forecast_electricity_season` | kWh | energy | translation key `forecast_electric_season` |
 | `sensor.<site>_hot_water_baseline` | kWh/day | measurement | translation key `dhw_baseline`; attributes per generator |
-| `sensor.<site>_data_quality` | % | measurement | share of usable days in the last 30 days; attributes: flags. `open_health_checks` (METHODS §14) is **v1.0** — not present in 0.2.x |
+| `sensor.<site>_data_quality` | % | measurement | share of usable days in the last 30 days; attributes: flags and `open_health_checks` (METHODS §14, since 0.2.5) |
 | `sensor.<site>_last_weather_update` | timestamp | | |
 | `binary_sensor.<site>_data_gap` | | problem | > 3 days without usable data |
 
-Data-source health checks (METHODS §14) that fire are specified to open an HA repair
+Data-source health checks (METHODS §14) that fire open an HA repair
 (per generator/room/weather source and failing check) rather than a dedicated entity.
-**Not implemented in 0.2.x** (v1.0 / F23). Today only `binary_sensor.<site>_data_gap`
-exists.
+Implemented in 0.2.5. `binary_sensor.<site>_data_gap` remains the missing-data
+problem entity (not the same as a stuck or implausible value).
 
 Per generator: `sensor.<site>_<generator>_space_heating_season`, `..._hot_water_season`,
 `..._share_season`, and, only when `price_mode: dynamic` (METHODS §13.2),

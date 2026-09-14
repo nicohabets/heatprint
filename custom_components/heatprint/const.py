@@ -34,6 +34,9 @@ DEFAULT_MIN_FIT_DAYS: Final = 30
 FIT_REFRESH_DAYS: Final = 7
 DATA_GAP_DAYS: Final = 3
 DATA_QUALITY_WINDOW_DAYS: Final = 30
+# METHODS §14 lookback: implausible uses 30 days *before* as_of, scale-drift
+# compares two 15-day windows ending at as_of — keep 31 calendar days.
+HEALTH_CHECK_LOOKBACK_DAYS: Final = 31
 DEFAULT_OUTLIER_THRESHOLD: Final = 4.0
 
 STORAGE_VERSION: Final = 1
@@ -43,6 +46,7 @@ NOTIFICATION_BACKFILL: Final = "heatprint_backfill_{entry_id}"
 NOTIFICATION_IMPORT_HINT: Final = "heatprint_import_hint_{entry_id}"
 NOTIFICATION_WEATHER_CHECK: Final = "heatprint_weather_check_{site_id}"
 ISSUE_WEATHER_CHECK: Final = "weather_check_{site_id}"
+ISSUE_HEALTH_PREFIX: Final = "health_{site_id}_"
 
 # --- Site (config entry data) ---------------------------------------------------
 CONF_SITE_ID: Final = "site_id"

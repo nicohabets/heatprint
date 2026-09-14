@@ -5,6 +5,32 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.2.5] - 2026-09-14
+
+### Added
+- METHODS §14 data-source health checks, run daily over every generator, room
+  demand entity and weather source: `STUCK_VALUE`, `IMPLAUSIBLE_VALUE`,
+  `SCALE_DRIFT`, `WEATHER_STALLED`. Each firing check opens a Home Assistant
+  repair that names the source and what to check; the next daily pass that no
+  longer fires the check closes it. Distinct from `binary_sensor.<site>_data_gap`
+  (missing data), which is unchanged.
+- `sensor.<site>_data_quality` now exposes `open_health_checks` (list of
+  `{check, source_kind, source_id, source_name, hint}`) as specified in
+  DATA_MODEL §4 / METHODS §14.
+- Thresholds stay simple (no numpy, ADR 0002): 3 zero-increment days while
+  another generator still shows space heat; 5× trailing 30-day median;
+  10× step between two 15-day medians when degree days are comparable;
+  provisional weather longer than the provider window (KNMI 2 days,
+  Open-Meteo ERA5 delay 8 days).
+
+### Changed
+- Version lockstep is 0.2.5 (`manifest.json`, `pyproject.toml`,
+  `heatprint_core.__version__`).
+
+### Notes
+- Cost/CO₂ (METHODS §13) already shipped in 0.2.4 on main. This release is
+  only §14 health-check repairs.
+
 ## [0.2.4] - 2026-09-14
 
 ### Added

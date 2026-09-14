@@ -1143,6 +1143,22 @@
     "weather_check_failed": {
       "title": "Weerbron nog niet bereikbaar",
       "description": "De weercheck bij de eerste setup van {site} is mislukt ({error}) via {weather}. Heatprint is wel aangemaakt en blijft het opnieuw proberen. Gebruik Opnieuw configureren voor een ander station of een andere bron als dit aanhoudt."
+    },
+    "health_stuck_value": {
+      "title": "Vastgelopen meter: {source}",
+      "description": "De cumulatieve meter van {source} op {site} is minstens 3 dagen niet veranderd terwijl er wél verwarming wordt geregistreerd. Controleer of de meterintegratie nog pollt. Dit is geen datagat: er komen wel waarden binnen, maar die bewegen niet."
+    },
+    "health_implausible_value": {
+      "title": "Onwaarschijnlijke waarde: {source}",
+      "description": "De warmte, graaddagen of ruimtevraag van gisteren van {source} op {site} is meer dan vijf keer de typische waarde van de voorgaande 30 dagen. Controleer de stand van gisteren en of de eenheid van de sensor nog klopt."
+    },
+    "health_scale_drift": {
+      "title": "Schaalverspringing: {source}",
+      "description": "De laatste 15 dagen van {source} op {site} wijken een ordegrootte af van de 15 dagen daarvoor, zonder bijpassende weersverandering. Controleer of een integratie-update de eenheid of precisie van de sensor heeft veranderd."
+    },
+    "health_weather_stalled": {
+      "title": "Weerbron blijft voorlopig: {source}",
+      "description": "{source} op {site} is langer voorlopig gemarkeerd dan het normale venster van die bron. 1–2 dagen KNMI-vertraging is normaal; deze reparatie betekent dat de bron vastzit op voorlopige data. Controleer het station of de aanbieder."
     }
   }
 }

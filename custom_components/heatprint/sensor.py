@@ -206,6 +206,7 @@ def _quality_attributes(data: HeatprintData) -> dict[str, Any]:
     attributes: dict[str, Any] = {
         "gap_days": quality.gap_days,
         "last_usable_day": quality.last_usable.isoformat() if quality.last_usable else None,
+        "open_health_checks": quality.open_health_checks,
     }
     attributes.update(
         {f"flag_{flag.lower()}": count for flag, count in quality.flag_counts.items()}
