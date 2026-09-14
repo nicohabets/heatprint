@@ -7,7 +7,8 @@ without reinstalling.
 Structure in Home Assistant (2026.9+):
 
 - **Config entry** = one site (dwelling). Multiple sites are possible (second home).
-- **Subentries** of type `generator` (heat generator) and `measure` (energy-saving measure).
+- **Subentries** of type `generator` (heat generator), `measure` (energy-saving
+  measure) and `room` (usually auto-synced from HA areas).
 - **Options flow** for methods, DHW defaults, backfill and integrations (mindergas bridge).
 - **Reconfigure flow** for location and weather source.
 
@@ -116,7 +117,7 @@ Sub-steps depending on `kind`:
 | Field | Selector | Default |
 |---|---|---|
 | `name` | text | per kind |
-| `kind` | select | from step 3 |
+| `kind` | select | from add-generator / leftover situation draft |
 | `role` | select: `space`, `dhw`, `both` | per kind |
 
 ### 4.2 Sensors
