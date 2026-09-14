@@ -277,8 +277,8 @@ classDiagram
 | `dhw.mode` | `measured` / `baseline` / `fixed` / `none` | |
 | `dhw.fixed_per_day` | float | in carrier unit |
 | `dhw.summer_start`, `dhw.summer_end` | MM-DD | 06-01, 08-31 |
-| `price_entity` | entity_id | price per unit (€/m³, €/kWh), optional |
-| `price_mode` | `flat` / `dynamic` | `flat` | `dynamic` only meaningful for an electric carrier (`heat_pump`, `electric_heater`, `air_to_air`); see METHODS §13.2 |
+| `price_entity` | entity_id | price per unit (€/m³, €/kWh), optional. Stored; **not read** from the recorder in 0.2.x (F18 / v1.0) |
+| `price_mode` | `flat` / `dynamic` | `flat` | Specified for v1.0 (METHODS §13.2). **Not** in the core `Generator` model or config flow yet |
 | `co2_factor` | float | kg per unit, default per kind |
 
 ### 1.4 Measure (subentry type `measure`)
@@ -374,19 +374,20 @@ External statistics (hourly resolution is mandatory in HA; Heatprint writes one 
 | `heatprint:<site>_heat_dhw_<generator>` | sum | kWh (DHW per generator) |
 | `heatprint:<site>_electric_hp` | sum | kWh |
 | `heatprint:<site>_gas` | sum | m³ |
-| `heatprint:<site>_cost` | sum | € (METHODS §13) |
-| `heatprint:<site>_co2` | sum | kg (METHODS §13.3) |
+| `heatprint:<site>_cost` | sum | € (METHODS §13) — **not written in 0.2.x**; ROADMAP open item 1 |
+| `heatprint:<site>_co2` | sum | kg (METHODS §13.3) — **not written in 0.2.x** (core can compute `co2_kg` in-memory when factors are passed) |
 | `heatprint:<site>_heat_unallocated` | sum | kWh (METHODS §12.3) |
 | `heatprint:<site>_room_<room>_demand` | mean | `%` or `h` depending on `demand_kind` (METHODS §12.1) |
 | `heatprint:<site>_room_<room>_heat` | sum | kWh |
-| `heatprint:<site>_room_<room>_cost` | sum | € (only once `cost_eur` is written at site level, see ROADMAP open item 1) |
+| `heatprint:<site>_room_<room>_cost` | sum | € (deferred until site `cost_eur` is written, ROADMAP open item 1) |
 | `heatprint:<site>_room_<room>_t_mean` | mean | °C (only if `temperature_entity` is set) |
 
 Advantages: backfill of years is possible, visible in the standard statistics graph card,
 survives entity renames, no recorder bloat (1 row/day/metric).
 
 JSON store (`.storage/heatprint.<entry_id>`): `Climatology`, latest `SignatureFit`s,
-`dhw_baseline` per generator, per-day `flags` (bitmask), latest `Forecast`, version.
+`dhw_baseline` per generator, per-day `flags` (bitmask), latest `Forecast`, weather
+cache (last 400 days), imported readings, `room_fits`, `room_flags`, version.
 
 ### 2.3 Climatology
 
@@ -481,17 +482,19 @@ The table below shows **English-UI** entity ids as examples.
 | `sensor.<site>_forecast_gas_season` | m³ | gas | |
 | `sensor.<site>_forecast_electricity_season` | kWh | energy | translation key `forecast_electric_season` |
 | `sensor.<site>_hot_water_baseline` | kWh/day | measurement | translation key `dhw_baseline`; attributes per generator |
-| `sensor.<site>_data_quality` | % | measurement | share of usable days in the last 30 days; attributes: flags, `open_health_checks` (METHODS §14) |
+| `sensor.<site>_data_quality` | % | measurement | share of usable days in the last 30 days; attributes: flags. `open_health_checks` (METHODS §14) is **v1.0** — not present in 0.2.x |
 | `sensor.<site>_last_weather_update` | timestamp | | |
 | `binary_sensor.<site>_data_gap` | | problem | > 3 days without usable data |
 
-Data-source health checks (METHODS §14) that fire open an HA repair (per generator/room/weather
-source and failing check) rather than a dedicated entity; they close automatically once the
-check stops firing.
+Data-source health checks (METHODS §14) that fire are specified to open an HA repair
+(per generator/room/weather source and failing check) rather than a dedicated entity.
+**Not implemented in 0.2.x** (v1.0 / F23). Today only `binary_sensor.<site>_data_gap`
+exists.
 
 Per generator: `sensor.<site>_<generator>_space_heating_season`, `..._hot_water_season`,
-`..._share_season`, and, only when `price_mode: dynamic`,
-`sensor.<site>_<generator>_avg_price_paid` (€/kWh, season-to-date weighted average, METHODS §13.2).
+`..._share_season`, and, only when `price_mode: dynamic` (v1.0 / METHODS §13.2),
+`sensor.<site>_<generator>_avg_price_paid` (€/kWh, season-to-date weighted average).
+**Not created in 0.2.x.**
 
 Per room (only for rooms with `enabled: true`; a room's "heat" is always space heating only -
 DHW is never allocated to rooms, METHODS §12):
@@ -501,7 +504,7 @@ DHW is never allocated to rooms, METHODS §12):
 | `sensor.<site>_room_<room>_heat_yesterday` | kWh | energy/total | |
 | `sensor.<site>_room_<room>_heat_season` | kWh | energy/total | |
 | `sensor.<site>_room_<room>_share_season` | % | measurement | share of `heat_space_kwh` allocated to this room |
-| `sensor.<site>_room_<room>_cost_season` | € | monetary/total | Not created in 0.2.0 — site `cost_eur` is not written as a statistic yet (METHODS §13) |
+| `sensor.<site>_room_<room>_cost_season` | € | monetary/total | Not created in 0.2.x — site `cost_eur` is not written as a statistic yet (METHODS §13) |
 | `sensor.<site>_room_<room>_heat_loss_coefficient` | W/K | measurement | latest room fit; unavailable while `ROOM_NOT_FITTED` |
 | `sensor.<site>_room_<room>_specific_heat_loss` | W/(m²·K) | measurement | `heat_loss_coefficient / floor_area_m2`; only if `floor_area_m2` is set - the figure comparable across rooms and houses (METHODS §12.4) |
 | `sensor.<site>_room_<room>_balance_temperature` | °C | temperature | latest room fit |
@@ -515,8 +518,8 @@ Site-level additions for the rooms feature:
 | Entity | Unit | Class | Notes |
 |---|---|---|---|
 | `sensor.<site>_heat_unallocated_season` | kWh | energy/total | METHODS §12.3 |
-| `sensor.<site>_cost_space_season` | € | monetary/total | Sum of `cost_room_eur` + unallocated; reconciles against site `cost_eur` |
-| `sensor.<site>_most_expensive_room` | - | measurement | State = `room.name` of the room with the highest allocated heat this season (0.2.0 ranks by `heat_kwh` until site `cost_eur` exists); attributes: `ranked_by`, `ranking` (enabled rooms with `heat_kwh` and `share`), `by_heat_loss` (same rooms sorted by `ua_w_per_k` desc). Unavailable while no room has a season total yet. |
+| `sensor.<site>_cost_space_season` | € | monetary/total | **Deferred** until site `cost_eur` is written (METHODS §13). Not created in 0.2.x |
+| `sensor.<site>_most_expensive_room` | - | measurement | State = `room.name` of the room with the highest allocated heat this season (0.2.x ranks by `heat_kwh` until site `cost_eur` exists); attributes: `ranked_by`, `ranking` (enabled rooms with `heat_kwh` and `share`), `by_heat_loss` (same rooms sorted by `ua_w_per_k` desc). Unavailable while no room has a season total yet. |
 
 ---
 

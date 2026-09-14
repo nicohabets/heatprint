@@ -1,10 +1,12 @@
 """Config flow for Heatprint (CONFIG_FLOW.md).
 
-Main flow: site -> weather source -> heating situation -> generators (repeating)
--> DHW -> methods and season -> history -> summary. Generators become
-``generator`` subentries; measures are added later as ``measure`` subentries.
-The options flow manages methods, DHW, history, pricing, integrations and
-advanced parameters; the reconfigure flow changes location and weather source.
+First-run is a single confirm of the Home Assistant home (location, weather,
+meters and heated areas are taken from HA). Generators and rooms become
+subentries. The options flow manages methods, DHW, history, CSV import,
+pricing, mindergas, rooms sync and advanced parameters. Reconfigure changes
+location and weather source. A leftover multi-step wizard (situation →
+generators → DHW → methods → history → summary) still exists in this module
+but is not reached from ``async_step_user``.
 """
 
 from __future__ import annotations

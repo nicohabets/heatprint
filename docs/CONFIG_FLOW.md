@@ -48,8 +48,8 @@ Home Assistant already has and does not ask the user to recreate a home:
 | `location` | HA home lat/lon (or `zone.home`) | never asked |
 | `timezone` | HA time zone | never asked |
 | `country` | HA country, else tz/coords | never asked; NL → nearest KNMI station |
-| weather | KNMI nearest (NL) or Open-Meteo | Reconfigure to change |
-| generators | gas / heat-pump energy sensors already in HA | optional; add later if none |
+| weather | KNMI nearest (NL) or Open-Meteo | Reconfigure to change; first-run does **not** block if the weather check fails (logged warning) |
+| generators | gas / heat-pump energy sensors already in HA | **auto-created** when high-confidence sensors exist; add later if none |
 | rooms | heated HA areas (see below) | auto-synced as `room` subentries |
 
 Reconfigure remains the escape hatch for a second home or a different weather
@@ -57,13 +57,20 @@ station. Methods, DHW and history use the documented defaults (options).
 
 Errors: `already_configured`.
 
+**First-run stops after this confirm.** Weather, methods, DHW and history are
+**not** asked here. The numbered steps below describe later surfaces
+(Reconfigure, generator/measure/room subentries, Options). A leftover
+sequential wizard (`situation` → generators → DHW → methods → history →
+summary) still exists in `config_flow.py` but is **not** reached from
+`async_step_user`.
+
 After setup a **stock Lovelace dashboard** is created and shown in the sidebar
 (`heatprint-<site_id>`). Entity cards look up current `entity_id`s by
 `unique_id` (so a Dutch or other non-English UI does not get "Entity not
 found"). Statistic ids stay `heatprint:<site>_<metric>`. Only built-in cards
 (no apexcharts). Recreate with the action `heatprint.create_dashboard`.
 
-## Step 2a - Weather source (NL)
+## Later - Weather source (NL) — Reconfigure only
 
 | Field | Selector | Default | Notes |
 |---|---|---|---|
@@ -73,7 +80,7 @@ found"). Statistic ids stay `heatprint:<site>_<metric>`. Only built-in cards
 
 Validation: KNMI test request (last 7 days). Errors: `cannot_connect`, `no_data_for_station`.
 
-## Step 2b - Weather source (outside NL)
+## Later - Weather source (outside NL) — Reconfigure only
 
 | Field | Selector | Default |
 |---|---|---|
@@ -85,23 +92,22 @@ Validation: KNMI test request (last 7 days). Errors: `cannot_connect`, `no_data_
 Validation: Open-Meteo test request; with `ha_sensors`, a check for `state_class measurement`
 (otherwise there are no long-term statistics → error `entity_no_statistics`).
 
-## Step 3 - Heating setup (wizard choice)
+## Heating setup (first-run auto-detect)
 
-One choice that prefills the next step:
+First-run **creates** generator subentries for every matching sensor (not
+suggestions). Heat pumps get role `both` (not the leftover hybrid draft of
+`space`). If none are found, add them later via the `generator` subentry.
 
-| Choice | Prefilled generators |
+| Detected sensor | Created generator |
 |---|---|
-| `gas` | 1× `gas_boiler` (role `both`) |
-| `hybrid` | 1× `gas_boiler` (`both`) + 1× `heat_pump` (`space`) |
-| `all_electric` | 1× `heat_pump` (`both`) |
-| `district_heat` | 1× `district_heat` (`both`) |
-| `custom` | empty |
+| `device_class: gas` + `state_class: total_increasing` | `gas_boiler` (role `both`) |
+| `device_class: energy` and a name containing warmtepomp / heat pump / hp / wp | `heat_pump` (role `both`, `electric_entity`) |
 
-Autodetection (suggestions, no automatic choice): sensors with `device_class: gas` and
-`state_class: total_increasing` → gas; sensors with `device_class: energy` and a name containing
-warmtepomp/heat pump/hp/wp → heat pump.
+A leftover situation choice (`gas` / `hybrid` / `all_electric` / `district_heat` /
+`custom`) still exists in `async_step_situation` and would prefill drafts
+(`hybrid` → heat pump role `space`). It is **not wired** from first-run.
 
-## Step 4 - Generator (repeating; becomes subentry `generator`)
+## Later - Generator (subentry `generator`)
 
 Sub-steps depending on `kind`:
 
@@ -161,12 +167,12 @@ site setting (step 5 and options), not a per-generator one.
 
 After 4.5: "Add another generator?" (yes → 4.1).
 
-## Step 5 - DHW and cooking (site level)
+## Later - DHW and cooking (site level, Options)
 
 Only a summary and an optional override of the default from 4.4; plus an explanation of why
 the split matters for the heating line.
 
-## Step 6 - Methods and season
+## Later - Methods and season (Options)
 
 | Field | Selector | Default |
 |---|---|---|
@@ -182,23 +188,24 @@ the split matters for the heating line.
 
 Advanced fields live under "Advanced" (collapsed section).
 
-## Step 7 - History
+## Later - History (Options)
 
 | Field | Selector | Default |
 |---|---|---|
 | `backfill_years` | number 0-10 | 3 |
 | `climatology_years` | number 10-30 | 20 |
-| `import_now` | boolean | false; shows an explanation of `heatprint.import_readings` |
+| `import_now` | boolean | false in stored defaults; **no Options control** (leftover field on the unused history wizard step). Use **Import meter readings** instead. |
 
 Text: "Weather history is fetched in the background. Meter readings from before your Home
 Assistant history can be imported from Configure → Import meter readings (CSV paste or
 file; a mindergas.nl export needs no extra questions)."
 
-## Summary
+## After confirm
 
-Shows site, weather source, generators with role/conversion/DHW, methods, season, backfill.
-Confirm → create entry + subentries → coordinator starts the backfill task (with progress as
-a repair/notification).
+Entry + generator/room subentries are created immediately. The coordinator starts
+the weather backfill as a **persistent notification** (not a repair) in 90-day
+chunks. Recreate the stock Lovelace overview and Rooms dashboards with
+`heatprint.create_dashboard`.
 
 ---
 
@@ -249,14 +256,16 @@ Discovery heuristics (METHODS §12.6):
 | Field | Selector | Default | Notes |
 |---|---|---|---|
 | `area_id` | area selector | - | Prefills `name` and suggests `demand_entity` from entities in that area |
-| `name` | text | area name | |
+| `name` | text | area name | Manual add does **not** yet prefill name/demand from the chosen area (auto-sync does) |
 | `demand_entity` | entity | - | Filtered to sensors/attributes plausible for the chosen `demand_kind` |
 | `demand_kind` | select: `percentage`, `valve_position`, `binary`, `metered_energy` | auto-detected from `demand_entity`'s unit/device_class where possible | See METHODS §12.1 |
 | `temperature_entity` | entity (sensor, device_class temperature), optional | area's `climate` entity's own state, if one exists | |
 | `emitter_kind` | select: `radiator`, `underfloor`, `electric`, `other` | `radiator` | |
 | `rated_output_w` | number, optional | - | |
 | `floor_area_m2` | number, optional | - | |
-| `price_entity` | entity, optional | site default | Only shown when `demand_kind = metered_energy` |
+| `volume_m3` | number, optional | - | Captured; unused by any calculation (METHODS §12.4) |
+| `enabled` | boolean | true | Disabling keeps history but stops daily allocation |
+| `price_entity` | entity, optional | site default | Intended only for `demand_kind = metered_energy`; the add-room form currently always shows it |
 
 Validation: `demand_entity` exists and its unit/device_class is plausible for `demand_kind`
 (errors `entity_not_found`, `demand_kind_mismatch`); with `metered_energy`, the same
@@ -283,8 +292,9 @@ Sections (menu):
    `heatprint.import_readings` remains for automations.
 5. **Prices and CO₂** - default factors, CO₂ sensor.
 6. **Integrations** - mindergas.nl bridge: API token (password field), generator choice,
-   daily push on/off. The token lives in the config entry (Home Assistant does not
-   encrypt `.storage`); it is never logged and is redacted from diagnostics (ARCHITECTURE §9).
+   daily push on/off. The token lives in `entry.options["integrations"]` (Home Assistant
+   does not encrypt `.storage`); it is never logged and is redacted from diagnostics
+   (ARCHITECTURE §9).
 7. **Rooms** - auto-sync on/off (default **on**); exclude-area list; one-click
    "sync now"; default output per m² per `emitter_kind` (METHODS §12.2, shown as a clearly
    labelled placeholder/estimate); minimum days for a room fit; allocation on/off (site still
@@ -304,9 +314,10 @@ history again and recompute all daily records (with confirmation).
 
 ## Migrations and versions
 
-- `version = 1`, `minor_version = 0`. Subentries require HA 2026.9+; on older HA the
-  integration refuses to load with a clear repair notification (the HACS minimum is in
-  `hacs.json`).
+- `version = 1`, `minor_version = 0`. Subentries require HA 2026.9+; on older HA
+  (`entry.subentries` missing) setup raises `ConfigEntryError` with translation key
+  `ha_too_old` (the HACS minimum is in `hacs.json`). This is not an issue-registry
+  repair.
 - Future fields get default values in `async_migrate_entry`.
 
 ## Strings and translations

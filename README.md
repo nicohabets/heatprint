@@ -32,7 +32,7 @@ setup, electricity or district heat?"**
 
 ## Status
 
-Pre-alpha **v0.2.1**. Requires Home Assistant **2026.9.0** or newer. The calculation core (`heatprint_core`) implements the documented
+Pre-alpha **v0.2.2**. Requires Home Assistant **2026.9.0** or newer. The calculation core (`heatprint_core`) implements the documented
 pipeline end-to-end — heat conversion, DHW split, effective temperature, four degree-day
 methods, energy signature / PRISM, normalize / compare / forecast, and **per-room heat
 allocation** (METHODS §12) — and is covered by pytest on mock and synthetic data. The Home Assistant integration
@@ -77,7 +77,7 @@ Requires Home Assistant **2026.9.0** or newer. The calculation core ships inside
 | [docs/DATA_MODEL.md](docs/DATA_MODEL.md) | Configuration, daily records, statistics, sensors, services |
 | [docs/CONFIG_FLOW.md](docs/CONFIG_FLOW.md) | Wizard, subentries, options, reconfigure |
 | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | Components, data flow, storage, integrations (Mermaid) |
-| [docs/adr/](docs/adr/) | Architecture decision records: [core independent of Home Assistant](docs/adr/0001-core-independent-of-home-assistant.md), [no heavy dependencies](docs/adr/0002-no-heavy-dependencies.md), [external statistics as storage](docs/adr/0003-external-statistics-as-storage.md), [four methods side by side](docs/adr/0004-four-methods-side-by-side.md) |
+| [docs/adr/](docs/adr/) | Architecture decision records: [core independent of Home Assistant](docs/adr/0001-core-independent-of-home-assistant.md), [no heavy dependencies](docs/adr/0002-no-heavy-dependencies.md), [external statistics as storage](docs/adr/0003-external-statistics-as-storage.md), [four methods side by side](docs/adr/0004-four-methods-side-by-side.md), [room heat allocation](docs/adr/0005-room-heat-allocation-not-design-heat-loss.md), [dynamic tariff from recorded statistics](docs/adr/0006-dynamic-tariff-from-recorded-statistics-not-forecast.md) |
 
 ## Repository layout
 
