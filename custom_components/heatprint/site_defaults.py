@@ -182,8 +182,14 @@ def resolve_site_defaults(
     country: str | None = None,
     home_latitude: float | None = None,
     home_longitude: float | None = None,
+    home_name: str | None = None,
 ) -> SiteDefaults:
-    """Build site defaults from HA home fields (and optional zone.home coords)."""
+    """Build site defaults from HA home fields (and optional zone.home).
+
+    The site name prefers ``zone.home``'s friendly name, then
+    ``hass.config.location_name``, then ``Home``. Location / time zone /
+    country are never asked on first setup.
+    """
     lat, lon = resolve_coordinates(
         latitude,
         longitude,
@@ -191,8 +197,9 @@ def resolve_site_defaults(
         home_longitude=home_longitude,
     )
     timezone = resolve_timezone(time_zone)
+    name = (home_name or "").strip() or (location_name or "").strip() or _DEFAULT_SITE_NAME
     return SiteDefaults(
-        name=(location_name or "").strip() or _DEFAULT_SITE_NAME,
+        name=name,
         latitude=lat,
         longitude=lon,
         timezone=timezone,
@@ -211,6 +218,9 @@ def site_defaults_from_hass(hass: object) -> SiteDefaults:
     states = getattr(hass, "states", None)
     zone = states.get("zone.home") if states is not None and hasattr(states, "get") else None
     zone_attrs = getattr(zone, "attributes", None) or {}
+    zone_name = getattr(zone, "name", None) if zone is not None else None
+    if not zone_name:
+        zone_name = zone_attrs.get("friendly_name")
     return resolve_site_defaults(
         location_name=getattr(config, "location_name", None),
         latitude=getattr(config, "latitude", None),
@@ -219,4 +229,5 @@ def site_defaults_from_hass(hass: object) -> SiteDefaults:
         country=getattr(config, "country", None),
         home_latitude=zone_attrs.get("latitude"),
         home_longitude=zone_attrs.get("longitude"),
+        home_name=zone_name,
     )

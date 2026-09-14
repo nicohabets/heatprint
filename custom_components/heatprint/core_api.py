@@ -93,8 +93,6 @@ from .const import (
     CONF_OUTPUT_W_PER_M2_UNDERFLOOR,
     CONF_RATED_OUTPUT_W,
     CONF_ROOM_ID,
-    CONF_ROOMS_ALLOCATION,
-    CONF_ROOMS_MIN_FIT_DAYS,
     CONF_ROOM_TEMPERATURE_ENTITY,
     CONF_VOLUME_M3,
     CONF_OUTLIER_THRESHOLD,
@@ -146,9 +144,6 @@ from .const import (
     DEFAULT_PBL_TOP,
     DEFAULT_PBL_TST,
     DEFAULT_PBL_WIND_SQRT_COEF,
-    DEFAULT_OUTPUT_W_PER_M2,
-    DEFAULT_ROOMS_ALLOCATION,
-    DEFAULT_ROOMS_MIN_FIT_DAYS,
     DEFAULT_SCOP,
     DEFAULT_SUMMER_END,
     DEFAULT_SUMMER_START,
@@ -525,14 +520,9 @@ def room_configs(entry: ConfigEntry) -> list[RoomConfig]:
 
 def rooms_options(entry: ConfigEntry) -> dict[str, Any]:
     """Return the rooms options section with defaults applied."""
-    opts = dict(entry.options.get(OPT_ROOMS, {}))
-    opts.setdefault(CONF_ROOMS_ALLOCATION, DEFAULT_ROOMS_ALLOCATION)
-    opts.setdefault(CONF_ROOMS_MIN_FIT_DAYS, DEFAULT_ROOMS_MIN_FIT_DAYS)
-    opts.setdefault(CONF_OUTPUT_W_PER_M2_RADIATOR, DEFAULT_OUTPUT_W_PER_M2["radiator"])
-    opts.setdefault(CONF_OUTPUT_W_PER_M2_UNDERFLOOR, DEFAULT_OUTPUT_W_PER_M2["underfloor"])
-    opts.setdefault(CONF_OUTPUT_W_PER_M2_ELECTRIC, DEFAULT_OUTPUT_W_PER_M2["electric"])
-    opts.setdefault(CONF_OUTPUT_W_PER_M2_OTHER, DEFAULT_OUTPUT_W_PER_M2["other"])
-    return opts
+    from .first_run import default_rooms_options
+
+    return default_rooms_options(entry.options.get(OPT_ROOMS, {}))
 
 
 def output_w_per_m2_table(entry: ConfigEntry) -> dict[str, float]:

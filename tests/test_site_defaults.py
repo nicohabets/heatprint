@@ -37,6 +37,18 @@ def test_country_from_timezone_and_boxes() -> None:
     assert country_from_coordinates(0.0, 0.0) is None
 
 
+def test_resolve_site_defaults_prefers_zone_home_name() -> None:
+    defaults = resolve_site_defaults(
+        location_name="Home Assistant",
+        home_name="Thuis",
+        latitude=50.888,
+        longitude=5.979,
+        time_zone="Europe/Amsterdam",
+        country="NL",
+    )
+    assert defaults.name == "Thuis"
+
+
 def test_resolve_site_defaults_uses_ha_home() -> None:
     defaults = resolve_site_defaults(
         location_name="Heerlen",

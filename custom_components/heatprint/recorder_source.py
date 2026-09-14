@@ -22,6 +22,8 @@ from homeassistant.components.recorder.statistics import statistics_during_perio
 from homeassistant.core import HomeAssistant
 from homeassistant.util import dt as dt_util
 
+from .history_values import value_from_sample
+
 # Request canonical units so the core always receives m3 for gas/volume and kWh for
 # every energy carrier (Wh, MWh, GJ and MJ sensors are converted by the recorder).
 CANONICAL_UNITS: dict[str, str] = {"energy": "kWh", "volume": "m³"}
@@ -172,38 +174,29 @@ async def async_meter_reading_at(
     return None
 
 
-_HEATING_STATES = frozenset({"on", "heat", "heating", "1", "true", "yes"})
-
-
-def _state_numeric(state: Any) -> float | None:
-    """Parse a recorder state into a float, treating heating states as 1."""
+def _state_numeric(state: Any, *, mode: str = "auto") -> float | None:
+    """Parse a recorder state into a float (heating, temperature or auto)."""
     if state is None:
         return None
-    text = str(getattr(state, "state", state)).strip().lower()
-    if text in ("unknown", "unavailable", ""):
-        return None
-    if text in _HEATING_STATES:
-        return 1.0
-    if text in ("off", "idle", "false", "no", "0"):
-        return 0.0
-    try:
-        return float(text)
-    except ValueError:
-        hvac = getattr(state, "attributes", {}) or {}
-        action = str(hvac.get("hvac_action", "")).strip().lower()
-        if action in _HEATING_STATES:
-            return 1.0
-        if action in ("idle", "off", ""):
-            return 0.0
-        return None
+    attrs = getattr(state, "attributes", None) or {}
+    raw = getattr(state, "state", state)
+    return value_from_sample(raw, attrs, mode=mode)
 
 
 async def async_daily_from_history(
-    hass: HomeAssistant, entity_ids: Iterable[str], start: date, end: date, tz: tzinfo
+    hass: HomeAssistant,
+    entity_ids: Iterable[str],
+    start: date,
+    end: date,
+    tz: tzinfo,
+    *,
+    mode: str = "auto",
 ) -> dict[str, dict[date, float]]:
     """Time-weighted daily mean from raw recorder history (~10 days typically).
 
     Used when a demand entity has no long-term statistics yet (METHODS 12.1).
+    ``mode`` is ``auto`` (numbers / heating states), ``heating`` (prefer
+    ``hvac_action``) or ``temperature`` (climate ``current_temperature``).
     """
     ids = [entity_id for entity_id in entity_ids if entity_id]
     if not ids:
@@ -233,7 +226,7 @@ async def async_daily_from_history(
             continue
         weighted: dict[date, list[tuple[float, float]]] = {}
         for index, item in enumerate(samples):
-            value = _state_numeric(item)
+            value = _state_numeric(item, mode=mode)
             if value is None:
                 continue
             last_changed = getattr(item, "last_changed", None) or getattr(

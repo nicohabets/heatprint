@@ -24,7 +24,8 @@ from homeassistant.helpers.typing import ConfigType
 
 from .const import DOMAIN, PLATFORMS
 from .coordinator import HeatprintCoordinator
-from .dashboard import async_setup_entry_dashboard
+from .dashboard import async_ensure_rooms_dashboard, async_setup_entry_dashboard
+from .room_sync import sync_rooms_if_auto
 from .services import async_setup_services
 from .store import HeatprintStore
 
@@ -47,6 +48,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: HeatprintConfigEntry) ->
         # Config subentries need Home Assistant 2026.9+ (see hacs.json).
         raise ConfigEntryError(translation_domain=DOMAIN, translation_key="ha_too_old")
 
+    rooms_plan = sync_rooms_if_auto(hass, entry)
+
     coordinator = HeatprintCoordinator(hass, entry)
     await coordinator.async_config_entry_first_refresh()
     entry.runtime_data = coordinator
@@ -55,6 +58,11 @@ async def async_setup_entry(hass: HomeAssistant, entry: HeatprintConfigEntry) ->
     entry.async_on_unload(entry.add_update_listener(_async_update_listener))
     coordinator.async_start()
     await async_setup_entry_dashboard(hass, entry)
+    if rooms_plan.changed:
+        try:
+            await async_ensure_rooms_dashboard(hass, entry, recreate=True)
+        except Exception:  # noqa: BLE001 - dashboard must not fail the integration
+            _LOGGER.exception("Could not refresh the Heatprint rooms dashboard after room sync")
     return True
 
 

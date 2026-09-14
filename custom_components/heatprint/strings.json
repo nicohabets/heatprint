@@ -2,14 +2,8 @@
   "config": {
     "step": {
       "user": {
-        "title": "Site",
-        "description": "One site is one home. Location ({latitude}, {longitude}), time zone ({timezone}) and country ({country}) are taken from this Home Assistant installation. Change them later with Reconfigure if this site is not the HA home.",
-        "data": {
-          "name": "Name"
-        },
-        "data_description": {
-          "name": "Used for the device name, the entity ids and the statistic ids (heatprint:home_...). Renaming later does not change those ids."
-        }
+        "title": "Use this Home Assistant home",
+        "description": "Heatprint reuses the Home Assistant home and its areas — it does not ask you to recreate them. Site {name} at ({latitude}, {longitude}), time zone {timezone}, country {country}. Weather: {weather}. Heat generators already in HA: {generators}. Heated rooms from HA areas: {rooms}. Skipped (no heating circuit or no climate/demand): {skipped}. Confirm to create the site and sync those rooms. Reconfigure is the escape hatch for a second home or a different weather station; add or edit generators and rooms later if needed."
       },
       "weather_nl": {
         "title": "Weather source (Netherlands)",
@@ -490,7 +484,7 @@
       "step": {
         "user": {
           "title": "Room",
-          "description": "A room allocates a share of the site's space heating from a demand signal (valve, thermostat or dedicated meter). Apparent heat loss is an allocation-based estimate, not a design calculation (METHODS §12).",
+          "description": "Usually unnecessary: Heatprint already syncs heated HA areas (climate + heating-power sensor) as rooms. Add a room only for a space that was skipped or needs a custom demand entity. Apparent heat loss is an allocation-based estimate, not a design calculation (METHODS §12).",
           "data": {
             "area_id": "Home Assistant area",
             "name": "Name",
@@ -571,6 +565,7 @@
           "pricing": "Prices and CO2",
           "integrations": "Integrations",
           "rooms": "Rooms",
+          "sync_rooms": "Sync rooms from HA areas",
           "advanced": "Advanced"
         }
       },
@@ -706,9 +701,12 @@
       },
       "rooms": {
         "title": "Rooms",
-        "description": "Default emitter output per m² is a labelled placeholder (METHODS §12.2). Rooms using it are flagged as estimated. Turning allocation off still computes site heat, but skips the per-room breakdown.",
+        "description": "Heatprint reuses Home Assistant areas as rooms (climate + heating-demand sensor). Default emitter output per m² is a labelled placeholder (METHODS §12.2). Rooms using it are flagged as estimated. Turning allocation off still computes site heat, but skips the per-room breakdown.",
         "data": {
           "allocation_enabled": "Allocate space heat to rooms",
+          "auto_sync": "Automatically sync rooms from HA areas",
+          "exclude_area_ids": "Exclude areas",
+          "sync_now": "Sync rooms from HA areas now",
           "min_room_fit_days": "Minimum usable days for a room fit",
           "output_w_per_m2_radiator": "Default radiator output (estimate)",
           "output_w_per_m2_underfloor": "Default underfloor output (estimate)",
@@ -717,12 +715,23 @@
         },
         "data_description": {
           "allocation_enabled": "When off, heat_space_kwh is unchanged and no room statistics are written.",
+          "auto_sync": "On setup and reload, create or update room subentries from heated HA areas. Does not duplicate or wipe rated output, emitter kind or floor area you already set.",
+          "exclude_area_ids": "Areas that should never become rooms (empty, outdoor, or a zone with no heating circuit).",
+          "sync_now": "Run the same sync once after saving, even if automatic sync is off.",
           "min_room_fit_days": "Below this number the room heat-loss coefficient stays unavailable (ROOM_NOT_FITTED).",
           "output_w_per_m2_radiator": "Used when a radiator room has floor area but no rated output. Placeholder, not a design value.",
           "output_w_per_m2_underfloor": "Used when an underfloor room has floor area but no rated output. Placeholder, not a design value.",
           "output_w_per_m2_electric": "Used when an electric room has floor area but no rated output. Placeholder, not a design value.",
           "output_w_per_m2_other": "Used when another emitter has floor area but no rated output. Placeholder, not a design value."
         }
+      },
+      "sync_rooms": {
+        "title": "Sync rooms from HA areas",
+        "description": "Heatprint will create or update room subentries from heated Home Assistant areas. Included: {rooms}. Skipped: {skipped}. Existing rated output, emitter kind and floor area are kept. Confirm to sync and refresh the rooms dashboard."
+      },
+      "sync_rooms_done": {
+        "title": "Rooms synced",
+        "description": "{summary}. The rooms dashboard was refreshed. Entity cards resolve by unique_id, so a Dutch UI keeps working."
       },
       "advanced": {
         "title": "Advanced",

@@ -232,8 +232,8 @@ classDiagram
 
 | Field | Type | Default | Notes |
 |---|---|---|---|
-| `id` | slug | from name | Used in statistic ids: `heatprint:<id>_...` |
-| `name` | str | "Home" | |
+| `id` | slug | from `zone.home` name | Used in statistic ids: `heatprint:<id>_...` |
+| `name` | str | `zone.home` friendly name, else HA location name, else "Home" | Never asked on first setup |
 | `latitude`, `longitude` | float | HA home (not asked on first setup) | For station selection and Open-Meteo |
 | `timezone` | str | HA time zone (not asked on first setup) | Day boundaries |
 | `country` | ISO-2 | HA country, else tz/coords (not asked on first setup) | Determines the default provider (NL → KNMI) |
@@ -316,7 +316,7 @@ the existing site-level model, not a prerequisite for it).
 |---|---|---|
 | `id` | slug | |
 | `name` | str | Defaults to the linked HA area's name |
-| `area_id` | HA area_id | Optional link to an HA area, for auto-suggesting `demand_entity` and display grouping |
+| `area_id` | HA area_id | Link to an HA area. Auto-sync matches on this id (`unique_id` `area:<area_id>`) so rooms are not duplicated when an area is renamed |
 | `demand_entity` | entity_id | Sensor/attribute providing the room's heating-demand signal, see METHODS §12.1 |
 | `demand_kind` | `percentage` / `valve_position` / `binary` / `metered_energy` | See METHODS §12.1 |
 | `temperature_entity` | entity_id | Optional; room temperature for the indicative UA estimate and the room fit's TAC comparison (METHODS §12.4) |
@@ -326,6 +326,14 @@ the existing site-level model, not a prerequisite for it).
 | `volume_m3` | float | Optional; defaults from `floor_area_m2` if unset. Reserved for a future method (ventilation/thermal-mass), unused by any calculation in this version - see METHODS §12.4 |
 | `price_entity` | entity_id | Only relevant for `demand_kind: metered_energy`; defaults to the site's DHW-space cost per METHODS §12.5 |
 | `enabled` | bool | true | Disabling keeps history but stops daily allocation/fit updates, same convention as removing a `generator` (§CONFIG_FLOW) |
+
+Site options (`options.rooms`):
+
+| Field | Type | Default | Notes |
+|---|---|---|---|
+| `auto_sync` | bool | true | Create/update room subentries from heated HA areas on setup and reload |
+| `exclude_area_ids` | list of area ids | `[]` | Areas that must never become rooms |
+| `allocation_enabled` | bool | true | When off, site heat is unchanged and no room statistics are written |
 
 ---
 

@@ -119,6 +119,7 @@ from .core_api import (
     weather_from_ha_sensors,
     weather_signature,
 )
+from .history_values import demand_requires_history
 from .mindergas import MindergasError, async_push_reading
 from .recorder_source import (
     async_daily_from_history,
@@ -480,15 +481,40 @@ class HeatprintCoordinator(DataUpdateCoordinator[HeatprintData]):
             for room in self.rooms
             if room.enabled and room.is_metered and room.demand_entity
         }
-        means_entities = (demand_entities - metered) | temp_entities
+        climate_demand = {
+            room.demand_entity
+            for room in self.rooms
+            if room.enabled and demand_requires_history(room.demand_entity, room.demand_kind)
+        }
+        means_entities = (demand_entities - metered - climate_demand) | temp_entities
         means = await async_daily_means(self.hass, means_entities, start, end, self.tz)
         sums = await async_daily_sums(self.hass, metered, start, end, self.tz)
         missing_demand = [
-            entity for entity in demand_entities if not means.get(entity) and not sums.get(entity)
+            entity
+            for entity in demand_entities
+            if entity in climate_demand or (not means.get(entity) and not sums.get(entity))
         ]
-        history = (
-            await async_daily_from_history(self.hass, missing_demand, start, end, self.tz)
-            if missing_demand
+        missing_temp = [entity for entity in temp_entities if not means.get(entity)]
+        heating_history = (
+            await async_daily_from_history(
+                self.hass, climate_demand, start, end, self.tz, mode="heating"
+            )
+            if climate_demand
+            else {}
+        )
+        numeric_missing = [entity for entity in missing_demand if entity not in climate_demand]
+        numeric_history = (
+            await async_daily_from_history(
+                self.hass, numeric_missing, start, end, self.tz, mode="auto"
+            )
+            if numeric_missing
+            else {}
+        )
+        temp_history = (
+            await async_daily_from_history(
+                self.hass, missing_temp, start, end, self.tz, mode="temperature"
+            )
+            if missing_temp
             else {}
         )
         result: dict[date, dict[str, dict[str, Any]]] = {}
@@ -501,14 +527,19 @@ class HeatprintCoordinator(DataUpdateCoordinator[HeatprintData]):
                 if room.demand_entity:
                     if room.is_metered:
                         raw = sums.get(room.demand_entity, {}).get(day)
-                    else:
+                    elif room.demand_entity not in climate_demand:
                         raw = means.get(room.demand_entity, {}).get(day)
                     if raw is None:
-                        raw = history.get(room.demand_entity, {}).get(day)
+                        if room.demand_entity in climate_demand:
+                            raw = heating_history.get(room.demand_entity, {}).get(day)
+                        else:
+                            raw = numeric_history.get(room.demand_entity, {}).get(day)
                         from_history = raw is not None
                 t_room = None
                 if room.temperature_entity:
                     t_room = means.get(room.temperature_entity, {}).get(day)
+                    if t_room is None:
+                        t_room = temp_history.get(room.temperature_entity, {}).get(day)
                 result.setdefault(day, {})[room.room_id] = {
                     "raw": raw,
                     "t_room_mean": t_room,

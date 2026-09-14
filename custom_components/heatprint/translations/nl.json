@@ -2,14 +2,8 @@
   "config": {
     "step": {
       "user": {
-        "title": "Site",
-        "description": "Eén site is één woning. Locatie ({latitude}, {longitude}), tijdzone ({timezone}) en land ({country}) komen uit deze Home Assistant-installatie. Wijzig ze later via Opnieuw configureren als deze site niet het HA-thuis is.",
-        "data": {
-          "name": "Naam"
-        },
-        "data_description": {
-          "name": "Wordt gebruikt voor de apparaatnaam, de entiteits-id's en de statistiek-id's (heatprint:thuis_...). Later hernoemen verandert die id's niet."
-        }
+        "title": "Dit Home Assistant-thuis gebruiken",
+        "description": "Heatprint hergebruikt het Home Assistant-thuis en de bestaande zones — je hoeft die niet opnieuw aan te maken. Site {name} op ({latitude}, {longitude}), tijdzone {timezone}, land {country}. Weer: {weather}. Warmteopwekkers die HA al kent: {generators}. Verwarmde kamers uit HA-zones: {rooms}. Overgeslagen (geen verwarmingscircuit of geen climate/vraag): {skipped}. Bevestig om de site aan te maken en die kamers te synchroniseren. Opnieuw configureren is de uitweg voor een tweede woning of een ander weerstation; voeg later zo nodig opwekkers en kamers toe of wijzig ze."
       },
       "weather_nl": {
         "title": "Weerbron (Nederland)",
@@ -490,7 +484,7 @@
       "step": {
         "user": {
           "title": "Kamer",
-          "description": "Een kamer krijgt een aandeel van de ruimteverwarming van de site op basis van een vraag-signaal (klep, thermostaat of eigen meter). Het schijnbare warmteverlies is een schatting op basis van toewijzing, geen ontwerpberekening (METHODS §12).",
+          "description": "Meestal niet nodig: Heatprint synchroniseert verwarmde HA-zones (climate + verwarmingssensor) al als kamers. Voeg alleen een kamer toe die is overgeslagen of een eigen vraag-entiteit nodig heeft. Het schijnbare warmteverlies is een schatting op basis van toewijzing, geen ontwerpberekening (METHODS §12).",
           "data": {
             "area_id": "Home Assistant-ruimte",
             "name": "Naam",
@@ -571,6 +565,7 @@
           "pricing": "Prijzen en CO2",
           "integrations": "Integraties",
           "rooms": "Kamers",
+          "sync_rooms": "Kamers synchroniseren vanuit HA-zones",
           "advanced": "Geavanceerd"
         }
       },
@@ -706,9 +701,12 @@
       },
       "rooms": {
         "title": "Kamers",
-        "description": "De standaard afgifte per m² is een gelabelde schatting (METHODS §12.2). Kamers die die waarde gebruiken worden als schatting gemarkeerd. Toewijzing uit zet nog steeds de site-warmte, maar slaat de kamerverdeling over.",
+        "description": "Heatprint hergebruikt Home Assistant-zones als kamers (climate + verwarmingsvraag-sensor). De standaard afgifte per m² is een gelabelde schatting (METHODS §12.2). Kamers die die waarde gebruiken worden als schatting gemarkeerd. Toewijzing uit zet nog steeds de site-warmte, maar slaat de kamerverdeling over.",
         "data": {
           "allocation_enabled": "Ruimteverwarming toewijzen aan kamers",
+          "auto_sync": "Kamers automatisch synchroniseren vanuit HA-zones",
+          "exclude_area_ids": "Zones uitsluiten",
+          "sync_now": "Kamers nu synchroniseren vanuit HA-zones",
           "min_room_fit_days": "Minimum bruikbare dagen voor een kamerfit",
           "output_w_per_m2_radiator": "Standaard radiatorvermogen (schatting)",
           "output_w_per_m2_underfloor": "Standaard vloerverwarmingvermogen (schatting)",
@@ -717,12 +715,23 @@
         },
         "data_description": {
           "allocation_enabled": "Uit: heat_space_kwh blijft ongewijzigd en er worden geen kamerstatistieken geschreven.",
+          "auto_sync": "Bij setup en herladen worden kamer-subentries gemaakt of bijgewerkt vanuit verwarmde HA-zones. Bestaand nominaal vermogen, afgeversoort en vloeroppervlak blijven staan.",
+          "exclude_area_ids": "Zones die nooit een kamer moeten worden (leeg, buiten, of een zone zonder verwarmingscircuit).",
+          "sync_now": "Voer dezelfde sync eenmaal uit na het opslaan, ook als automatische sync uit staat.",
           "min_room_fit_days": "Onder dit aantal blijft de warmteverliescoëfficiënt van de kamer onbeschikbaar (ROOM_NOT_FITTED).",
           "output_w_per_m2_radiator": "Gebruikt als een radiator-kamer wel oppervlak maar geen nominaal vermogen heeft. Placeholder, geen ontwerpwaarde.",
           "output_w_per_m2_underfloor": "Gebruikt als een vloerverwarmingskamer wel oppervlak maar geen nominaal vermogen heeft. Placeholder, geen ontwerpwaarde.",
           "output_w_per_m2_electric": "Gebruikt als een elektrische kamer wel oppervlak maar geen nominaal vermogen heeft. Placeholder, geen ontwerpwaarde.",
           "output_w_per_m2_other": "Gebruikt als een andere afgever wel oppervlak maar geen nominaal vermogen heeft. Placeholder, geen ontwerpwaarde."
         }
+      },
+      "sync_rooms": {
+        "title": "Kamers synchroniseren vanuit HA-zones",
+        "description": "Heatprint maakt of werkt kamer-subentries bij vanuit verwarmde Home Assistant-zones. Meegenomen: {rooms}. Overgeslagen: {skipped}. Bestaand nominaal vermogen, afgeversoort en vloeroppervlak blijven staan. Bevestig om te synchroniseren en het kamerdashboard te vernieuwen."
+      },
+      "sync_rooms_done": {
+        "title": "Kamers gesynchroniseerd",
+        "description": "{summary}. Het kamerdashboard is vernieuwd. Entiteitskaarten zoeken entity_id op via unique_id, zodat een Nederlandse UI blijft werken."
       },
       "advanced": {
         "title": "Geavanceerd",

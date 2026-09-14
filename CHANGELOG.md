@@ -5,6 +5,30 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.2.1] - 2026-09-14
+
+### Added
+- **Automatic room discovery** from Home Assistant areas (METHODS §12.6).
+  Areas with a `climate` entity and/or a heating-demand sensor become `room`
+  subentries. Demand preference: percentage heating-power (Tado
+  `*_verwarming`) → valve position → climate `hvac_action` (binary).
+  Temperature comes from the area's climate entity. Zones with
+  `no_heating_circuit` and empty / non-heating areas are skipped.
+- Idempotent **Sync rooms from HA areas** (setup, options, first coordinator
+  reload). Updates entity links; does not duplicate rooms or wipe
+  `rated_output_w`, `emitter_kind` or `floor_area_m2`. Options: auto-sync
+  (default on) and an exclude-area list. After sync the rooms dashboard is
+  recreated; Lovelace entity cards stay `unique_id`-based (NL-safe).
+
+### Changed
+- First-run is a **single confirm** of the Home Assistant home. Site name
+  comes from `zone.home` (else HA location name / "Home"); location, time
+  zone and country stay silent (v0.1.3). Weather is nearest KNMI (NL) or
+  Open-Meteo. Detected gas / heat-pump meters become generator subentries
+  when present. Reconfigure remains the escape hatch for a second home.
+- Version lockstep is 0.2.1 (`manifest.json`, `pyproject.toml`,
+  `heatprint_core.__version__`).
+
 ## [0.2.0] - 2026-09-13
 
 ### Added

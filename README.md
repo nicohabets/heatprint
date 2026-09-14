@@ -32,12 +32,13 @@ setup, electricity or district heat?"**
 
 ## Status
 
-Pre-alpha **v0.2.0**. Requires Home Assistant **2026.9.0** or newer. The calculation core (`heatprint_core`) implements the documented
+Pre-alpha **v0.2.1**. Requires Home Assistant **2026.9.0** or newer. The calculation core (`heatprint_core`) implements the documented
 pipeline end-to-end — heat conversion, DHW split, effective temperature, four degree-day
 methods, energy signature / PRISM, normalize / compare / forecast, and **per-room heat
 allocation** (METHODS §12) — and is covered by pytest on mock and synthetic data. The Home Assistant integration
-(`custom_components/heatprint`) is a thin shell around that core: config flow with
-subentries (including rooms), daily coordinator, external statistics, sensors and the documented services.
+(`custom_components/heatprint`) is a thin shell around that core: a one-screen first-run
+that reuses the HA home and heated areas, config flow with
+subentries (including auto-synced rooms), daily coordinator, external statistics, sensors and the documented services.
 The core is **bundled inside the integration** so a HACS install on Home Assistant OS
 does not need a PyPI package.
 
@@ -55,13 +56,14 @@ Heatprint is a custom integration. It is not in the HACS default store yet.
 4. Find **Heatprint** in HACS and **Download**.
 5. **Restart** Home Assistant.
 6. Go to **Settings → Devices & services → Add integration** and search for **Heatprint**.
-   The first step asks only for a site name; location, time zone and country come
-   from this Home Assistant installation. After setup a **Heatprint** overview
-   and a **Heatprint Rooms** dashboard appear in the sidebar. Add rooms as
-   subentries (demand entity + kind). Import old meter readings from
-   **Configure → Import meter readings** (paste a CSV or pick a file; a
-   mindergas.nl `datum;stand` export needs no extra questions). Recreate both
-   dashboards with `heatprint.create_dashboard` after adding rooms.
+   Confirm the Home Assistant home (name, location, time zone and country are
+   taken from `zone.home` / `hass.config`; they are not asked again). Heated
+   HA areas become rooms automatically (climate + heating-power sensor; Tado
+   zones with `no_heating_circuit` are skipped). After setup a **Heatprint**
+   overview and a **Heatprint Rooms** dashboard appear in the sidebar. Import
+   old meter readings from **Configure → Import meter readings** (paste a CSV
+   or pick a file; a mindergas.nl `datum;stand` export needs no extra
+   questions). Recreate both dashboards with `heatprint.create_dashboard`.
 
 Requires Home Assistant **2026.9.0** or newer. The calculation core ships inside
 `custom_components/heatprint/heatprint_core/`; you do not install anything from PyPI.

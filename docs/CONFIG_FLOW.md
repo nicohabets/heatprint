@@ -13,21 +13,9 @@ Structure in Home Assistant (2026.9+):
 
 ```mermaid
 flowchart TD
-    A([Add integration]) --> B[Step 1: Site<br/>name only; location/tz/country from HA]
-    B --> C{Country = NL?}
-    C -- yes --> D[Step 2a: Weather source<br/>KNMI station<br/>nearest suggested]
-    C -- no --> E[Step 2b: Weather source<br/>Open-Meteo or HA sensors]
-    D --> F[Step 3: Heating setup<br/>gas / hybrid / all-electric /<br/>district heating / other]
-    E --> F
-    F --> G[Step 4: First generator<br/>prefilled from step 3]
-    G --> H{Another generator?}
-    H -- yes --> G
-    H -- no --> I[Step 5: DHW and cooking<br/>split method]
-    I --> J[Step 6: Methods and season<br/>show defaults, adjustable]
-    J --> K[Step 7: History<br/>backfill years, CSV later]
-    K --> L[Summary and confirm]
-    L --> M([Entry created<br/>+ generator subentries])
-    M --> N[Background: weather backfill,<br/>climatology, first calculation]
+    A([Add integration]) --> B[Confirm HA home<br/>name/location/tz/country from HA<br/>weather + rooms + meters auto]
+    B --> M([Entry created<br/>+ generator/room subentries])
+    M --> N[Background: weather backfill,<br/>climatology, first calculation<br/>rooms dashboard]
 
     subgraph Later
         O[Subentry: add/edit generator]
@@ -49,22 +37,25 @@ flowchart TD
 
 ---
 
-## Step 1 - Site
+## Step 1 - Confirm this Home Assistant home
 
-First-run asks only for a **site name**. Location, time zone and country are taken
-silently from this Home Assistant installation (`hass.config.latitude` /
-`longitude`, `hass.config.time_zone`, `hass.config.country`). If country is unset,
-it is derived from the time zone or the home coordinates (no blocking form field).
-The form description shows the values that will be used.
+First-run is **one confirm screen** with no extra fields. Heatprint reuses what
+Home Assistant already has and does not ask the user to recreate a home:
 
-| Field | Type/selector | Default | Validation |
-|---|---|---|---|
-| `name` | text | HA location name, else "Home" | unique per installation |
-| `location` | *(not asked)* | HA home lat/lon (or `zone.home`) | stored on the entry |
-| `timezone` | *(not asked)* | HA time zone | stored on the entry |
-| `country` | *(not asked)* | HA country, else tz/coords | stored on the entry; NL → KNMI |
+| Value | Source | Notes |
+|---|---|---|
+| `name` | `zone.home` friendly name, else `hass.config.location_name`, else "Home" | unique per installation |
+| `location` | HA home lat/lon (or `zone.home`) | never asked |
+| `timezone` | HA time zone | never asked |
+| `country` | HA country, else tz/coords | never asked; NL → nearest KNMI station |
+| weather | KNMI nearest (NL) or Open-Meteo | Reconfigure to change |
+| generators | gas / heat-pump energy sensors already in HA | optional; add later if none |
+| rooms | heated HA areas (see below) | auto-synced as `room` subentries |
 
-Errors: `name_exists`, `invalid_name`.
+Reconfigure remains the escape hatch for a second home or a different weather
+station. Methods, DHW and history use the documented defaults (options).
+
+Errors: `already_configured`.
 
 After setup a **stock Lovelace dashboard** is created and shown in the sidebar
 (`heatprint-<site_id>`). Entity cards look up current `entity_id`s by
@@ -236,9 +227,24 @@ the subentry is created is a v1.0 UI polish; the service is already wired.
 
 ### `room` (add / edit / remove)
 
-Optional and not part of the main wizard (site setup stays a five-minute flow without it);
-added afterwards the same way `measure` is, and auto-suggested from HA areas that already
-contain a `climate` entity from a recognised thermostat integration.
+**Usually created automatically** from Home Assistant areas on first setup, on
+reload when auto-sync is on, or via **Configure → Sync rooms from HA areas**.
+A manual add is only needed for a skipped area or a custom demand entity.
+
+Discovery heuristics (METHODS §12.6):
+
+1. Skip areas on the exclude list (options).
+2. Skip areas with a Tado-style `select.*heating_circuit` (or climate attribute)
+   whose state is `no_heating_circuit`.
+3. Skip areas with no `climate` entity and no heating-demand / valve sensor.
+4. Demand entity, in order: percentage heating-power sensor in the area (Tado
+   `*_verwarming`, `heating_power`, `pi_heating_demand`); else a valve-position
+   sensor; else the area's `climate` entity as `binary` demand from `hvac_action`.
+5. Temperature: the area's `climate` entity.
+6. Sync is idempotent: match on `area_id` / `unique_id` `area:<area_id>`; update
+   entity links; **do not** wipe `rated_output_w`, `emitter_kind`, `floor_area_m2`,
+   `volume_m3`, `enabled`, `price_entity` or a custom name. Missing areas are not
+   deleted.
 
 | Field | Selector | Default | Notes |
 |---|---|---|---|
@@ -279,9 +285,12 @@ Sections (menu):
 6. **Integrations** - mindergas.nl bridge: API token (password field), generator choice,
    daily push on/off. The token lives in the config entry (Home Assistant does not
    encrypt `.storage`); it is never logged and is redacted from diagnostics (ARCHITECTURE §9).
-7. **Rooms** - default output per m² per `emitter_kind` (METHODS §12.2, shown as a clearly
+7. **Rooms** - auto-sync on/off (default **on**); exclude-area list; one-click
+   "sync now"; default output per m² per `emitter_kind` (METHODS §12.2, shown as a clearly
    labelled placeholder/estimate); minimum days for a room fit; allocation on/off (site still
    computes `heat_space_kwh` normally when off, just skips the per-room breakdown).
+   A separate menu item **Sync rooms from HA areas** previews included/skipped areas
+   and refreshes the rooms dashboard (`unique_id`-based entity cards).
 8. **Advanced** - override PBL parameters (TST/RER/TOP per month group) and wind
    coefficient; outlier threshold; minimum number of days for a fit.
 
