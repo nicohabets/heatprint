@@ -29,7 +29,7 @@ flowchart LR
         REC[("Recorder<br/>long-term statistics")]
         ENT["Energy sensors<br/>DSMR, heat pump, kWh meters"]
         WS["Weather sensors<br/>Buienradar, KNMI, Tado"]
-        DASH["Dashboards<br/>statistics graph, apexcharts"]
+        DASH["Dashboards<br/>stock Lovelace (overview + rooms)"]
     end
     KNMI[("KNMI daily data<br/>daggegevens.knmi.nl")]
     OM[("Open-Meteo<br/>archive + forecast API")]
@@ -61,19 +61,25 @@ flowchart TB
         A["analysis<br/>signature (PRISM) · compare ·<br/>normalize (NAC) · forecast"]
         I["importers<br/>csv (generic, mindergas)"]
         P["pipeline<br/>build_daily_records(site, weather, energy)"]
+        RM["rooms<br/>allocation · signature"]
     end
 
     subgraph ha["custom_components/heatprint (HA shell)"]
-        CF["config_flow<br/>+ subentries generator/measure<br/>+ options + reconfigure"]
+        CF["config_flow<br/>one-confirm first-run + subentries<br/>generator/measure/room + options + reconfigure"]
+        FR["first_run / site_defaults<br/>HA home + weather + room options"]
+        RD["room_discovery / room_sync<br/>heated HA areas → room subentries"]
         CO["coordinator<br/>daily run 06:15 local time,<br/>backfill task, cache"]
         RS["recorder_source<br/>read statistics (daily sums, daily means)"]
         ST["statistics_writer<br/>external statistics heatprint:*"]
         SE["sensor / binary_sensor<br/>entity descriptions"]
-        SV["services<br/>import · recompute · fit · compare ·<br/>measure_effect · forecast · export · push · clear"]
-        SR["store<br/>JSON: climatology, fits, flags, baseline"]
+        SV["services<br/>import · recompute · fit · compare ·<br/>measure_effect · forecast · export · push · clear ·<br/>fit_room · create_dashboard"]
+        SR["store<br/>JSON: climatology, fits, room_fits, flags, baseline, weather cache"]
+        DB["dashboard / dashboard_config<br/>stock Lovelace via unique_id"]
         DG["diagnostics<br/>(repairs in v1.0)"]
     end
 
+    CF --> FR
+    CF --> RD
     CF --> CO
     CO --> RS --> P
     CO --> W
@@ -81,6 +87,7 @@ flowchart TB
     P --> R
     CO --> ST
     CO --> SE
+    CO --> DB
     SV --> A
     SV --> I --> R
     CO --> SR
@@ -91,8 +98,11 @@ Responsibilities per HA module:
 
 | Module | Does | Does not |
 |---|---|---|
-| `config_flow.py` | Wizard, validations, subentries, options (incl. CSV import), reconfigure | Calculations |
-| `site_defaults.py` | HA home → lat/lon, time zone, country | UI |
+| `config_flow.py` | One-confirm first-run, validations, subentries (generator/measure/room), options (incl. CSV import + room sync), reconfigure | Calculations. Leftover multi-step wizard steps are not reached from first-run |
+| `first_run.py` | Default weather, methods, DHW, history and rooms options | UI |
+| `site_defaults.py` | HA home → name, lat/lon, time zone, country | UI |
+| `room_discovery.py` | Heated HA areas → room drafts (METHODS §12.6) | Persistence |
+| `room_sync.py` | Idempotent create/update of `room` subentries; preserves user overrides | Deleting missing areas |
 | `dashboard.py` / `dashboard_config.py` | Create/refresh the stock Lovelace overview and Rooms dashboards; entity cards resolve `entity_id` via unique_id | Custom cards, English object-id guesses |
 | `coordinator.py` | Schedules runs, fetches weather (via the core providers with HA's aiohttp session), reads the recorder, calls `pipeline.build_daily_records`, writes statistics/store, updates entities | Formulas |
 | `recorder_source.py` | `statistics_during_period` per day for energy (sum/change) and weather (mean) | Interpretation |
@@ -170,7 +180,8 @@ notification follows in v1.0).
 heatprint/
 ├── custom_components/heatprint/      # HA shell (HACS)
 │   ├── __init__.py  config_flow.py  const.py  coordinator.py
-│   ├── site_defaults.py  dashboard.py  dashboard_config.py
+│   ├── first_run.py  site_defaults.py  dashboard.py  dashboard_config.py
+│   ├── room_discovery.py  room_sync.py  history_values.py
 │   ├── recorder_source.py  statistics_writer.py  store.py
 │   ├── sensor.py  binary_sensor.py  services.py  services.yaml
 │   ├── core_api.py  mindergas.py  diagnostics.py  manifest.json  strings.json
@@ -203,18 +214,20 @@ install the integration.
 
 - `pytest` for the core (formulas, synthetic dwelling, Heerlen reference case).
 - `ruff` in CI (`ruff check .`). `mypy` is in the `dev` extra for local checks of
-  the core; a strict mypy gate is scheduled with the HA shell tests in v0.2.
+  the core; a strict mypy gate is still planned (ROADMAP open item 5) — v0.2
+  shipped rooms without it.
 - `hassfest` and `hacs/action` in GitHub Actions. Minimum Home Assistant is 2026.9.0
   (`hacs.json`).
-- HA shell: `pytest-homeassistant-custom-component` for config flow and coordinator
-  (snapshot tests of entities) from v0.2.
+- HA shell: unit tests for defaults, discovery and dashboards run under pytest;
+  `pytest-homeassistant-custom-component` snapshot tests of the config flow and
+  coordinator are still planned (same ROADMAP item).
 
 ## 9. Security and privacy
 
 - No telemetry. All data stays local; external calls contain only coordinates/station and
   dates.
-- mindergas token in the entry (HA does not encrypt `.storage`; the token is not logged and
-  is redacted from diagnostics).
+- mindergas token in `entry.options["integrations"]` (HA does not encrypt `.storage`;
+  the token is not logged and is redacted from diagnostics).
 - CSV import reads only from `config/heatprint/` or from the service payload.
 
 ## 10. Extension points (roadmap hooks)

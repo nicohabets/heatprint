@@ -4,9 +4,9 @@
 
 | | |
 |---|---|
-| Status | Draft v0.1 (September 2026) |
+| Status | Living spec (tracks v0.2.2, September 2026) |
 | Owner | Nico Habets |
-| Form | Open source (MIT): Home Assistant integration via HACS + Python calculation core (`heatprint-core`) |
+| Form | Open source (MIT): Home Assistant custom integration (HACS) + bundled Python calculation core (`heatprint_core` inside the integration; a PyPI `heatprint-core` wheel is a later option, not required to install) |
 | Documents | [METHODS](METHODS.md) · [DATA_MODEL](DATA_MODEL.md) · [CONFIG_FLOW](CONFIG_FLOW.md) · [ARCHITECTURE](ARCHITECTURE.md) · [ROADMAP](ROADMAP.md) · [ADRs](adr/) |
 
 ---
@@ -112,9 +112,11 @@ NL-calibrated, the house fit is universal.
 - Services: `import_readings` (CSV, mindergas export), `recompute`, `fit_signature`,
   `compare_periods`, `forecast`, `export_daily`.
 - Forecast for the current season (20-year climatology).
-- Config flow with wizard choice (gas / hybrid / all-electric / district heating / other),
-  subentries for generators and measures, options and reconfigure.
-- Translations NL and EN. Example dashboard (statistics-graph + apexcharts).
+- First-run: one confirm of the HA home (location / time zone / country never asked);
+  weather and heated rooms auto; detected gas / heat-pump meters become generators.
+  Subentries for generators, measures and rooms; options and reconfigure.
+- Translations NL and EN. Stock Lovelace overview + Rooms dashboards (built-in
+  cards only; no apexcharts).
 
 ### 6.2 v1.0 - "for everyone via HACS"
 
@@ -251,8 +253,9 @@ Privacy: no data leaves the house except coordinates/station to the weather prov
 | 1 - Core | Providers, methods, heat/DHW, meter readings, fit, forecast; Heerlen reference case | 2-3 weeks of evening work |
 | 2 - HA shell MVP | Config flow, coordinator, statistics, sensors, services; run on own HA | 2-3 weeks |
 | 3 - Winter 2026/27 | Run live alongside mindergas; connect the hybrid heat pump; bugs; docs | ongoing |
-| 4 - v1.0 | Measure effect, bridge, cost/CO₂, tests, HACS default | 3-4 weeks |
-| 4a - v1.1 | Rooms: per-room heat allocation, apparent heat loss, cost | 1-2 weeks |
+| 4 - v1.0 | Measure effect polish, bridge, cost/CO₂, health-check repairs, HACS default | 3-4 weeks |
+| 4a - v0.2 | Rooms **heat**: allocation, apparent UA, auto-discovery, Rooms dashboard | shipped 0.2.0 / 0.2.1 |
+| 4b - v1.1 | Rooms **cost** (needs site `cost_eur` / F18) | after F18 |
 | 5 - v2.0 | Card, occupancy, benchmark | later |
 
 ## 14. Open questions and decisions

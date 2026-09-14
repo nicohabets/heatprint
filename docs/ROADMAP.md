@@ -9,6 +9,7 @@
 | 0.1.4 | Dashboard entity ids | Auto-dashboard resolves Lovelace entity cards by unique_id (Dutch / non-English UI) | done |
 | 0.2.0 | Rooms MVP | Room subentry, demand-weighted allocation of `heat_space_kwh`, unallocated bucket, room energy signature (site TAC), room sensors + Rooms Lovelace dashboard | done |
 | 0.2.1 | Runs on Nico's HA | Auto-discover rooms from HA areas + climate/demand; one-screen first-run from `zone.home`; coordinator end-to-end, KNMI 380, DSMR gas, mindergas CSV (reference case still needs local export) | rooms auto-sync done; live reference case still planned |
+| 0.2.2 | Docs vs codebase audit | Align ARCHITECTURE / CONFIG_FLOW / DATA_MODEL / PRODUCT_BRIEF with shipped 0.2.1; list remaining code gaps | done (docs) |
 | 0.3.0 | Hybrid | Heat pump generator with thermal/electric meters, heat pump share, daily COP, season 2026/27 live | planned (when the heat pump is installed) |
 | 1.0.0 | HACS release | Measure effect with CI, mindergas bridge, cost/CO₂, COP curve, DHW monthly profile, repairs/diagnostics, HACS default | planned |
 | 1.1.0 | Room cost | Per-room and total heating cost (needs site `cost_eur` statistics, METHODS §13) plus cost ranking for `most_expensive_room` | planned |
@@ -46,7 +47,8 @@ Deferred (not required for a coherent pre-alpha):
    within 1%. Scheduled with the v0.2 live HA run.
 4. GitHub repository description and topics (`custom-integration`, `hacs-integration`,
    `homeassistant`). HACS CI ignores those two checks until they are set on the repo.
-5. Strict mypy CI gate and `pytest-homeassistant-custom-component` for the HA shell (v0.2).
+5. Strict mypy CI gate and `pytest-homeassistant-custom-component` for the HA
+   shell. Still open after v0.2 (rooms shipped without the HA test plugin).
 6. Post-create "Compute effect" notification after adding a measure (service exists; v1.0 UI).
 7. PDF eq. 17 sun term *outside* inertia — Heatprint keeps sun inside `T_eff` (METHODS §3);
    default practical model has `include_sun` off and therefore matches PDF eq. 20.
@@ -56,6 +58,19 @@ Deferred (not required for a coherent pre-alpha):
    and data-source health checks (§14) are still specified only — no
    `price_mode: dynamic` handling, and no `STUCK_VALUE`/`IMPLAUSIBLE_VALUE`/
    `SCALE_DRIFT`/`WEATHER_STALLED` checks or repairs yet.
+9. Leftover multi-step first-run wizard (`async_step_situation` and following) is
+   still in `config_flow.py` but is **not** reached from `async_step_user`.
+   First-run auto-creates generators (heat-pump role `both`) and rooms.
+10. First-run weather validation is non-blocking (logged warning); Reconfigure still
+    blocks on `cannot_connect` / `no_data_for_station`.
+11. `import_now` is stored as `false` and has no Options control. Use
+    **Import meter readings**.
+12. `ROOM_NOT_FITTED` is defined and mentioned in the UI copy, but never written to
+    daily room flags (the heat-loss sensor stays unavailable without the flag).
+13. Options collect `co2_entity`; the coordinator does not read it. `cost_space_season`
+    and `avg_price_paid` sensors are specified but not created (item 1).
+14. `heatprint.clear_statistics` (whole site) does not drop room `*_demand` /
+    `*_t_mean` mean statistics.
 
 ## Research items
 

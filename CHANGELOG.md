@@ -5,6 +5,26 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.2.2] - 2026-09-14
+
+### Changed
+- Docs aligned with the shipped 0.2.1 first-run (one confirm, auto rooms and
+  generators, non-blocking weather check), stock Lovelace dashboards (no
+  apexcharts), bundled `heatprint_core`, and deferred cost / health-check items.
+  CONFIG_FLOW no longer describes Steps 2–7 as a first-run wizard.
+- Version lockstep is 0.2.2 (`manifest.json`, `pyproject.toml`,
+  `heatprint_core.__version__`).
+
+### Notes (code gaps, unchanged)
+- Leftover multi-step wizard in `config_flow.py` is unreachable from first-run.
+- Site `cost_eur` / `co2_kg` statistics and room cost sensors still deferred
+  (METHODS §13 / ROADMAP open item 1). `cost_space_season` and `avg_price_paid`
+  are specified only.
+- METHODS §14 health-check repairs and `open_health_checks` are specified only.
+- `ROOM_NOT_FITTED` is never written to stored flags.
+- `import_now` has no Options control; `co2_entity` is collected but not read.
+- Strict mypy / `pytest-homeassistant-custom-component` still planned.
+
 ## [0.2.1] - 2026-09-14
 
 ### Added
