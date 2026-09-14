@@ -10,6 +10,8 @@
 | 0.2.0 | Rooms MVP | Room subentry, demand-weighted allocation of `heat_space_kwh`, unallocated bucket, room energy signature (site TAC), room sensors + Rooms Lovelace dashboard | done |
 | 0.2.1 | Runs on Nico's HA | Auto-discover rooms from HA areas + climate/demand; one-screen first-run from `zone.home`; coordinator end-to-end, KNMI 380, DSMR gas, mindergas CSV (reference case still needs local export) | rooms auto-sync done; live reference case still planned |
 | 0.2.2 | Docs vs codebase audit | Align ARCHITECTURE / CONFIG_FLOW / DATA_MODEL / PRODUCT_BRIEF with shipped 0.2.1; list remaining code gaps | done (docs) |
+| 0.2.3 | First-run cleanup | Delete dead wizard; surface weather-check failures; emit `ROOM_NOT_FITTED`; `clear_statistics` room means | done |
+| 0.2.4 / 0.3 | Cost + health checks | Full F18 cost/CO₂ + dynamic tariffs (METHODS §13) and §14 health-check repairs — not half-implemented in 0.2.3 | planned |
 | 0.3.0 | Hybrid | Heat pump generator with thermal/electric meters, heat pump share, daily COP, season 2026/27 live | planned (when the heat pump is installed) |
 | 1.0.0 | HACS release | Measure effect with CI, mindergas bridge, cost/CO₂, COP curve, DHW monthly profile, repairs/diagnostics, HACS default | planned |
 | 1.1.0 | Room cost | Per-room and total heating cost (needs site `cost_eur` statistics, METHODS §13) plus cost ranking for `most_expensive_room` | planned |
@@ -58,19 +60,20 @@ Deferred (not required for a coherent pre-alpha):
    and data-source health checks (§14) are still specified only — no
    `price_mode: dynamic` handling, and no `STUCK_VALUE`/`IMPLAUSIBLE_VALUE`/
    `SCALE_DRIFT`/`WEATHER_STALLED` checks or repairs yet.
-9. Leftover multi-step first-run wizard (`async_step_situation` and following) is
-   still in `config_flow.py` but is **not** reached from `async_step_user`.
-   First-run auto-creates generators (heat-pump role `both`) and rooms.
-10. First-run weather validation is non-blocking (logged warning); Reconfigure still
-    blocks on `cannot_connect` / `no_data_for_station`.
+9. Leftover multi-step first-run wizard — **removed in 0.2.3**. First-run
+   auto-creates generators (heat-pump role `both`) and rooms.
+10. First-run weather validation is still non-blocking (offline must not stall
+    setup). **0.2.3** shows the failure on the confirm step and opens a repair /
+    persistent notification. Reconfigure still blocks on `cannot_connect` /
+    `no_data_for_station`.
 11. `import_now` is stored as `false` and has no Options control. Use
     **Import meter readings**.
-12. `ROOM_NOT_FITTED` is defined and mentioned in the UI copy, but never written to
-    daily room flags (the heat-loss sensor stays unavailable without the flag).
+12. `ROOM_NOT_FITTED` is **written in 0.2.3** when a room has fewer than the
+    minimum fit days (skipped once a room fit exists).
 13. Options collect `co2_entity`; the coordinator does not read it. `cost_space_season`
-    and `avg_price_paid` sensors are specified but not created (item 1).
-14. `heatprint.clear_statistics` (whole site) does not drop room `*_demand` /
-    `*_t_mean` mean statistics.
+    and `avg_price_paid` sensors are specified but not created (item 1 / 0.2.4).
+14. `heatprint.clear_statistics` (whole site) **also drops** room `*_demand` /
+    `*_t_mean` mean statistics (0.2.3).
 
 ## Research items
 

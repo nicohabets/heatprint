@@ -98,7 +98,7 @@ Responsibilities per HA module:
 
 | Module | Does | Does not |
 |---|---|---|
-| `config_flow.py` | One-confirm first-run, validations, subentries (generator/measure/room), options (incl. CSV import + room sync), reconfigure | Calculations. Leftover multi-step wizard steps are not reached from first-run |
+| `config_flow.py` | One-confirm first-run, validations, subentries (generator/measure/room), options (incl. CSV import + room sync), reconfigure. First-run weather failure is a confirm-step error + repair, not a hard abort | Calculations |
 | `first_run.py` | Default weather, methods, DHW, history and rooms options | UI |
 | `site_defaults.py` | HA home → name, lat/lon, time zone, country | UI |
 | `room_discovery.py` | Heated HA areas → room drafts (METHODS §12.6) | Persistence |

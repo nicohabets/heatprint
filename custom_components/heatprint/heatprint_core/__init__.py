@@ -63,6 +63,7 @@ from .rooms import (
     RoomDayInput,
     allocate_day,
     allocate_period,
+    apply_room_not_fitted,
     daily_demand_integral,
     fit_room_signature,
     indicative_ua_w_per_k,
@@ -80,7 +81,7 @@ from .weather import (
     remaining_season_dd,
 )
 
-__version__ = "0.2.2"
+__version__ = "0.2.3"
 
 __all__ = [
     "CarrierInput",
@@ -126,6 +127,7 @@ __all__ = [
     "__version__",
     "allocate_day",
     "allocate_period",
+    "apply_room_not_fitted",
     "build_climatology",
     "build_daily_records",
     "carrier_to_heat",

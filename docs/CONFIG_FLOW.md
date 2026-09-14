@@ -49,21 +49,22 @@ Home Assistant already has and does not ask the user to recreate a home:
 | `location` | HA home lat/lon (or `zone.home`) | never asked |
 | `timezone` | HA time zone | never asked |
 | `country` | HA country, else tz/coords | never asked; NL → nearest KNMI station |
-| weather | KNMI nearest (NL) or Open-Meteo | Reconfigure to change; first-run does **not** block if the weather check fails (logged warning) |
+| weather | KNMI nearest (NL) or Open-Meteo | Reconfigure to change; first-run does **not** block if the weather check fails — the confirm step shows the error and setup opens a repair / notification |
 | generators | gas / heat-pump energy sensors already in HA | **auto-created** when high-confidence sensors exist; add later if none |
 | rooms | heated HA areas (see below) | auto-synced as `room` subentries |
 
 Reconfigure remains the escape hatch for a second home or a different weather
 station. Methods, DHW and history use the documented defaults (options).
 
-Errors: `already_configured`.
+Errors: `already_configured`. Weather check failures use `cannot_connect` /
+`no_data_for_station` on the confirm form (informational; Submit still creates
+the site).
 
 **First-run stops after this confirm.** Weather, methods, DHW and history are
 **not** asked here. The numbered steps below describe later surfaces
-(Reconfigure, generator/measure/room subentries, Options). A leftover
-sequential wizard (`situation` → generators → DHW → methods → history →
-summary) still exists in `config_flow.py` but is **not** reached from
-`async_step_user`.
+(Reconfigure, generator/measure/room subentries, Options). The old sequential
+wizard (`situation` → generators → DHW → methods → history → summary) was
+removed in 0.2.3.
 
 After setup a **stock Lovelace dashboard** is created and shown in the sidebar
 (`heatprint-<site_id>`). Entity cards look up current `entity_id`s by
@@ -104,9 +105,8 @@ suggestions). Heat pumps get role `both` (not the leftover hybrid draft of
 | `device_class: gas` + `state_class: total_increasing` | `gas_boiler` (role `both`) |
 | `device_class: energy` and a name containing warmtepomp / heat pump / hp / wp | `heat_pump` (role `both`, `electric_entity`) |
 
-A leftover situation choice (`gas` / `hybrid` / `all_electric` / `district_heat` /
-`custom`) still exists in `async_step_situation` and would prefill drafts
-(`hybrid` → heat pump role `space`). It is **not wired** from first-run.
+There is no first-run situation choice (`gas` / `hybrid` / …). Add extra
+generators later via the `generator` subentry.
 
 ## Later - Generator (subentry `generator`)
 
@@ -117,7 +117,7 @@ Sub-steps depending on `kind`:
 | Field | Selector | Default |
 |---|---|---|
 | `name` | text | per kind |
-| `kind` | select | from add-generator / leftover situation draft |
+| `kind` | select | from add-generator |
 | `role` | select: `space`, `dhw`, `both` | per kind |
 
 ### 4.2 Sensors
@@ -195,7 +195,7 @@ Advanced fields live under "Advanced" (collapsed section).
 |---|---|---|
 | `backfill_years` | number 0-10 | 3 |
 | `climatology_years` | number 10-30 | 20 |
-| `import_now` | boolean | false in stored defaults; **no Options control** (leftover field on the unused history wizard step). Use **Import meter readings** instead. |
+| `import_now` | boolean | false in stored defaults; **no Options control**. Use **Import meter readings** instead. |
 
 Text: "Weather history is fetched in the background. Meter readings from before your Home
 Assistant history can be imported from Configure → Import meter readings (CSV paste or
@@ -266,7 +266,7 @@ Discovery heuristics (METHODS §12.6):
 | `floor_area_m2` | number, optional | - | |
 | `volume_m3` | number, optional | - | Captured; unused by any calculation (METHODS §12.4) |
 | `enabled` | boolean | true | Disabling keeps history but stops daily allocation |
-| `price_entity` | entity, optional | site default | Intended only for `demand_kind = metered_energy`; the add-room form currently always shows it |
+| `price_entity` | entity, optional | site default | Hidden until site cost sensors land (METHODS §13 / 0.2.4). Stored if already set; not shown on add/reconfigure |
 
 Validation: `demand_entity` exists and its unit/device_class is plausible for `demand_kind`
 (errors `entity_not_found`, `demand_kind_mismatch`); with `metered_energy`, the same

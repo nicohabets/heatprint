@@ -8,12 +8,13 @@ from .allocation import (
     indicative_ua_w_per_k,
     room_weight,
 )
-from .signature import fit_room_signature
+from .signature import apply_room_not_fitted, fit_room_signature
 
 __all__ = [
     "RoomDayInput",
     "allocate_day",
     "allocate_period",
+    "apply_room_not_fitted",
     "daily_demand_integral",
     "fit_room_signature",
     "indicative_ua_w_per_k",
