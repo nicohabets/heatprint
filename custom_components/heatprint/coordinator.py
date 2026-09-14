@@ -27,10 +27,13 @@ from homeassistant.helpers.event import async_track_time_change
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 from homeassistant.util import dt as dt_util
 
+from heatprint_core.cost import avg_price_paid
+
 from .const import (
     BACKFILL_CHUNK_DAYS,
     CONF_BACKFILL_YEARS,
     CONF_CLIMATOLOGY_YEARS,
+    CONF_CO2_ENTITY,
     CONF_HA_ENTITIES,
     CONF_HOUSE_FIT_WIND,
     CONF_IMPORT_NOW,
@@ -60,6 +63,8 @@ from .const import (
     FIT_REFRESH_DAYS,
     METHOD_HOUSE,
     METHOD_TO_DD_METRIC,
+    METRIC_CO2,
+    METRIC_COST,
     METRIC_ELECTRIC_HP,
     METRIC_GAS,
     METRIC_HEAT_DHW,
@@ -71,12 +76,15 @@ from .const import (
     NOTIFICATION_BACKFILL,
     NOTIFICATION_IMPORT_HINT,
     OPT_INTEGRATIONS,
+    OPT_PRICING,
+    PRICE_MODE_DYNAMIC,
     PROVIDER_HA_SENSORS,
     ROLE_BOTH,
     ROLE_DHW,
     WEATHER_CACHE_DAYS,
     generator_dhw_metric,
     generator_metric,
+    room_cost_metric,
     room_heat_metric,
     statistic_id,
 )
@@ -100,6 +108,7 @@ from .core_api import (
     build_site_from_entry,
     compare_periods,
     daily_consumption_from_readings,
+    effective_co2_factors,
     estimate_baselines,
     fit_room_signature,
     fit_signature,
@@ -111,6 +120,7 @@ from .core_api import (
     merge_room_metrics,
     method_options,
     output_w_per_m2_table,
+    pricing_options,
     record_flags,
     record_is_usable,
     record_to_metrics,
@@ -129,6 +139,8 @@ from .recorder_source import (
     async_daily_means,
     async_daily_metrics,
     async_daily_sums,
+    async_hourly_changes,
+    async_hourly_means,
     async_meter_reading_at,
 )
 from .statistics_writer import async_clear_statistics, async_write_daily_metrics
@@ -166,6 +178,10 @@ class GeneratorAggregate:
     heat_space_kwh: float = 0.0
     heat_dhw_kwh: float = 0.0
     share: float | None = None
+    cost_eur: float | None = None
+    electric_kwh: float = 0.0
+    avg_price_paid: float | None = None
+    price_mode: str = "flat"
 
 
 @dataclass(slots=True)
@@ -177,6 +193,9 @@ class RoomAggregate:
     heat_kwh: float = 0.0
     share: float | None = None
     heat_yesterday_kwh: float | None = None
+    cost_eur: float | None = None
+    cost_yesterday_eur: float | None = None
+    cost_per_m2: float | None = None
     heat_per_m2: float | None = None
     floor_area_m2: float | None = None
     ua_w_per_k: float | None = None
@@ -206,9 +225,14 @@ class SeasonAggregate:
     gas_per_dd_classic: float | None = None
     per_generator: dict[str, GeneratorAggregate] = field(default_factory=dict)
     heat_unallocated_kwh: float = 0.0
+    cost_eur: float = 0.0
+    cost_space_eur: float = 0.0
+    co2_kg: float = 0.0
     per_room: dict[str, RoomAggregate] = field(default_factory=dict)
     most_expensive_room: str | None = None
+    room_ranked_by: str = "heat_kwh"
     room_ranking: list[dict[str, Any]] = field(default_factory=list)
+    room_ranking_by_heat: list[dict[str, Any]] = field(default_factory=list)
     room_ranking_by_heat_loss: list[dict[str, Any]] = field(default_factory=list)
 
 
@@ -222,6 +246,8 @@ class LatestDay:
     dd: dict[str, float]
     heat_space_kwh: float | None
     heat_dhw_kwh: float | None
+    cost_eur: float | None
+    co2_kg: float | None
     cop: float | None
     flags: list[str]
     provisional: bool
@@ -286,6 +312,7 @@ class HeatprintCoordinator(DataUpdateCoordinator[HeatprintData]):
         self.measures: list[MeasureConfig] = measure_configs(entry)
         self.rooms: list[RoomConfig] = room_configs(entry)
         self._last_room_records: list[Any] = []
+        self._metered_room_prices: dict[str, dict[date, float]] = {}
         self.site: Any = None
         self.backfill_progress: dict[str, Any] | None = None
         self._last_metrics: list[DayMetrics] = []
@@ -448,18 +475,86 @@ class HeatprintCoordinator(DataUpdateCoordinator[HeatprintData]):
         weather = await self._async_weather(start - timedelta(days=1), end)
         energy = await self._async_energy(start, end)
         baselines = await self._async_baselines()
+        prices, hourly_electric, hourly_price, co2_live = await self._async_pricing_inputs(
+            start, end
+        )
         records = await self.hass.async_add_executor_job(
-            build_daily_records,
-            self.site,
-            weather,
-            energy,
-            baselines,
-            self.store.latest_fit,
-            start,
-            end,
-            {generator.generator_id: generator.co2_factor for generator in self.generators},
+            lambda: build_daily_records(
+                self.site,
+                weather,
+                energy,
+                baselines,
+                self.store.latest_fit,
+                start,
+                end,
+                effective_co2_factors(self.entry, self.generators, co2_live),
+                prices,
+                hourly_electric,
+                hourly_price,
+            )
         )
         return records, weather
+
+    async def _async_pricing_inputs(
+        self, start: date, end: date
+    ) -> tuple[
+        dict[str, dict[date, float]],
+        dict[str, dict[date, dict[int, float]]],
+        dict[str, dict[date, dict[int, float]]],
+        dict[date, float],
+    ]:
+        """Read daily (and hourly dynamic) price/CO₂ series from the recorder."""
+        price_entities = {
+            generator.price_entity for generator in self.generators if generator.price_entity
+        }
+        room_price_entities = {
+            room.price_entity
+            for room in self.rooms
+            if room.enabled and room.is_metered and room.price_entity
+        }
+        co2_entity = pricing_options(self.entry).get(CONF_CO2_ENTITY) or self.entry.options.get(
+            OPT_PRICING, {}
+        ).get(CONF_CO2_ENTITY)
+        mean_entities = set(price_entities) | set(room_price_entities)
+        if co2_entity:
+            mean_entities.add(co2_entity)
+        means = await async_daily_means(self.hass, mean_entities, start, end, self.tz)
+        prices: dict[str, dict[date, float]] = {}
+        for generator in self.generators:
+            if not generator.price_entity:
+                continue
+            series = means.get(generator.price_entity, {})
+            if series:
+                prices[generator.generator_id] = dict(series)
+        hourly_electric: dict[str, dict[date, dict[int, float]]] = {}
+        hourly_price: dict[str, dict[date, dict[int, float]]] = {}
+        dynamic = [
+            generator
+            for generator in self.generators
+            if generator.price_mode == PRICE_MODE_DYNAMIC and generator.is_electric
+        ]
+        if dynamic:
+            electric_ids = {
+                generator.electric_entity or generator.energy_entity
+                for generator in dynamic
+                if generator.electric_entity or generator.energy_entity
+            }
+            price_ids = {generator.price_entity for generator in dynamic if generator.price_entity}
+            hourly_e = await async_hourly_changes(self.hass, electric_ids, start, end, self.tz)
+            hourly_p = await async_hourly_means(self.hass, price_ids, start, end, self.tz)
+            for generator in dynamic:
+                electric_id = generator.electric_entity or generator.energy_entity
+                if electric_id and hourly_e.get(electric_id):
+                    hourly_electric[generator.generator_id] = hourly_e[electric_id]
+                if generator.price_entity and hourly_p.get(generator.price_entity):
+                    hourly_price[generator.generator_id] = hourly_p[generator.price_entity]
+        self._metered_room_prices = {
+            room.room_id: dict(means.get(room.price_entity, {}))
+            for room in self.rooms
+            if room.enabled and room.is_metered and room.price_entity
+        }
+        co2_live = dict(means.get(co2_entity, {})) if co2_entity else {}
+        return prices, hourly_electric, hourly_price, co2_live
 
     def _rooms_allocation_enabled(self) -> bool:
         """True when rooms options enable allocation and at least one room is enabled."""
@@ -555,12 +650,17 @@ class HeatprintCoordinator(DataUpdateCoordinator[HeatprintData]):
     ) -> tuple[list[Any], dict[date, float]]:
         """Allocate site space heat across configured rooms."""
         inputs = await self._async_room_demands(start, end)
+        metered_by_day: dict[date, dict[str, float]] = {}
+        for room_id, days in self._metered_room_prices.items():
+            for day, price in days.items():
+                metered_by_day.setdefault(day, {})[room_id] = price
         return await self.hass.async_add_executor_job(
             allocate_rooms,
             self.site,
             records,
             inputs,
             output_w_per_m2_table(self.entry),
+            metered_by_day,
         )
 
     async def _async_process_window(
@@ -761,6 +861,7 @@ class HeatprintCoordinator(DataUpdateCoordinator[HeatprintData]):
         season = season_for(self.entry, yesterday)
         aggregate = await self._async_season_aggregate(season, yesterday)
         records, _weather = await self._async_build_records(season.start, yesterday)
+        self._apply_record_costs(aggregate, records)
         fit = await self._async_maybe_fit(season, records)
         room_fits = await self._async_maybe_fit_rooms(season, records)
         forecast = await self._async_forecast(season, aggregate, records, fit)
@@ -797,6 +898,8 @@ class HeatprintCoordinator(DataUpdateCoordinator[HeatprintData]):
             },
             heat_space_kwh=newest.values.get(METRIC_HEAT_SPACE),
             heat_dhw_kwh=newest.values.get(METRIC_HEAT_DHW),
+            cost_eur=newest.values.get(METRIC_COST),
+            co2_kg=newest.values.get(METRIC_CO2),
             cop=newest.cop,
             flags=list(newest.flags),
             provisional=newest.provisional,
@@ -813,10 +916,13 @@ class HeatprintCoordinator(DataUpdateCoordinator[HeatprintData]):
                 METRIC_HEAT_UNALLOCATED,
                 METRIC_GAS,
                 METRIC_ELECTRIC_HP,
+                METRIC_COST,
+                METRIC_CO2,
             )
         ]
         for room in self.rooms:
             ids.append(statistic_id(self.site_id, room_heat_metric(room.room_id)))
+            ids.append(statistic_id(self.site_id, room_cost_metric(room.room_id)))
         for generator in self.generators:
             ids.append(statistic_id(self.site_id, generator_metric(generator.generator_id)))
             if generator.role in (ROLE_BOTH, ROLE_DHW):
@@ -839,7 +945,12 @@ class HeatprintCoordinator(DataUpdateCoordinator[HeatprintData]):
         aggregate.electric_hp_kwh = _total(METRIC_ELECTRIC_HP)
         heat_pump_space = 0.0
         for generator in self.generators:
-            item = GeneratorAggregate(generator.generator_id, generator.name, generator.kind)
+            item = GeneratorAggregate(
+                generator.generator_id,
+                generator.name,
+                generator.kind,
+                price_mode=generator.price_mode,
+            )
             item.heat_space_kwh = _total(generator_metric(generator.generator_id))
             if generator.role in (ROLE_BOTH, ROLE_DHW):
                 item.heat_dhw_kwh = _total(generator_dhw_metric(generator.generator_id))
@@ -859,6 +970,8 @@ class HeatprintCoordinator(DataUpdateCoordinator[HeatprintData]):
         if dd_classic > 0 and aggregate.gas_m3 > 0:
             aggregate.gas_per_dd_classic = aggregate.gas_m3 / dd_classic
         aggregate.heat_unallocated_kwh = _total(METRIC_HEAT_UNALLOCATED)
+        aggregate.cost_eur = _total(METRIC_COST)
+        aggregate.co2_kg = _total(METRIC_CO2)
         latest_by_room = {
             record.room_id: record for record in self._last_room_records if self._last_room_records
         }
@@ -868,13 +981,17 @@ class HeatprintCoordinator(DataUpdateCoordinator[HeatprintData]):
                 continue
             item = RoomAggregate(room.room_id, room.name, floor_area_m2=room.floor_area_m2)
             item.heat_kwh = _total(room_heat_metric(room.room_id))
+            item.cost_eur = _total(room_cost_metric(room.room_id))
             if aggregate.heat_space_kwh > 0:
                 item.share = item.heat_kwh / aggregate.heat_space_kwh
             if room.floor_area_m2 and room.floor_area_m2 > 0:
                 item.heat_per_m2 = item.heat_kwh / room.floor_area_m2
+                if item.cost_eur:
+                    item.cost_per_m2 = item.cost_eur / room.floor_area_m2
             latest = latest_by_room.get(room.room_id)
             if latest is not None and latest.date == yesterday:
                 item.heat_yesterday_kwh = latest.heat_room_kwh
+                item.cost_yesterday_eur = latest.cost_room_eur
                 item.flags = record_flags(latest)
             fit = self.store.latest_room_fit(room.room_id)
             if fit:
@@ -892,19 +1009,38 @@ class HeatprintCoordinator(DataUpdateCoordinator[HeatprintData]):
             )
             item.data_quality = usable_days / DATA_QUALITY_WINDOW_DAYS
             aggregate.per_room[room.room_id] = item
-        ranking = sorted(
+        has_cost = any((room.cost_eur or 0.0) > 0 for room in aggregate.per_room.values())
+        aggregate.room_ranked_by = "cost_eur" if has_cost else "heat_kwh"
+        heat_ranking = sorted(
             aggregate.per_room.values(),
             key=lambda room: room.heat_kwh,
             reverse=True,
         )
+        cost_ranking = sorted(
+            aggregate.per_room.values(),
+            key=lambda room: float(room.cost_eur or 0.0),
+            reverse=True,
+        )
+        ranking = cost_ranking if has_cost else heat_ranking
         aggregate.room_ranking = [
+            {
+                "room_id": room.room_id,
+                "name": room.name,
+                "heat_kwh": room.heat_kwh,
+                "cost_eur": room.cost_eur,
+                "share": room.share,
+            }
+            for room in ranking
+            if room.heat_kwh > 0 or (room.cost_eur or 0.0) > 0
+        ]
+        aggregate.room_ranking_by_heat = [
             {
                 "room_id": room.room_id,
                 "name": room.name,
                 "heat_kwh": room.heat_kwh,
                 "share": room.share,
             }
-            for room in ranking
+            for room in heat_ranking
             if room.heat_kwh > 0
         ]
         if aggregate.room_ranking:
@@ -924,6 +1060,39 @@ class HeatprintCoordinator(DataUpdateCoordinator[HeatprintData]):
             for room in by_loss
         ]
         return aggregate
+
+    def _apply_record_costs(self, aggregate: SeasonAggregate, records: list[Any]) -> None:
+        """Fill space-heating cost and per-generator weighted prices from season records."""
+        space = 0.0
+        has_space = False
+        generator_cost: dict[str, float] = {item.generator_id: 0.0 for item in self.generators}
+        generator_electric: dict[str, float] = {item.generator_id: 0.0 for item in self.generators}
+        for record in records:
+            if record.cost_space_eur is not None:
+                space += float(record.cost_space_eur)
+                has_space = True
+            by_generator = record.heat_by_generator or {}
+            for generator in self.generators:
+                energy = by_generator.get(generator.generator_id)
+                if energy is None:
+                    continue
+                if energy.cost_eur is not None:
+                    generator_cost[generator.generator_id] += float(energy.cost_eur)
+                if energy.electric_kwh is not None:
+                    generator_electric[generator.generator_id] += float(energy.electric_kwh)
+        if has_space:
+            aggregate.cost_space_eur = space
+        elif aggregate.cost_eur > 0 and aggregate.heat_space_kwh + aggregate.heat_dhw_kwh > 0:
+            total_heat = aggregate.heat_space_kwh + aggregate.heat_dhw_kwh
+            aggregate.cost_space_eur = aggregate.cost_eur * (aggregate.heat_space_kwh / total_heat)
+        for generator in self.generators:
+            item = aggregate.per_generator.get(generator.generator_id)
+            if item is None:
+                continue
+            item.price_mode = generator.price_mode
+            item.cost_eur = generator_cost.get(generator.generator_id) or None
+            item.electric_kwh = generator_electric.get(generator.generator_id, 0.0)
+            item.avg_price_paid = avg_price_paid(item.cost_eur, item.electric_kwh)
 
     async def _async_maybe_fit(
         self, season: SeasonWindow, records: list[Any]

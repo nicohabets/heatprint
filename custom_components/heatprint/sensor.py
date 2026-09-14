@@ -26,8 +26,11 @@ from .const import (
     DOMAIN,
     MANUFACTURER,
     MODEL_SITE,
+    PRICE_MODE_DYNAMIC,
     SENSOR_BALANCE_TEMPERATURE,
+    SENSOR_CO2_SEASON,
     SENSOR_COP_YESTERDAY,
+    SENSOR_COST_SPACE_SEASON,
     SENSOR_DATA_QUALITY,
     SENSOR_DEGREE_DAYS_SEASON,
     SENSOR_DEGREE_DAYS_YESTERDAY,
@@ -38,6 +41,7 @@ from .const import (
     SENSOR_FORECAST_GAS_SEASON,
     SENSOR_FORECAST_HEAT_SEASON,
     SENSOR_GAS_PER_DEGREE_DAY,
+    SENSOR_GENERATOR_AVG_PRICE_PAID,
     SENSOR_GENERATOR_HEAT_DHW_SEASON,
     SENSOR_GENERATOR_HEAT_SPACE_SEASON,
     SENSOR_GENERATOR_SHARE_SEASON,
@@ -51,6 +55,8 @@ from .const import (
     SENSOR_LAST_WEATHER_UPDATE,
     SENSOR_MOST_EXPENSIVE_ROOM,
     SENSOR_ROOM_BALANCE_TEMPERATURE,
+    SENSOR_ROOM_COST_PER_M2_SEASON,
+    SENSOR_ROOM_COST_SEASON,
     SENSOR_ROOM_DATA_QUALITY,
     SENSOR_ROOM_FIT_QUALITY,
     SENSOR_ROOM_HEAT_LOSS_COEFFICIENT,
@@ -62,6 +68,10 @@ from .const import (
     SUBENTRY_TYPE_GENERATOR,
     SUBENTRY_TYPE_ROOM,
     UNIT_DEGREE_DAYS,
+    UNIT_EUR,
+    UNIT_EUR_PER_KWH,
+    UNIT_EUR_PER_M2,
+    UNIT_KG,
     UNIT_KWH_PER_DAY,
     UNIT_KWH_PER_K,
     UNIT_KWH_PER_M2,
@@ -89,6 +99,7 @@ class HeatprintGeneratorSensorDescription(SensorEntityDescription):
     """Describes a per-generator sensor."""
 
     value_fn: Callable[[GeneratorAggregate], StateType]
+    dynamic_only: bool = False
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -419,6 +430,32 @@ SITE_SENSORS: tuple[HeatprintSensorDescription, ...] = (
         value_fn=lambda data: data.last_weather_update,
     ),
     HeatprintSensorDescription(
+        key=SENSOR_COST_SPACE_SEASON,
+        translation_key=SENSOR_COST_SPACE_SEASON,
+        native_unit_of_measurement=UNIT_EUR,
+        device_class=SensorDeviceClass.MONETARY,
+        state_class=SensorStateClass.TOTAL,
+        icon="mdi:cash",
+        suggested_display_precision=2,
+        value_fn=lambda data: data.season.cost_space_eur or None,
+        attributes_fn=lambda data: {
+            "season": data.season.label,
+            "cost_eur": round(data.season.cost_eur, 2),
+            "note": "Space-heating cost only; DHW and standing charges excluded (METHODS §12.5).",
+        },
+    ),
+    HeatprintSensorDescription(
+        key=SENSOR_CO2_SEASON,
+        translation_key=SENSOR_CO2_SEASON,
+        native_unit_of_measurement=UNIT_KG,
+        device_class=SensorDeviceClass.WEIGHT,
+        state_class=SensorStateClass.TOTAL,
+        icon="mdi:molecule-co2",
+        suggested_display_precision=1,
+        value_fn=lambda data: data.season.co2_kg or None,
+        attributes_fn=lambda data: {"season": data.season.label},
+    ),
+    HeatprintSensorDescription(
         key=SENSOR_HEAT_UNALLOCATED_SEASON,
         translation_key=SENSOR_HEAT_UNALLOCATED_SEASON,
         native_unit_of_measurement=UnitOfEnergy.KILO_WATT_HOUR,
@@ -438,12 +475,13 @@ SITE_SENSORS: tuple[HeatprintSensorDescription, ...] = (
         icon="mdi:podium-gold",
         value_fn=lambda data: data.season.most_expensive_room,
         attributes_fn=lambda data: {
-            "ranked_by": "heat_kwh",
+            "ranked_by": data.season.room_ranked_by,
             "note": (
-                "Ranked by allocated space heat this season; cost ranking waits "
-                "for site cost_eur statistics (METHODS §13 / v1.0)."
+                "Ranked by allocated space-heating cost this season when cost "
+                "data exists; otherwise by allocated heat (METHODS §12.5)."
             ),
             "ranking": data.season.room_ranking,
+            "by_heat": data.season.room_ranking_by_heat,
             "by_heat_loss": data.season.room_ranking_by_heat_loss,
             "season": data.season.label,
         },
@@ -468,6 +506,16 @@ GENERATOR_SENSORS: tuple[HeatprintGeneratorSensorDescription, ...] = (
         state_class=SensorStateClass.TOTAL,
         suggested_display_precision=0,
         value_fn=lambda aggregate: aggregate.heat_dhw_kwh,
+    ),
+    HeatprintGeneratorSensorDescription(
+        key=SENSOR_GENERATOR_AVG_PRICE_PAID,
+        translation_key=SENSOR_GENERATOR_AVG_PRICE_PAID,
+        native_unit_of_measurement=UNIT_EUR_PER_KWH,
+        state_class=SensorStateClass.MEASUREMENT,
+        icon="mdi:tag-text-outline",
+        suggested_display_precision=4,
+        value_fn=lambda aggregate: aggregate.avg_price_paid,
+        dynamic_only=True,
     ),
     HeatprintGeneratorSensorDescription(
         key=SENSOR_GENERATOR_SHARE_SEASON,
@@ -568,6 +616,26 @@ ROOM_SENSORS: tuple[HeatprintRoomSensorDescription, ...] = (
         },
     ),
     HeatprintRoomSensorDescription(
+        key=SENSOR_ROOM_COST_SEASON,
+        translation_key=SENSOR_ROOM_COST_SEASON,
+        native_unit_of_measurement=UNIT_EUR,
+        device_class=SensorDeviceClass.MONETARY,
+        state_class=SensorStateClass.TOTAL,
+        icon="mdi:cash",
+        suggested_display_precision=2,
+        value_fn=lambda room: room.cost_eur or None,
+    ),
+    HeatprintRoomSensorDescription(
+        key=SENSOR_ROOM_COST_PER_M2_SEASON,
+        translation_key=SENSOR_ROOM_COST_PER_M2_SEASON,
+        native_unit_of_measurement=UNIT_EUR_PER_M2,
+        state_class=SensorStateClass.MEASUREMENT,
+        icon="mdi:cash",
+        suggested_display_precision=2,
+        value_fn=lambda room: room.cost_per_m2,
+        needs_area=True,
+    ),
+    HeatprintRoomSensorDescription(
         key=SENSOR_ROOM_HEAT_PER_M2_SEASON,
         translation_key=SENSOR_ROOM_HEAT_PER_M2_SEASON,
         native_unit_of_measurement=UNIT_KWH_PER_M2,
@@ -651,10 +719,15 @@ async def async_setup_entry(
         subentry = entry.subentries.get(generator.subentry_id or "")
         if subentry is None or subentry.subentry_type != SUBENTRY_TYPE_GENERATOR:
             continue
+        descriptions = [
+            description
+            for description in GENERATOR_SENSORS
+            if not description.dynamic_only or generator.price_mode == PRICE_MODE_DYNAMIC
+        ]
         async_add_entities(
             (
                 HeatprintGeneratorSensor(coordinator, generator, description)
-                for description in GENERATOR_SENSORS
+                for description in descriptions
             ),
             config_subentry_id=subentry.subentry_id,
         )
@@ -745,7 +818,16 @@ class HeatprintGeneratorSensor(CoordinatorEntity[HeatprintCoordinator], SensorEn
         """Return season context."""
         if self.coordinator.data is None:
             return None
-        return {"season": self.coordinator.data.season.label, "generator_id": self._generator_id}
+        attributes: dict[str, Any] = {
+            "season": self.coordinator.data.season.label,
+            "generator_id": self._generator_id,
+        }
+        aggregate = self._aggregate()
+        if aggregate is not None and aggregate.avg_price_paid is not None:
+            attributes["cost_eur"] = aggregate.cost_eur
+            attributes["electric_kwh"] = aggregate.electric_kwh
+            attributes["price_mode"] = aggregate.price_mode
+        return attributes
 
 
 class HeatprintRoomSensor(CoordinatorEntity[HeatprintCoordinator], SensorEntity):

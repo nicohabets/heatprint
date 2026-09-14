@@ -30,6 +30,8 @@ _METRIC_HEAT_SPACE = "heat_space"
 _METRIC_HEAT_DHW = "heat_dhw"
 _METRIC_ELECTRIC_HP = "electric_hp"
 _METRIC_GAS = "gas"
+_METRIC_COST = "cost"
+_METRIC_CO2 = "co2"
 
 # (entity domain, description.key) for every row on the overview entity cards.
 # unique_id is always ``{config_entry.entry_id}_{key}``.
@@ -55,6 +57,8 @@ OVERVIEW_ENTITY_SPECS: tuple[tuple[str, str], ...] = (
     ("sensor", "forecast_gas_season"),
     ("sensor", "forecast_electric_season"),
     ("sensor", "heat_unallocated_season"),
+    ("sensor", "cost_space_season"),
+    ("sensor", "co2_season"),
     ("sensor", "most_expensive_room"),
 )
 
@@ -76,6 +80,8 @@ _SEASON_KEYS: tuple[str, ...] = (
     "heat_pump_share_season",
     "dhw_baseline",
     "heat_unallocated_season",
+    "cost_space_season",
+    "co2_season",
     "most_expensive_room",
 )
 _FIT_KEYS: tuple[str, ...] = (
@@ -249,6 +255,18 @@ def _overview_cards(
                 },
                 {
                     "type": "statistics-graph",
+                    "title": "Heating cost and CO₂ per day",
+                    "chart_type": "bar",
+                    "period": "day",
+                    "days_to_show": 60,
+                    "stat_types": ["change"],
+                    "entities": [
+                        {"entity": _statistic_id(site_id, _METRIC_COST), "name": "Cost (EUR)"},
+                        {"entity": _statistic_id(site_id, _METRIC_CO2), "name": "CO₂ (kg)"},
+                    ],
+                },
+                {
+                    "type": "statistics-graph",
                     "title": "Degree days per day, four methods (K)",
                     "chart_type": "line",
                     "period": "day",
@@ -319,6 +337,7 @@ ROOMS_DASHBOARD_VIEW_PATH = "rooms"
 # Site-level sensors that appear on the rooms dashboard.
 ROOMS_SITE_ENTITY_SPECS: tuple[tuple[str, str], ...] = (
     ("sensor", "heat_unallocated_season"),
+    ("sensor", "cost_space_season"),
     ("sensor", "most_expensive_room"),
 )
 
@@ -332,6 +351,8 @@ ROOM_ENTITY_KEYS: tuple[str, ...] = (
     "room_balance_temperature",
     "room_fit_quality",
     "room_heat_per_m2_season",
+    "room_cost_season",
+    "room_cost_per_m2_season",
     "room_data_quality",
 )
 
@@ -342,6 +363,8 @@ _ROOM_SUMMARY_KEYS: tuple[str, ...] = (
     "room_heat_loss_coefficient",
     "room_specific_heat_loss",
     "room_balance_temperature",
+    "room_cost_season",
+    "room_cost_per_m2_season",
     "room_data_quality",
 )
 
@@ -436,7 +459,7 @@ def _rooms_cards(
 ) -> list[dict[str, Any]]:
     """Return the masonry cards of the rooms view."""
     per_room_ids = entity_ids.get("rooms") if isinstance(entity_ids.get("rooms"), Mapping) else {}
-    site_keys = ("heat_unallocated_season", "most_expensive_room")
+    site_keys = ("heat_unallocated_season", "cost_space_season", "most_expensive_room")
     left: list[dict[str, Any]] = [
         {
             "type": "markdown",
@@ -445,8 +468,8 @@ def _rooms_cards(
                 "Heat is allocated from the site total using each room's demand "
                 "signal (METHODS §12). Apparent UA includes interzonal exchange "
                 "and is not an EN 12831 design figure. "
-                "`most_expensive_room` is ranked by allocated heat until site "
-                "cost statistics land (METHODS §13). After adding rooms, run "
+                "`most_expensive_room` is ranked by allocated cost when cost "
+                "statistics exist, otherwise by heat. After adding rooms, run "
                 "`heatprint.create_dashboard` so this view picks up new sensors."
             ),
         },

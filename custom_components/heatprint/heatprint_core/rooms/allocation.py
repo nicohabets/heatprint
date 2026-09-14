@@ -141,7 +141,7 @@ def allocate_day(
     """Allocate one day's ``heat_space_kwh`` across enabled rooms (METHODS §12.3).
 
     ``cost_space_eur`` is optional (METHODS §12.5). When omitted, room cost
-    stays ``None`` — site ``cost_eur`` is not written as a statistic yet.
+    stays ``None``.
     """
     enabled = [room for room in rooms if room.enabled]
     when = day or date.min
@@ -182,6 +182,8 @@ def allocate_day(
             heat = max(0.0, float(integral))
             heat_metered += heat
             price = (metered_prices or {}).get(room.id)
+            if price is None and cost_space_eur is not None and heat_space_kwh > 0:
+                price = float(cost_space_eur) / float(heat_space_kwh)
             cost: float | None = None
             if price is not None:
                 cost = heat * float(price)
@@ -264,6 +266,18 @@ def allocate_day(
     )
 
 
+def _cost_space_eur(record: DailyRecord) -> float | None:
+    """Space-heating cost for allocation (METHODS 12.5). Falls back to total × space share."""
+    if record.cost_space_eur is not None:
+        return record.cost_space_eur
+    if record.cost_eur is None:
+        return None
+    total_heat = record.heat_space_kwh + record.heat_dhw_kwh
+    if total_heat <= 0:
+        return record.cost_eur
+    return record.cost_eur * (record.heat_space_kwh / total_heat)
+
+
 def allocate_period(
     rooms: Iterable[Room],
     inputs_by_day: Mapping[date, Mapping[str, RoomDayInput]],
@@ -285,7 +299,7 @@ def allocate_period(
             day_inputs,
             site.heat_space_kwh,
             t_mean=site.t_mean,
-            cost_space_eur=site.cost_eur,
+            cost_space_eur=_cost_space_eur(site),
             metered_prices=prices,
             output_w_per_m2=output_w_per_m2,
             day=day,

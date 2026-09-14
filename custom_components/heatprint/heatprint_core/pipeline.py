@@ -17,6 +17,7 @@ from collections.abc import Iterable, Mapping
 from datetime import date, timedelta
 
 from .constants import GJ_TO_KWH
+from .cost import ELECTRIC_KINDS, generator_cost, space_share_of_cost
 from .dhw import estimate_baseline, split_dhw
 from .flags import Flag
 from .heat import carrier_to_heat, cop_day
@@ -39,10 +40,7 @@ _LOGGER = logging.getLogger(__name__)
 
 DailySeries = Mapping[date, tuple[float, set[Flag]] | float]
 PriceSeries = Mapping[str, float | Mapping[date, float]]
-
-ELECTRIC_KINDS = frozenset(
-    {GeneratorKind.HEAT_PUMP, GeneratorKind.ELECTRIC_HEATER, GeneratorKind.AIR_TO_AIR}
-)
+HourlyByGenerator = Mapping[str, Mapping[date, Mapping[object, float]]]
 
 
 def _entry(series: DailySeries | None, day: date) -> tuple[float | None, set[Flag]]:
@@ -114,6 +112,8 @@ def build_daily_records(
     house_fit: SignatureFit | None = None,
     prices: PriceSeries | None = None,
     co2_factors: PriceSeries | None = None,
+    hourly_electric_by_generator: HourlyByGenerator | None = None,
+    hourly_price_by_generator: HourlyByGenerator | None = None,
     outlier_dates: Iterable[date] | None = None,
     start: date | None = None,
     end: date | None = None,
@@ -132,6 +132,9 @@ def build_daily_records(
       method. Without it the house method uses its fallback (flag ``HOUSE_NOT_FITTED``).
     - ``prices`` / ``co2_factors``: per generator a price (EUR) or factor (kg) per carrier
       unit (per electric kWh for electric kinds), as a constant or per-day mapping.
+    - ``hourly_electric_by_generator`` / ``hourly_price_by_generator``: hourly series
+      for ``price_mode: dynamic`` (METHODS 13.2). Hour keys must align between the
+      two series of the same generator/day (typically the hour-start timestamp).
     - ``outlier_dates``: days flagged ``OUTLIER`` by the latest fit.
 
     A day is ``ENERGY_MISSING`` when no generator has data, or when a generator lacks
@@ -141,6 +144,8 @@ def build_daily_records(
     thermal_by_generator = thermal_by_generator or {}
     electric_by_generator = electric_by_generator or {}
     dhw_by_generator = dhw_by_generator or {}
+    hourly_electric_by_generator = hourly_electric_by_generator or {}
+    hourly_price_by_generator = hourly_price_by_generator or {}
     outliers = set(outlier_dates or ())
     if baselines is None:
         baselines = estimate_baselines(site, energy_by_generator, thermal_by_generator)
@@ -189,6 +194,8 @@ def build_daily_records(
                 balance_temp,
                 prices,
                 co2_factors,
+                hourly_electric_by_generator,
+                hourly_price_by_generator,
                 day in outliers,
             )
         )
@@ -212,6 +219,8 @@ def _build_record(
     balance_temp: float | None,
     prices: PriceSeries | None,
     co2_factors: PriceSeries | None,
+    hourly_electric_by_generator: HourlyByGenerator,
+    hourly_price_by_generator: HourlyByGenerator,
     is_outlier: bool,
 ) -> DailyRecord:
     record = DailyRecord(date=day, site_id=site.id)
@@ -239,6 +248,7 @@ def _build_record(
     any_data = False
     heat_pump_space = 0.0
     cost: float | None = None
+    cost_space: float | None = None
     co2: float | None = None
     for generator in site.generators:
         energy = _generator_energy(
@@ -279,10 +289,23 @@ def _build_record(
         flags |= energy.flags
 
         billed = energy.electric_kwh if generator.kind in ELECTRIC_KINDS else energy.carrier_amount
+        price = _price_at(prices, generator.id, day)
+        generator_day_cost, price_flags = generator_cost(
+            generator,
+            energy,
+            daily_price=price,
+            hourly_electric=(hourly_electric_by_generator.get(generator.id) or {}).get(day),
+            hourly_price=(hourly_price_by_generator.get(generator.id) or {}).get(day),
+        )
+        flags |= price_flags
+        energy.cost_eur = generator_day_cost
+        energy.flags |= price_flags
+        if generator_day_cost is not None:
+            cost = (cost or 0.0) + generator_day_cost
+            space = space_share_of_cost(energy, generator_day_cost)
+            if space is not None:
+                cost_space = (cost_space or 0.0) + space
         if billed is not None:
-            price = _price_at(prices, generator.id, day)
-            if price is not None:
-                cost = (cost or 0.0) + billed * price
             factor = _price_at(co2_factors, generator.id, day)
             if factor is None:
                 factor = generator.co2_factor
@@ -296,6 +319,7 @@ def _build_record(
     if record.heat_space_kwh > 0:
         record.share_heat_pump = heat_pump_space / record.heat_space_kwh
     record.cost_eur = cost
+    record.cost_space_eur = cost_space
     record.co2_kg = co2
     if is_outlier:
         flags.add(Flag.OUTLIER)

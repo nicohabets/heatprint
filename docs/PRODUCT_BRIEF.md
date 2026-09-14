@@ -127,7 +127,7 @@ NL-calibrated, the house fit is universal.
 - Repairs/diagnostics, extended tests (`pytest-homeassistant-custom-component`).
 - Apply for the HACS default repository; documentation site.
 
-### 6.3 Rooms (v0.2 heat / v1.1 cost - "per-room insight")
+### 6.3 Rooms (v0.2 heat / v0.2.4 cost - "per-room insight")
 
 - Per-room heat allocation from a room heating-demand signal (Tado/`tado_ce` or a compatible
   thermostat/TRV integration), reusing the site's `heat_space_kwh` split by weighted daily
@@ -137,11 +137,11 @@ NL-calibrated, the house fit is universal.
   heat-loss calculation; normalized per m² (specific heat loss, W/(m²·K)) so rooms of different
   sizes - and, later, different houses - are actually comparable. **Shipped in 0.2.0.**
 - Per-room and total heating cost, reusing generator prices (including dynamic/day-ahead
-  tariffs, F26); DHW and fixed charges excluded. **Deferred** until site `cost_eur` is
-  written as a statistic (F18 / METHODS §13).
+  tariffs, F26); DHW and fixed charges excluded. **Shipped in 0.2.4** (F18 / METHODS §13).
 - An "unallocated" bucket so the per-room breakdown always reconciles against the site total.
   **Shipped in 0.2.0.**
-- Cost ranking for `most_expensive_room` waits on F18; 0.2.0 ranks by allocated heat.
+- Cost ranking for `most_expensive_room` when cost statistics exist; heat ranking stays as
+  `by_heat` / fallback. **Shipped in 0.2.4.**
 
 ### 6.4 v2.0 - "visual insight"
 
@@ -181,15 +181,15 @@ NL-calibrated, the house fit is universal.
 | F15 | Services with response data for dashboards/automations | MVP |
 | F16 | Measures (subentry) and before/after effect with normalized consumption | v1 |
 | F17 | mindergas bridge (daily push) | v1 |
-| F18 | Cost and CO₂ per kWh of heat, price entities | v1 |
+| F18 | Cost and CO₂ per kWh of heat, price entities | 0.2.4 |
 | F19 | COP curve and DHW monthly profile | v1 |
 | F20 | Custom card, occupancy regressor, benchmark | v2 |
 | F21 | Data quality flags on every daily record and in the UI | MVP |
 | F22 | Translations NL/EN; explanation for every field | MVP |
 | F23 | Diagnostics without secrets; repairs on data gaps and on ongoing data-source health checks (stuck values, implausible values, scale drift) | v1 |
 | F24 | Per-room heat allocation from a configurable demand signal (Tado/compatible integrations), with an unallocated bucket | 0.2.0 (heat) |
-| F25 | Per-room apparent heat loss (energy-signature fit), per-m² normalization, and per-room/total heating cost | 0.2.0 heat-loss / per-m²; cost deferred to 1.1 |
-| F26 | Dynamic/day-ahead electricity tariff support: hourly cost from the generator's and price entity's own recorded statistics, for electric-carrier generators | v1 |
+| F25 | Per-room apparent heat loss (energy-signature fit), per-m² normalization, and per-room/total heating cost | 0.2.0 heat-loss / per-m²; cost in 0.2.4 |
+| F26 | Dynamic/day-ahead electricity tariff support: hourly cost from the generator's and price entity's own recorded statistics, for electric-carrier generators | 0.2.4 |
 
 Non-functional: no telemetry; ≤ 1 external call per day per site in normal operation;
 daily run < 5 s; 10-year backfill < 2 min; runs on HA Green/Yellow (no numpy
@@ -253,9 +253,9 @@ Privacy: no data leaves the house except coordinates/station to the weather prov
 | 1 - Core | Providers, methods, heat/DHW, meter readings, fit, forecast; Heerlen reference case | 2-3 weeks of evening work |
 | 2 - HA shell MVP | Config flow, coordinator, statistics, sensors, services; run on own HA | 2-3 weeks |
 | 3 - Winter 2026/27 | Run live alongside mindergas; connect the hybrid heat pump; bugs; docs | ongoing |
-| 4 - v1.0 | Measure effect polish, bridge, cost/CO₂, health-check repairs, HACS default | 3-4 weeks |
+| 4 - v1.0 | Measure effect polish, bridge, health-check repairs, HACS default | 3-4 weeks |
 | 4a - v0.2 | Rooms **heat**: allocation, apparent UA, auto-discovery, Rooms dashboard | shipped 0.2.0 / 0.2.1 |
-| 4b - v1.1 | Rooms **cost** (needs site `cost_eur` / F18) | after F18 |
+| 4b - v0.2.4 | Rooms **cost** + site F18 cost/CO₂ / dynamic tariffs | shipped 0.2.4 |
 | 5 - v2.0 | Card, occupancy, benchmark | later |
 
 ## 14. Open questions and decisions

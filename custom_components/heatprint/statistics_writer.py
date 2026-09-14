@@ -36,9 +36,11 @@ from .const import (
     SITE_METRICS,
     STATISTIC_MEAN,
     STATISTIC_SUM,
+    UNIT_EUR,
     MetricDef,
     generator_dhw_metric,
     generator_metric,
+    room_cost_metric,
     room_demand_metric,
     room_heat_metric,
     room_t_mean_metric,
@@ -71,6 +73,8 @@ METRIC_NAMES: dict[str, str] = {
     "electric_hp": "Heat pump electricity",
     "gas": "Gas",
     "heat_unallocated": "Unallocated space heating",
+    "cost": "Heating cost",
+    "co2": "CO₂",
 }
 
 
@@ -107,6 +111,12 @@ def metric_definitions(
             STATISTIC_SUM,
             UnitOfEnergy.KILO_WATT_HOUR,
             "energy",
+        )
+        definitions[room_cost_metric(room.room_id)] = MetricDef(
+            room_cost_metric(room.room_id),
+            STATISTIC_SUM,
+            UNIT_EUR,
+            None,
         )
         demand_unit, demand_class = _room_demand_unit(room.demand_kind)
         definitions[room_demand_metric(room.room_id)] = MetricDef(
@@ -145,9 +155,12 @@ def _metric_name(
             prefix = f"{room_id}_"
             if rest.startswith(prefix):
                 suffix = rest[len(prefix) :]
-                label = {"heat": "heat", "demand": "demand", "t_mean": "temperature"}.get(
-                    suffix, suffix
-                )
+                label = {
+                    "heat": "heat",
+                    "cost": "cost",
+                    "demand": "demand",
+                    "t_mean": "temperature",
+                }.get(suffix, suffix)
                 return f"{site_name} {name} {label}"
     return f"{site_name} {METRIC_NAMES.get(metric.key, metric.key)}"
 

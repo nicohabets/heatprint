@@ -22,6 +22,8 @@ from homeassistant.components.recorder.statistics import statistics_during_perio
 from homeassistant.core import HomeAssistant
 from homeassistant.util import dt as dt_util
 
+from heatprint_core.cost import group_hourly_by_local_day
+
 from .history_values import value_from_sample
 
 # Request canonical units so the core always receives m3 for gas/volume and kWh for
@@ -80,6 +82,45 @@ async def async_daily_sums(
                 continue
             result.setdefault(statistic_id, {})[_row_day(row, tz)] = float(change)
     return result
+
+
+def hourly_rows_by_day(
+    rows: Iterable[dict[str, Any]], tz: tzinfo, value_key: str
+) -> dict[date, dict[int, float]]:
+    """Group hourly statistic rows by local date, keyed by the hour-start timestamp.
+
+    The integer key is the POSIX start of the hour so electric and price series
+    can be aligned without depending on clock-hour labels (DST-safe).
+    """
+    samples: list[tuple[float, float]] = []
+    for row in rows:
+        value = row.get(value_key)
+        if value is None:
+            continue
+        samples.append((float(row["start"]), float(value)))
+    return group_hourly_by_local_day(samples, tz)
+
+
+async def async_hourly_changes(
+    hass: HomeAssistant, entity_ids: Iterable[str], start: date, end: date, tz: tzinfo
+) -> dict[str, dict[date, dict[int, float]]]:
+    """Return hourly ``change`` of cumulative entities, grouped by local day."""
+    ids = {entity_id for entity_id in entity_ids if entity_id}
+    rows = await _async_statistics(hass, ids, start, end, tz, "hour", {"change"}, CANONICAL_UNITS)
+    return {
+        statistic_id: hourly_rows_by_day(items, tz, "change") for statistic_id, items in rows.items()
+    }
+
+
+async def async_hourly_means(
+    hass: HomeAssistant, entity_ids: Iterable[str], start: date, end: date, tz: tzinfo
+) -> dict[str, dict[date, dict[int, float]]]:
+    """Return hourly ``mean`` of measurement entities, grouped by local day."""
+    ids = {entity_id for entity_id in entity_ids if entity_id}
+    rows = await _async_statistics(hass, ids, start, end, tz, "hour", {"mean"}, None)
+    return {
+        statistic_id: hourly_rows_by_day(items, tz, "mean") for statistic_id, items in rows.items()
+    }
 
 
 async def async_daily_means(

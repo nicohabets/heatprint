@@ -50,6 +50,8 @@ class Flag(StrEnum):
     ROOM_NOT_FITTED = "room_not_fitted"
     #: No room temperature available for the indicative UA estimate.
     ROOM_TEMPERATURE_MISSING = "room_temperature_missing"
+    #: Dynamic tariff fell back to the day's mean price (METHODS section 13.2).
+    PRICE_ESTIMATED_FLAT = "price_estimated_flat"
 
 
 #: Flags that exclude a day from the signature fit and from k calculations

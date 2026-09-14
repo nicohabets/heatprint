@@ -1,6 +1,6 @@
 # ADR 0006 - Dynamic-tariff cost from each entity's own recorded statistics, not a forecast attribute
 
-**Status:** accepted (2026-09-13)
+**Status:** accepted (2026-09-13); implemented in 0.2.4
 
 ## Context
 

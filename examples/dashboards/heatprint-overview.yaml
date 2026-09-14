@@ -46,6 +46,8 @@ cards:
           - entity: sensor.home_heat_per_degree_day
           - entity: sensor.home_gas_per_degree_day
           - entity: sensor.home_heat_pump_share_season
+          - entity: sensor.home_space_heating_cost_season
+          - entity: sensor.home_co2_season
           - entity: sensor.home_hot_water_baseline
 
       - type: entities
@@ -72,6 +74,19 @@ cards:
             name: Space heating
           - entity: heatprint:home_heat_dhw
             name: Hot water and cooking
+
+      - type: statistics-graph
+        title: Heating cost and CO₂ per day
+        chart_type: bar
+        period: day
+        days_to_show: 60
+        stat_types:
+          - change
+        entities:
+          - entity: heatprint:home_cost
+            name: Cost (EUR)
+          - entity: heatprint:home_co2
+            name: CO₂ (kg)
 
       - type: statistics-graph
         title: Degree days per day, four methods (K)
