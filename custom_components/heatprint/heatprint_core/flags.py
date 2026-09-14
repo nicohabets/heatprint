@@ -40,6 +40,16 @@ class Flag(StrEnum):
     #: all heat of that generator counts as space heating. Informational, allowed
     #: in fits.
     DHW_BASELINE_MISSING = "dhw_baseline_missing"
+    #: No demand-entity data for that room on that day (METHODS section 12.7).
+    ROOM_DEMAND_MISSING = "room_demand_missing"
+    #: Demand integral read from raw history, not long-term statistics.
+    ROOM_DEMAND_FROM_HISTORY = "room_demand_from_history"
+    #: Room weight defaulted (no rated output, or floor-area default used).
+    ROOM_WEIGHT_ASSUMED = "room_weight_assumed"
+    #: Fewer than 30 qualifying days for a room energy-signature fit.
+    ROOM_NOT_FITTED = "room_not_fitted"
+    #: No room temperature available for the indicative UA estimate.
+    ROOM_TEMPERATURE_MISSING = "room_temperature_missing"
 
 
 #: Flags that exclude a day from the signature fit and from k calculations
@@ -55,9 +65,19 @@ EXCLUSION_FLAGS: frozenset[Flag] = frozenset(
 )
 
 
+#: Flags that exclude a room-day from allocation and from the room fit
+#: (METHODS section 12.7). Site-level ``is_usable`` is unchanged.
+ROOM_EXCLUSION_FLAGS: frozenset[Flag] = frozenset({Flag.ROOM_DEMAND_MISSING})
+
+
 def is_usable(flags: Iterable[Flag]) -> bool:
     """Return True when none of the exclusion flags is present."""
     return not (set(flags) & EXCLUSION_FLAGS)
+
+
+def is_room_usable(flags: Iterable[Flag]) -> bool:
+    """Return True when the room-day can be allocated and used in a room fit."""
+    return not (set(flags) & ROOM_EXCLUSION_FLAGS)
 
 
 def flags_to_bitmask(flags: Iterable[Flag]) -> int:

@@ -36,8 +36,10 @@ from heatprint_core.models import (
 
 
 def test_flag_values_and_exclusion() -> None:
-    assert len(Flag) == 12
+    assert len(Flag) == 17
     assert Flag.DHW_BASELINE_MISSING.value == "dhw_baseline_missing"
+    assert Flag.ROOM_DEMAND_MISSING.value == "room_demand_missing"
+    assert Flag.ROOM_NOT_FITTED.value == "room_not_fitted"
     assert Flag.WEATHER_MISSING.value == "weather_missing"
     assert Flag("outlier") is Flag.OUTLIER
     assert {

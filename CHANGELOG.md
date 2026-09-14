@@ -5,6 +5,41 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-09-13
+
+### Added
+- **Rooms MVP** (METHODS §12 / ADR 0005). Add `room` subentries (name, demand
+  entity + kind, emitter, optional area / rated output / temperature / volume,
+  enable/disable). Daily demand integrals allocate `heat_space_kwh` with an
+  unallocated bucket; `metered_energy` rooms bypass allocation. Room energy
+  signatures reuse the site TAC/PRISM fit (no per-room wind). Flags:
+  `ROOM_DEMAND_MISSING`, `ROOM_DEMAND_FROM_HISTORY`, `ROOM_WEIGHT_ASSUMED`,
+  `ROOM_NOT_FITTED`, `ROOM_TEMPERATURE_MISSING`.
+- Site sensors `heat_unallocated_season` and `most_expensive_room` (ranked by
+  allocated **heat** this season — cost ranking waits for site `cost_eur`
+  statistics). Per-room sensors: heat yesterday/season, share, apparent UA,
+  specific heat loss, balance temperature, fit quality, heat/m², data quality.
+  External statistics `heat_unallocated`, `room_<id>_heat` / `_demand` /
+  `_t_mean`.
+- Dedicated **Heatprint Rooms** Lovelace dashboard in the sidebar
+  (`heatprint-<site>-rooms`). `heatprint.create_dashboard` creates or updates
+  both the overview and the rooms view. Entity cards resolve `entity_id` from
+  the registry by `unique_id` (`{entry_id}_{key}` or
+  `{entry_id}_{room_id}_{key}`), so a Dutch UI does not show
+  “entity not found”.
+- Service `heatprint.fit_room_signature`. Options: allocation on/off, minimum
+  room-fit days, default W/m² per emitter (labelled placeholders).
+
+### Changed
+- Version lockstep is 0.2.0 (`manifest.json`, `pyproject.toml`,
+  `heatprint_core.__version__`).
+
+### Not in this release
+- Room **cost** sensors and `room_<id>_cost` statistics are skipped on purpose.
+  Site `cost_eur` is still not written as a statistic (METHODS §13 / ROADMAP
+  open item 1). Heat allocation does not wait for dynamic tariffs.
+- METHODS §13 dynamic tariffs and §14 health-check repairs stay follow-ups.
+
 ## [0.1.4] - 2026-09-13
 
 ### Fixed

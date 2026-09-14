@@ -46,6 +46,7 @@ from .const import (
     ATTR_METHOD,
     ATTR_PATH,
     ATTR_READING_COLUMN,
+    ATTR_ROOM_ID,
     ATTR_SEASON,
     ATTR_START,
     ATTR_TAC_PRESET,
@@ -64,6 +65,7 @@ from .const import (
     SERVICE_COMPARE_PERIODS,
     SERVICE_CREATE_DASHBOARD,
     SERVICE_EXPORT_DAILY,
+    SERVICE_FIT_ROOM_SIGNATURE,
     SERVICE_FIT_SIGNATURE,
     SERVICE_FORECAST,
     SERVICE_IMPORT_READINGS,
@@ -153,6 +155,15 @@ CLEAR_STATISTICS_SCHEMA = vol.Schema(
     {
         vol.Required(ATTR_ENTRY_ID): cv.string,
         vol.Optional(ATTR_GENERATOR_ID): cv.string,
+    }
+)
+FIT_ROOM_SIGNATURE_SCHEMA = vol.Schema(
+    {
+        vol.Required(ATTR_ENTRY_ID): cv.string,
+        vol.Required(ATTR_ROOM_ID): cv.string,
+        vol.Optional(ATTR_START): cv.date,
+        vol.Optional(ATTR_END): cv.date,
+        vol.Optional(ATTR_SEASON): cv.string,
     }
 )
 CREATE_DASHBOARD_SCHEMA = vol.Schema({vol.Required(ATTR_ENTRY_ID): cv.string})
@@ -329,11 +340,32 @@ def async_setup_services(hass: HomeAssistant) -> None:
         result = await coordinator.async_clear_statistics(call.data.get(ATTR_GENERATOR_ID))
         return result if call.return_response else None
 
+    async def handle_fit_room_signature(call: ServiceCall) -> ServiceResponse:
+        coordinator = _get_coordinator(hass, call.data[ATTR_ENTRY_ID])
+        if ATTR_SEASON in call.data:
+            try:
+                season = season_from_label(coordinator.entry, call.data[ATTR_SEASON])
+            except ValueError as err:
+                raise ServiceValidationError(
+                    translation_domain=DOMAIN, translation_key="invalid_period"
+                ) from err
+            start, end = season.start, min(season.end, coordinator.today - timedelta(days=1))
+        elif ATTR_START in call.data and ATTR_END in call.data:
+            start, end = _period(call.data[ATTR_START], call.data[ATTR_END])
+        else:
+            raise ServiceValidationError(
+                translation_domain=DOMAIN, translation_key="period_required"
+            )
+        try:
+            return await coordinator.async_fit_room_signature(call.data[ATTR_ROOM_ID], start, end)
+        except CoreError as err:
+            raise HomeAssistantError(f"Room fit failed: {err}") from err
+
     async def handle_create_dashboard(call: ServiceCall) -> ServiceResponse:
-        from .dashboard import async_ensure_overview_dashboard
+        from .dashboard import async_ensure_dashboards
 
         coordinator = _get_coordinator(hass, call.data[ATTR_ENTRY_ID])
-        result = await async_ensure_overview_dashboard(hass, coordinator.entry, recreate=True)
+        result = await async_ensure_dashboards(hass, coordinator.entry, recreate=True)
         return result if call.return_response else None
 
     registrations: list[tuple[str, Any, vol.Schema, SupportsResponse]] = [
@@ -345,6 +377,12 @@ def async_setup_services(hass: HomeAssistant) -> None:
         ),
         (SERVICE_RECOMPUTE, handle_recompute, RECOMPUTE_SCHEMA, SupportsResponse.OPTIONAL),
         (SERVICE_FIT_SIGNATURE, handle_fit_signature, FIT_SIGNATURE_SCHEMA, SupportsResponse.ONLY),
+        (
+            SERVICE_FIT_ROOM_SIGNATURE,
+            handle_fit_room_signature,
+            FIT_ROOM_SIGNATURE_SCHEMA,
+            SupportsResponse.ONLY,
+        ),
         (
             SERVICE_COMPARE_PERIODS,
             handle_compare_periods,

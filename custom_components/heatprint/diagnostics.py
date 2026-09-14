@@ -11,6 +11,7 @@ from homeassistant.core import HomeAssistant
 from . import HeatprintConfigEntry
 from .const import (
     CONF_CO2_ENTITY,
+    CONF_DEMAND_ENTITY,
     CONF_DHW_ELECTRIC_ENTITY,
     CONF_DHW_ENTITY,
     CONF_ELECTRIC_ENTITY,
@@ -20,6 +21,7 @@ from .const import (
     CONF_MINDERGAS_TOKEN,
     CONF_PRICE_ENTITY,
     CONF_RADIATION_ENTITY,
+    CONF_ROOM_TEMPERATURE_ENTITY,
     CONF_TEMPERATURE_ENTITY,
     CONF_THERMAL_ENTITY,
     CONF_WIND_ENTITY,
@@ -28,6 +30,8 @@ from .const import (
 
 TO_REDACT = {
     CONF_MINDERGAS_TOKEN,
+    CONF_DEMAND_ENTITY,
+    CONF_ROOM_TEMPERATURE_ENTITY,
     CONF_LATITUDE,
     CONF_LONGITUDE,
     CONF_ENERGY_ENTITY,
@@ -96,6 +100,7 @@ async def async_get_config_entry_diagnostics(
         "store": {
             "meta": async_redact_data(dict(store.data.get("meta", {})), TO_REDACT),
             "fits": store.fits,
+            "room_fits": store.all_latest_room_fits(),
             "baselines": store.baselines,
             "forecast": store.forecast,
             "climatology_present": store.climatology is not None,

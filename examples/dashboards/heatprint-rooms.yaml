@@ -1,0 +1,68 @@
+# Heatprint Rooms — reference copy of the dashboard created automatically
+# after setup (sidebar path /heatprint-<site_id>-rooms).
+#
+# You do not need to paste this. The integration registers a Lovelace storage
+# dashboard with the same cards. Recreate both overview and rooms with
+# heatprint.create_dashboard after adding or renaming rooms.
+#
+# Object ids depend on the Home Assistant UI language (has_entity_name) and
+# on the room device name. This file shows English ids
+# (sensor.home_woonkamer_heat_yesterday). A Dutch UI uses
+# sensor.thuis_woonkamer_warmte_gisteren, sensor.thuis_duurste_kamer, and so
+# on. The auto-dashboard resolves entity_ids from the entity registry by
+# unique_id ({config_entry.entry_id}_{room_id}_{key} for room sensors,
+# {config_entry.entry_id}_{key} for site rooms sensors) and does not guess
+# English slugs. Statistic ids stay on the metric keys
+# (heatprint:<site>_room_<id>_heat, heatprint:<site>_heat_unallocated).
+# Custom cards (apexcharts) are omitted on purpose so the dashboard loads
+# without HACS frontend extras.
+#
+# Room cost sensors are not created in 0.2.0 (site cost_eur is not written
+# as a statistic yet). most_expensive_room is ranked by allocated heat.
+
+title: Rooms
+path: rooms
+icon: mdi:floor-plan
+cards:
+  - type: vertical-stack
+    cards:
+      - type: markdown
+        content: >-
+          **Per-room space heating.** Heat is allocated from the site total
+          using each room's demand signal. Apparent UA includes interzonal
+          exchange and is not an EN 12831 design figure. most_expensive_room
+          is ranked by allocated heat until site cost statistics land.
+
+      - type: entities
+        title: Site rooms summary
+        entities:
+          - entity: sensor.home_unallocated_heat_season
+          - entity: sensor.home_most_expensive_room
+
+      - type: entities
+        title: Living
+        entities:
+          - entity: sensor.home_living_heat_yesterday
+          - entity: sensor.home_living_heat_season
+          - entity: sensor.home_living_share_season
+          - entity: sensor.home_living_heat_loss_coefficient
+          - entity: sensor.home_living_specific_heat_loss
+          - entity: sensor.home_living_balance_temperature
+          - entity: sensor.home_living_data_quality
+
+  - type: vertical-stack
+    cards:
+      - type: statistics-graph
+        title: Room heat and unallocated per day (kWh)
+        chart_type: bar
+        period: day
+        days_to_show: 60
+        stat_types:
+          - change
+        entities:
+          - entity: heatprint:home_heat_space
+            name: Space heating (site)
+          - entity: heatprint:home_heat_unallocated
+            name: Unallocated
+          - entity: heatprint:home_room_living_heat
+            name: Living

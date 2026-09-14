@@ -125,19 +125,21 @@ NL-calibrated, the house fit is universal.
 - Repairs/diagnostics, extended tests (`pytest-homeassistant-custom-component`).
 - Apply for the HACS default repository; documentation site.
 
-### 6.3 Rooms (v1.1 - "per-room insight")
+### 6.3 Rooms (v0.2 heat / v1.1 cost - "per-room insight")
 
 - Per-room heat allocation from a room heating-demand signal (Tado/`tado_ce` or a compatible
   thermostat/TRV integration), reusing the site's `heat_space_kwh` split by weighted daily
-  demand (METHODS §12).
+  demand (METHODS §12). **Shipped in 0.2.0.**
 - Per-room apparent heat loss (energy-signature fit, same method as the site-level fit) and
   balance temperature, clearly labelled as an apparent/allocation-based estimate, not a design
   heat-loss calculation; normalized per m² (specific heat loss, W/(m²·K)) so rooms of different
-  sizes - and, later, different houses - are actually comparable.
+  sizes - and, later, different houses - are actually comparable. **Shipped in 0.2.0.**
 - Per-room and total heating cost, reusing generator prices (including dynamic/day-ahead
-  tariffs, F26); DHW and fixed charges excluded.
+  tariffs, F26); DHW and fixed charges excluded. **Deferred** until site `cost_eur` is
+  written as a statistic (F18 / METHODS §13).
 - An "unallocated" bucket so the per-room breakdown always reconciles against the site total.
-- Depends on F18 (cost/CO₂ actually written as a statistic) landing first - see ROADMAP.
+  **Shipped in 0.2.0.**
+- Cost ranking for `most_expensive_room` waits on F18; 0.2.0 ranks by allocated heat.
 
 ### 6.4 v2.0 - "visual insight"
 
@@ -183,8 +185,8 @@ NL-calibrated, the house fit is universal.
 | F21 | Data quality flags on every daily record and in the UI | MVP |
 | F22 | Translations NL/EN; explanation for every field | MVP |
 | F23 | Diagnostics without secrets; repairs on data gaps and on ongoing data-source health checks (stuck values, implausible values, scale drift) | v1 |
-| F24 | Per-room heat allocation from a configurable demand signal (Tado/compatible integrations), with an unallocated bucket | v1.1 |
-| F25 | Per-room apparent heat loss (energy-signature fit), per-m² normalization, and per-room/total heating cost | v1.1 |
+| F24 | Per-room heat allocation from a configurable demand signal (Tado/compatible integrations), with an unallocated bucket | 0.2.0 (heat) |
+| F25 | Per-room apparent heat loss (energy-signature fit), per-m² normalization, and per-room/total heating cost | 0.2.0 heat-loss / per-m²; cost deferred to 1.1 |
 | F26 | Dynamic/day-ahead electricity tariff support: hourly cost from the generator's and price entity's own recorded statistics, for electric-carrier generators | v1 |
 
 Non-functional: no telemetry; ≤ 1 external call per day per site in normal operation;

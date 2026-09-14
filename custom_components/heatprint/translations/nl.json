@@ -480,6 +480,83 @@
       "abort": {
         "reconfigure_successful": "De maatregel is gewijzigd."
       }
+    },
+    "room": {
+      "entry_type": "Kamer",
+      "initiate_flow": {
+        "user": "Kamer toevoegen",
+        "reconfigure": "Kamer wijzigen"
+      },
+      "step": {
+        "user": {
+          "title": "Kamer",
+          "description": "Een kamer krijgt een aandeel van de ruimteverwarming van de site op basis van een vraag-signaal (klep, thermostaat of eigen meter). Het schijnbare warmteverlies is een schatting op basis van toewijzing, geen ontwerpberekening (METHODS §12).",
+          "data": {
+            "area_id": "Home Assistant-ruimte",
+            "name": "Naam",
+            "demand_entity": "Vraag-entiteit",
+            "demand_kind": "Soort vraag",
+            "temperature_entity": "Kamertemperatuur",
+            "emitter_kind": "Afgever",
+            "rated_output_w": "Nominaal vermogen",
+            "floor_area_m2": "Vloeroppervlak",
+            "volume_m3": "Volume",
+            "enabled": "Ingeschakeld",
+            "price_entity": "Prijs-sensor"
+          },
+          "data_description": {
+            "area_id": "Optioneel. Vult de naam vooraf in vanuit de ruimte.",
+            "name": "Bijvoorbeeld Woonkamer. Het daarvan afgeleide id wordt gebruikt in statistieken en entiteiten.",
+            "demand_entity": "Verwarmingsvermogen in procenten, klepstand, aan/uit-klimaat, of een eigen energiemeter.",
+            "demand_kind": "Hoe de vraag-entiteit wordt geïnterpreteerd. Gemeten energie slaat toewijzing over en is direct de warmte van de kamer.",
+            "temperature_entity": "Optioneel. Gebruikt voor de indicatieve UA-schatting.",
+            "emitter_kind": "Alleen gebruikt voor de standaard W/m²-weging als nominaal vermogen ontbreekt.",
+            "rated_output_w": "Voorkeursweging. Leeg laten om vloeroppervlak × standaard W/m² te gebruiken.",
+            "floor_area_m2": "Maakt specifiek warmteverlies (W/(m²·K)) en warmte per m² mogelijk.",
+            "volume_m3": "Wordt bewaard voor later; niet gebruikt in de huidige berekeningen.",
+            "enabled": "Uitgeschakelde kamers houden hun historie maar worden overgeslagen bij de dagelijkse toewijzing.",
+            "price_entity": "Optionele override voor een kamer met eigen meter. Site-kostensensoren worden nog niet weggeschreven (METHODS §13)."
+          }
+        },
+        "reconfigure": {
+          "title": "Kamer wijzigen",
+          "description": "Het id in statistieken en entiteiten verandert niet als je hernoemt. Uitgeschakelde kamers houden hun historie.",
+          "data": {
+            "area_id": "Home Assistant-ruimte",
+            "name": "Naam",
+            "demand_entity": "Vraag-entiteit",
+            "demand_kind": "Soort vraag",
+            "temperature_entity": "Kamertemperatuur",
+            "emitter_kind": "Afgever",
+            "rated_output_w": "Nominaal vermogen",
+            "floor_area_m2": "Vloeroppervlak",
+            "volume_m3": "Volume",
+            "enabled": "Ingeschakeld",
+            "price_entity": "Prijs-sensor"
+          },
+          "data_description": {
+            "area_id": "Optioneel.",
+            "name": "Het id in statistieken en entiteiten verandert niet als je hernoemt.",
+            "demand_entity": "Verwarmingsvermogen in procenten, klepstand, aan/uit-klimaat, of een eigen energiemeter.",
+            "demand_kind": "Hoe de vraag-entiteit wordt geïnterpreteerd.",
+            "temperature_entity": "Optioneel. Gebruikt voor de indicatieve UA-schatting.",
+            "emitter_kind": "Alleen gebruikt voor de standaard W/m²-weging als nominaal vermogen ontbreekt.",
+            "rated_output_w": "Voorkeursweging. Leeg laten om vloeroppervlak × standaard W/m² te gebruiken.",
+            "floor_area_m2": "Maakt specifiek warmteverlies (W/(m²·K)) en warmte per m² mogelijk.",
+            "volume_m3": "Wordt bewaard voor later; niet gebruikt in de huidige berekeningen.",
+            "enabled": "Uitgeschakelde kamers houden hun historie maar worden overgeslagen bij de dagelijkse toewijzing.",
+            "price_entity": "Optionele override voor een kamer met eigen meter."
+          }
+        }
+      },
+      "error": {
+        "entity_not_found": "Entiteit niet gevonden.",
+        "demand_kind_mismatch": "Deze entiteit past niet bij de gekozen soort vraag.",
+        "invalid_name": "De naam moet minstens één letter of cijfer bevatten."
+      },
+      "abort": {
+        "reconfigure_successful": "De kamer is gewijzigd."
+      }
     }
   },
   "options": {
@@ -493,6 +570,7 @@
           "import_readings": "Meterstanden importeren",
           "pricing": "Prijzen en CO2",
           "integrations": "Integraties",
+          "rooms": "Kamers",
           "advanced": "Geavanceerd"
         }
       },
@@ -624,6 +702,26 @@
           "mindergas_token": "Persoonlijk API-token uit de accountinstellingen van mindergas.nl.",
           "mindergas_generator_id": "De gasmeter waarvan de stand wordt verstuurd.",
           "mindergas_daily_push": "Na de dagelijkse run wordt de meterstand van middernacht als stand van vandaag verstuurd."
+        }
+      },
+      "rooms": {
+        "title": "Kamers",
+        "description": "De standaard afgifte per m² is een gelabelde schatting (METHODS §12.2). Kamers die die waarde gebruiken worden als schatting gemarkeerd. Toewijzing uit zet nog steeds de site-warmte, maar slaat de kamerverdeling over.",
+        "data": {
+          "allocation_enabled": "Ruimteverwarming toewijzen aan kamers",
+          "min_room_fit_days": "Minimum bruikbare dagen voor een kamerfit",
+          "output_w_per_m2_radiator": "Standaard radiatorvermogen (schatting)",
+          "output_w_per_m2_underfloor": "Standaard vloerverwarmingvermogen (schatting)",
+          "output_w_per_m2_electric": "Standaard elektrisch vermogen (schatting)",
+          "output_w_per_m2_other": "Standaard overig vermogen (schatting)"
+        },
+        "data_description": {
+          "allocation_enabled": "Uit: heat_space_kwh blijft ongewijzigd en er worden geen kamerstatistieken geschreven.",
+          "min_room_fit_days": "Onder dit aantal blijft de warmteverliescoëfficiënt van de kamer onbeschikbaar (ROOM_NOT_FITTED).",
+          "output_w_per_m2_radiator": "Gebruikt als een radiator-kamer wel oppervlak maar geen nominaal vermogen heeft. Placeholder, geen ontwerpwaarde.",
+          "output_w_per_m2_underfloor": "Gebruikt als een vloerverwarmingskamer wel oppervlak maar geen nominaal vermogen heeft. Placeholder, geen ontwerpwaarde.",
+          "output_w_per_m2_electric": "Gebruikt als een elektrische kamer wel oppervlak maar geen nominaal vermogen heeft. Placeholder, geen ontwerpwaarde.",
+          "output_w_per_m2_other": "Gebruikt als een andere afgever wel oppervlak maar geen nominaal vermogen heeft. Placeholder, geen ontwerpwaarde."
         }
       },
       "advanced": {
@@ -812,6 +910,22 @@
       "options": {
         "mindergas": "mindergas.nl"
       }
+    },
+    "demand_kind": {
+      "options": {
+        "percentage": "Verwarmingsvraag (%)",
+        "valve_position": "Klepstand (%)",
+        "binary": "Aan / uit",
+        "metered_energy": "Gemeten energie (kWh)"
+      }
+    },
+    "emitter_kind": {
+      "options": {
+        "radiator": "Radiator",
+        "underfloor": "Vloerverwarming",
+        "electric": "Elektrisch",
+        "other": "Overig"
+      }
     }
   },
   "entity": {
@@ -872,6 +986,39 @@
       },
       "last_weather_update": {
         "name": "Laatste weerupdate"
+      },
+      "heat_unallocated_season": {
+        "name": "Niet toegewezen warmte seizoen"
+      },
+      "most_expensive_room": {
+        "name": "Duurste kamer"
+      },
+      "room_heat_yesterday": {
+        "name": "Warmte gisteren"
+      },
+      "room_heat_season": {
+        "name": "Warmte seizoen"
+      },
+      "room_share_season": {
+        "name": "Aandeel seizoen"
+      },
+      "room_heat_loss_coefficient": {
+        "name": "Warmteverliescoëfficiënt"
+      },
+      "room_specific_heat_loss": {
+        "name": "Specifiek warmteverlies"
+      },
+      "room_balance_temperature": {
+        "name": "Balanstemperatuur"
+      },
+      "room_fit_quality": {
+        "name": "Fitkwaliteit"
+      },
+      "room_heat_per_m2_season": {
+        "name": "Warmte per m² seizoen"
+      },
+      "room_data_quality": {
+        "name": "Datakwaliteit"
       },
       "generator_heat_space_season": {
         "name": "Ruimteverwarming seizoen"
@@ -1062,9 +1209,35 @@
         }
       }
     },
+    "fit_room_signature": {
+      "name": "Kamer-energiesignatuur fitten",
+      "description": "Fitt de schijnbare warmteverliescoëfficiënt en balanstemperatuur van één kamer en geeft de fit terug. Gebruikt de TAC van de site; wind wordt niet gefit.",
+      "fields": {
+        "entry_id": {
+          "name": "Site",
+          "description": "De Heatprint-site."
+        },
+        "room_id": {
+          "name": "Kamer-id",
+          "description": "Id van de kamer (slug van de naam)."
+        },
+        "start": {
+          "name": "Start",
+          "description": "Eerste dag van de periode (of gebruik seizoen)."
+        },
+        "end": {
+          "name": "Eind",
+          "description": "Laatste dag van de periode."
+        },
+        "season": {
+          "name": "Seizoen",
+          "description": "Seizoenslabel zoals 2024/2025 in plaats van start en eind."
+        }
+      }
+    },
     "create_dashboard": {
       "name": "Heatprint-dashboard maken",
-      "description": "Maakt of vernieuwt het standaard Heatprint-Lovelace-dashboard in de zijbalk (alleen standaardkaarten; geen custom apexcharts-kaart).",
+      "description": "Maakt of vernieuwt het Heatprint-overzicht en het Kamers-dashboard in de zijbalk (alleen standaardkaarten; geen custom apexcharts-kaart). Entiteitskaarten zoeken entity_id op via unique_id, zodat een Nederlandse UI werkt.",
       "fields": {
         "entry_id": {
           "name": "Site",

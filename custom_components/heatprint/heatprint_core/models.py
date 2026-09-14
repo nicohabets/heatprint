@@ -24,6 +24,7 @@ from enum import Enum, StrEnum
 from typing import Any, TypeVar
 
 from .constants import (
+    DEFAULT_CEILING_HEIGHT_M,
     ELEC_CO2_KG_PER_KWH,
     GAS_CO2_KG_PER_M3,
     GAS_HS_KWH_PER_M3,
@@ -100,6 +101,24 @@ class MeasureCategory(StrEnum):
     INSULATION = "insulation"
     INSTALLATION = "installation"
     BEHAVIOUR = "behaviour"
+    OTHER = "other"
+
+
+class DemandKind(StrEnum):
+    """Kind of room heating-demand signal (METHODS section 12.1)."""
+
+    PERCENTAGE = "percentage"
+    VALVE_POSITION = "valve_position"
+    BINARY = "binary"
+    METERED_ENERGY = "metered_energy"
+
+
+class EmitterKind(StrEnum):
+    """Kind of room emitter (METHODS section 12.2)."""
+
+    RADIATOR = "radiator"
+    UNDERFLOOR = "underfloor"
+    ELECTRIC = "electric"
     OTHER = "other"
 
 
@@ -412,6 +431,41 @@ class Measure(JsonMixin):
 
 
 @dataclass(frozen=True)
+class Room(JsonMixin):
+    """A room / zone with a heating-demand signal (DATA_MODEL section 1.6)."""
+
+    id: str
+    name: str
+    area_id: str | None = None
+    demand_entity: str | None = None
+    demand_kind: DemandKind = DemandKind.PERCENTAGE
+    temperature_entity: str | None = None
+    emitter_kind: EmitterKind = EmitterKind.RADIATOR
+    rated_output_w: float | None = None
+    floor_area_m2: float | None = None
+    volume_m3: float | None = None
+    price_entity: str | None = None
+    enabled: bool = True
+
+    @property
+    def is_metered(self) -> bool:
+        """True when this room bypasses allocation and uses its own energy meter."""
+        return self.demand_kind is DemandKind.METERED_ENERGY
+
+    @property
+    def resolved_volume_m3(self) -> float | None:
+        """Configured volume, or floor area times the default ceiling height.
+
+        Unused by any calculation in this version (METHODS section 12.4).
+        """
+        if self.volume_m3 is not None:
+            return self.volume_m3
+        if self.floor_area_m2 is not None:
+            return self.floor_area_m2 * DEFAULT_CEILING_HEIGHT_M
+        return None
+
+
+@dataclass(frozen=True)
 class Site(JsonMixin):
     """A site (dwelling) with its configuration (DATA_MODEL section 1.1)."""
 
@@ -428,6 +482,7 @@ class Site(JsonMixin):
     weather: WeatherSourceConfig = field(default_factory=WeatherSourceConfig)
     generators: list[Generator] = field(default_factory=list)
     measures: list[Measure] = field(default_factory=list)
+    rooms: list[Room] = field(default_factory=list)
 
     def generator(self, generator_id: str) -> Generator:
         """Return the generator with the given id."""
@@ -435,6 +490,18 @@ class Site(JsonMixin):
             if generator.id == generator_id:
                 return generator
         raise KeyError(generator_id)
+
+    def room(self, room_id: str) -> Room:
+        """Return the room with the given id."""
+        for room in self.rooms:
+            if room.id == room_id:
+                return room
+        raise KeyError(room_id)
+
+    @property
+    def enabled_rooms(self) -> list[Room]:
+        """Rooms that participate in daily allocation and fits."""
+        return [room for room in self.rooms if room.enabled]
 
 
 # --- Facts --------------------------------------------------------------------------------------
@@ -499,6 +566,21 @@ class DailyRecord(JsonMixin):
     def usable(self) -> bool:
         """True when the day carries no exclusion flag (METHODS section 10)."""
         return is_usable(self.flags)
+
+
+@dataclass
+class DailyRoomRecord(JsonMixin):
+    """Allocated heat of one room on one day (DATA_MODEL section 2.4)."""
+
+    date: date
+    room_id: str
+    demand_integral: float | None = None
+    t_room_mean: float | None = None
+    share: float | None = None
+    heat_room_kwh: float | None = None
+    cost_room_eur: float | None = None
+    heat_kwh_per_m2: float | None = None
+    flags: set[Flag] = field(default_factory=set)
 
 
 @dataclass
@@ -590,6 +672,36 @@ class SignatureFit(JsonMixin):
         if self.wind_c is not None and wind is not None:
             value += self.wind_c * wind
         return value
+
+
+@dataclass(frozen=True)
+class RoomSignatureFit(JsonMixin):
+    """Apparent per-room energy-signature fit (METHODS section 12.4).
+
+    Always uses the site TAC (house preset). No ``wind_c`` / ``tac_preset``.
+    """
+
+    room_id: str
+    period: Period
+    balance_temp: float
+    intercept_a: float
+    slope_b: float
+    ua_w_per_k: float
+    r2: float
+    rmse: float
+    n_days: int
+    n_heating_days: int
+    ci95_slope: tuple[float, float]
+    ci95_balance: tuple[float, float]
+    fitted_at: datetime
+    sse: float = 0.0
+    outliers: list[date] = field(default_factory=list)
+    ua_w_per_k_per_m2: float | None = None
+    ua_indicative_w_per_k: float | None = None
+
+    def predict(self, tac: float) -> float:
+        """Model prediction ``a + b * max(0, T_b - tac)`` in kWh per day."""
+        return self.intercept_a + self.slope_b * max(0.0, self.balance_temp - tac)
 
 
 @dataclass(frozen=True)

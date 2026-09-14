@@ -47,17 +47,31 @@ from .const import (
     SENSOR_HEAT_PUMP_SHARE_SEASON,
     SENSOR_HEAT_SPACE_SEASON,
     SENSOR_HEAT_SPACE_YESTERDAY,
+    SENSOR_HEAT_UNALLOCATED_SEASON,
     SENSOR_LAST_WEATHER_UPDATE,
+    SENSOR_MOST_EXPENSIVE_ROOM,
+    SENSOR_ROOM_BALANCE_TEMPERATURE,
+    SENSOR_ROOM_DATA_QUALITY,
+    SENSOR_ROOM_FIT_QUALITY,
+    SENSOR_ROOM_HEAT_LOSS_COEFFICIENT,
+    SENSOR_ROOM_HEAT_PER_M2_SEASON,
+    SENSOR_ROOM_HEAT_SEASON,
+    SENSOR_ROOM_HEAT_YESTERDAY,
+    SENSOR_ROOM_SHARE_SEASON,
+    SENSOR_ROOM_SPECIFIC_HEAT_LOSS,
     SUBENTRY_TYPE_GENERATOR,
+    SUBENTRY_TYPE_ROOM,
     UNIT_DEGREE_DAYS,
     UNIT_KWH_PER_DAY,
     UNIT_KWH_PER_K,
+    UNIT_KWH_PER_M2,
     UNIT_M3_PER_K,
     UNIT_PERCENT,
     UNIT_W_PER_K,
+    UNIT_W_PER_K_PER_M2,
 )
-from .coordinator import GeneratorAggregate, HeatprintCoordinator, HeatprintData
-from .core_api import GeneratorConfig
+from .coordinator import GeneratorAggregate, HeatprintCoordinator, HeatprintData, RoomAggregate
+from .core_api import GeneratorConfig, RoomConfig
 
 PARALLEL_UPDATES = 0
 
@@ -75,6 +89,15 @@ class HeatprintGeneratorSensorDescription(SensorEntityDescription):
     """Describes a per-generator sensor."""
 
     value_fn: Callable[[GeneratorAggregate], StateType]
+
+
+@dataclass(frozen=True, kw_only=True)
+class HeatprintRoomSensorDescription(SensorEntityDescription):
+    """Describes a per-room sensor."""
+
+    value_fn: Callable[[RoomAggregate], StateType]
+    attributes_fn: Callable[[RoomAggregate], dict[str, Any]] | None = None
+    needs_area: bool = False
 
 
 def _fit_value(key: str) -> Callable[[HeatprintData], StateType]:
@@ -395,6 +418,36 @@ SITE_SENSORS: tuple[HeatprintSensorDescription, ...] = (
         device_class=SensorDeviceClass.TIMESTAMP,
         value_fn=lambda data: data.last_weather_update,
     ),
+    HeatprintSensorDescription(
+        key=SENSOR_HEAT_UNALLOCATED_SEASON,
+        translation_key=SENSOR_HEAT_UNALLOCATED_SEASON,
+        native_unit_of_measurement=UnitOfEnergy.KILO_WATT_HOUR,
+        device_class=SensorDeviceClass.ENERGY,
+        state_class=SensorStateClass.TOTAL,
+        icon="mdi:home-floor-0",
+        suggested_display_precision=0,
+        value_fn=lambda data: data.season.heat_unallocated_kwh,
+        attributes_fn=lambda data: {
+            "season": data.season.label,
+            "note": "Space heat not allocated to a configured room (METHODS §12.3).",
+        },
+    ),
+    HeatprintSensorDescription(
+        key=SENSOR_MOST_EXPENSIVE_ROOM,
+        translation_key=SENSOR_MOST_EXPENSIVE_ROOM,
+        icon="mdi:podium-gold",
+        value_fn=lambda data: data.season.most_expensive_room,
+        attributes_fn=lambda data: {
+            "ranked_by": "heat_kwh",
+            "note": (
+                "Ranked by allocated space heat this season; cost ranking waits "
+                "for site cost_eur statistics (METHODS §13 / v1.0)."
+            ),
+            "ranking": data.season.room_ranking,
+            "by_heat_loss": data.season.room_ranking_by_heat_loss,
+            "season": data.season.label,
+        },
+    ),
 )
 
 GENERATOR_SENSORS: tuple[HeatprintGeneratorSensorDescription, ...] = (
@@ -427,6 +480,115 @@ GENERATOR_SENSORS: tuple[HeatprintGeneratorSensorDescription, ...] = (
     ),
 )
 
+ROOM_SENSORS: tuple[HeatprintRoomSensorDescription, ...] = (
+    HeatprintRoomSensorDescription(
+        key=SENSOR_ROOM_HEAT_YESTERDAY,
+        translation_key=SENSOR_ROOM_HEAT_YESTERDAY,
+        native_unit_of_measurement=UnitOfEnergy.KILO_WATT_HOUR,
+        device_class=SensorDeviceClass.ENERGY,
+        state_class=SensorStateClass.TOTAL,
+        suggested_display_precision=1,
+        value_fn=lambda room: room.heat_yesterday_kwh,
+    ),
+    HeatprintRoomSensorDescription(
+        key=SENSOR_ROOM_HEAT_SEASON,
+        translation_key=SENSOR_ROOM_HEAT_SEASON,
+        native_unit_of_measurement=UnitOfEnergy.KILO_WATT_HOUR,
+        device_class=SensorDeviceClass.ENERGY,
+        state_class=SensorStateClass.TOTAL,
+        suggested_display_precision=0,
+        value_fn=lambda room: room.heat_kwh,
+    ),
+    HeatprintRoomSensorDescription(
+        key=SENSOR_ROOM_SHARE_SEASON,
+        translation_key=SENSOR_ROOM_SHARE_SEASON,
+        native_unit_of_measurement=UNIT_PERCENT,
+        state_class=SensorStateClass.MEASUREMENT,
+        icon="mdi:chart-pie",
+        suggested_display_precision=1,
+        value_fn=lambda room: _percent(room.share),
+    ),
+    HeatprintRoomSensorDescription(
+        key=SENSOR_ROOM_HEAT_LOSS_COEFFICIENT,
+        translation_key=SENSOR_ROOM_HEAT_LOSS_COEFFICIENT,
+        native_unit_of_measurement=UNIT_W_PER_K,
+        state_class=SensorStateClass.MEASUREMENT,
+        icon="mdi:home-export-outline",
+        suggested_display_precision=0,
+        value_fn=lambda room: room.ua_w_per_k,
+        attributes_fn=lambda room: {
+            "apparent": True,
+            "note": (
+                "Apparent UA including interzonal exchange — not an EN 12831 "
+                "design heat-loss figure (METHODS §12.9)."
+            ),
+            "ua_indicative_w_per_k": room.ua_indicative_w_per_k,
+            **(
+                {
+                    "n_days": room.fit.get("n_days"),
+                    "rmse": room.fit.get("rmse"),
+                    "r2": room.fit.get("r2"),
+                }
+                if room.fit
+                else {}
+            ),
+        },
+    ),
+    HeatprintRoomSensorDescription(
+        key=SENSOR_ROOM_SPECIFIC_HEAT_LOSS,
+        translation_key=SENSOR_ROOM_SPECIFIC_HEAT_LOSS,
+        native_unit_of_measurement=UNIT_W_PER_K_PER_M2,
+        state_class=SensorStateClass.MEASUREMENT,
+        icon="mdi:floor-plan",
+        suggested_display_precision=2,
+        value_fn=lambda room: room.ua_w_per_k_per_m2,
+        needs_area=True,
+    ),
+    HeatprintRoomSensorDescription(
+        key=SENSOR_ROOM_BALANCE_TEMPERATURE,
+        translation_key=SENSOR_ROOM_BALANCE_TEMPERATURE,
+        native_unit_of_measurement=UnitOfTemperature.CELSIUS,
+        device_class=SensorDeviceClass.TEMPERATURE,
+        state_class=SensorStateClass.MEASUREMENT,
+        suggested_display_precision=1,
+        value_fn=lambda room: room.balance_temp,
+    ),
+    HeatprintRoomSensorDescription(
+        key=SENSOR_ROOM_FIT_QUALITY,
+        translation_key=SENSOR_ROOM_FIT_QUALITY,
+        state_class=SensorStateClass.MEASUREMENT,
+        icon="mdi:chart-bell-curve",
+        suggested_display_precision=3,
+        value_fn=lambda room: room.fit.get("r2") if room.fit else None,
+        attributes_fn=lambda room: {
+            "n_days": room.fit.get("n_days") if room.fit else None,
+            "rmse": room.fit.get("rmse") if room.fit else None,
+            "ci95_slope": room.fit.get("ci95_slope") if room.fit else None,
+            "ci95_balance": room.fit.get("ci95_balance") if room.fit else None,
+        },
+    ),
+    HeatprintRoomSensorDescription(
+        key=SENSOR_ROOM_HEAT_PER_M2_SEASON,
+        translation_key=SENSOR_ROOM_HEAT_PER_M2_SEASON,
+        native_unit_of_measurement=UNIT_KWH_PER_M2,
+        state_class=SensorStateClass.MEASUREMENT,
+        icon="mdi:floor-plan",
+        suggested_display_precision=1,
+        value_fn=lambda room: room.heat_per_m2,
+        needs_area=True,
+    ),
+    HeatprintRoomSensorDescription(
+        key=SENSOR_ROOM_DATA_QUALITY,
+        translation_key=SENSOR_ROOM_DATA_QUALITY,
+        native_unit_of_measurement=UNIT_PERCENT,
+        state_class=SensorStateClass.MEASUREMENT,
+        icon="mdi:check-decagram-outline",
+        suggested_display_precision=0,
+        value_fn=lambda room: _percent(room.data_quality),
+        attributes_fn=lambda room: {"latest_flags": room.flags},
+    ),
+)
+
 
 def site_device_info(coordinator: HeatprintCoordinator) -> DeviceInfo:
     """Return the device info of the site device."""
@@ -437,6 +599,23 @@ def site_device_info(coordinator: HeatprintCoordinator) -> DeviceInfo:
         model=MODEL_SITE,
         entry_type=DeviceEntryType.SERVICE,
     )
+
+
+def room_device_info(coordinator: HeatprintCoordinator, room: RoomConfig) -> DeviceInfo:
+    """Return the device info of a room device (child of the site device)."""
+    parent = dr.async_get(coordinator.hass).async_get_device_by_identifier(
+        (DOMAIN, coordinator.entry.entry_id), coordinator.entry.entry_id
+    )
+    info: dict[str, Any] = {
+        "identifiers": {(DOMAIN, f"{coordinator.entry.entry_id}_{room.room_id}")},
+        "name": f"{coordinator.site_name} {room.name}",
+        "manufacturer": MANUFACTURER,
+        "model": f"Room ({room.emitter_kind.replace('_', ' ')})",
+        "entry_type": DeviceEntryType.SERVICE,
+    }
+    if parent is not None:
+        info["via_device_id"] = parent.id
+    return DeviceInfo(**info)
 
 
 def generator_device_info(
@@ -477,6 +656,21 @@ async def async_setup_entry(
                 HeatprintGeneratorSensor(coordinator, generator, description)
                 for description in GENERATOR_SENSORS
             ),
+            config_subentry_id=subentry.subentry_id,
+        )
+    for room in coordinator.rooms:
+        if not room.enabled:
+            continue
+        subentry = entry.subentries.get(room.subentry_id or "")
+        if subentry is None or subentry.subentry_type != SUBENTRY_TYPE_ROOM:
+            continue
+        descriptions = [
+            description
+            for description in ROOM_SENSORS
+            if not description.needs_area or room.floor_area_m2
+        ]
+        async_add_entities(
+            (HeatprintRoomSensor(coordinator, room, description) for description in descriptions),
             config_subentry_id=subentry.subentry_id,
         )
 
@@ -552,3 +746,50 @@ class HeatprintGeneratorSensor(CoordinatorEntity[HeatprintCoordinator], SensorEn
         if self.coordinator.data is None:
             return None
         return {"season": self.coordinator.data.season.label, "generator_id": self._generator_id}
+
+
+class HeatprintRoomSensor(CoordinatorEntity[HeatprintCoordinator], SensorEntity):
+    """A per-room sensor on a child device."""
+
+    entity_description: HeatprintRoomSensorDescription
+    _attr_has_entity_name = True
+
+    def __init__(
+        self,
+        coordinator: HeatprintCoordinator,
+        room: RoomConfig,
+        description: HeatprintRoomSensorDescription,
+    ) -> None:
+        """Initialise the sensor."""
+        super().__init__(coordinator)
+        self.entity_description = description
+        self._room_id = room.room_id
+        self._attr_unique_id = f"{coordinator.entry.entry_id}_{room.room_id}_{description.key}"
+        self._attr_device_info = room_device_info(coordinator, room)
+
+    def _aggregate(self) -> RoomAggregate | None:
+        if self.coordinator.data is None:
+            return None
+        return self.coordinator.data.season.per_room.get(self._room_id)
+
+    @property
+    def native_value(self) -> StateType:
+        """Return the state."""
+        aggregate = self._aggregate()
+        if aggregate is None:
+            return None
+        return self.entity_description.value_fn(aggregate)
+
+    @property
+    def extra_state_attributes(self) -> dict[str, Any] | None:
+        """Return season context and optional fit attributes."""
+        if self.coordinator.data is None:
+            return None
+        attributes: dict[str, Any] = {
+            "season": self.coordinator.data.season.label,
+            "room_id": self._room_id,
+        }
+        aggregate = self._aggregate()
+        if aggregate is not None and self.entity_description.attributes_fn is not None:
+            attributes.update(self.entity_description.attributes_fn(aggregate))
+        return attributes

@@ -39,6 +39,8 @@ from heatprint_core.analysis import forecast as core_forecast
 from heatprint_core.analysis import normalize as core_normalize
 from heatprint_core.analysis import signature as core_signature
 from heatprint_core.importers import csv_readings as core_csv
+from heatprint_core.rooms import allocation as core_rooms
+from heatprint_core.rooms import signature as core_room_signature
 from heatprint_core.weather import climatology as core_climatology
 from heatprint_core.weather import knmi as core_knmi
 from heatprint_core.weather import open_meteo as core_open_meteo
@@ -77,8 +79,24 @@ from .const import (
     CONF_METHODS_ENABLED,
     CONF_METHODS_PRIMARY,
     CONF_MIN_FIT_DAYS,
+    CONF_AREA_ID,
+    CONF_DEMAND_ENTITY,
+    CONF_DEMAND_KIND,
+    CONF_EMITTER_KIND,
+    CONF_ENABLED,
+    CONF_FLOOR_AREA_M2,
     CONF_NAME,
     CONF_NOTES,
+    CONF_OUTPUT_W_PER_M2_ELECTRIC,
+    CONF_OUTPUT_W_PER_M2_OTHER,
+    CONF_OUTPUT_W_PER_M2_RADIATOR,
+    CONF_OUTPUT_W_PER_M2_UNDERFLOOR,
+    CONF_RATED_OUTPUT_W,
+    CONF_ROOM_ID,
+    CONF_ROOMS_ALLOCATION,
+    CONF_ROOMS_MIN_FIT_DAYS,
+    CONF_ROOM_TEMPERATURE_ENTITY,
+    CONF_VOLUME_M3,
     CONF_OUTLIER_THRESHOLD,
     CONF_PBL_INCLUDE_SUN,
     CONF_PBL_PARAMETER_SET,
@@ -128,6 +146,9 @@ from .const import (
     DEFAULT_PBL_TOP,
     DEFAULT_PBL_TST,
     DEFAULT_PBL_WIND_SQRT_COEF,
+    DEFAULT_OUTPUT_W_PER_M2,
+    DEFAULT_ROOMS_ALLOCATION,
+    DEFAULT_ROOMS_MIN_FIT_DAYS,
     DEFAULT_SCOP,
     DEFAULT_SUMMER_END,
     DEFAULT_SUMMER_START,
@@ -159,6 +180,7 @@ from .const import (
     METRIC_GAS,
     METRIC_HEAT_DHW,
     METRIC_HEAT_SPACE,
+    METRIC_HEAT_UNALLOCATED,
     METRIC_T_MEAN,
     METRIC_TAC_HOUSE,
     METRIC_TAC_PBL,
@@ -166,6 +188,7 @@ from .const import (
     OPT_DHW,
     OPT_HISTORY,
     OPT_METHODS,
+    OPT_ROOMS,
     PROVIDER_HA_SENSORS,
     PROVIDER_KNMI,
     PROVIDER_OPEN_METEO,
@@ -175,11 +198,15 @@ from .const import (
     SEASON_START_OCTOBER,
     SUBENTRY_TYPE_GENERATOR,
     SUBENTRY_TYPE_MEASURE,
+    SUBENTRY_TYPE_ROOM,
     UNIT_GJ,
     UNIT_KWH,
     UNIT_M3,
     generator_dhw_metric,
     generator_metric,
+    room_demand_metric,
+    room_heat_metric,
+    room_t_mean_metric,
 )
 
 if TYPE_CHECKING:
@@ -339,6 +366,35 @@ class MeasureConfig:
 
 
 @dataclass(slots=True)
+class RoomConfig:
+    """Room configuration as stored in a ``room`` subentry (DATA_MODEL 1.6)."""
+
+    room_id: str
+    subentry_id: str | None
+    name: str
+    area_id: str | None
+    demand_entity: str | None
+    demand_kind: str
+    temperature_entity: str | None
+    emitter_kind: str
+    rated_output_w: float | None
+    floor_area_m2: float | None
+    volume_m3: float | None
+    price_entity: str | None
+    enabled: bool = True
+
+    @property
+    def is_metered(self) -> bool:
+        """True when the room uses a dedicated energy meter."""
+        return self.demand_kind == "metered_energy"
+
+    @property
+    def entities(self) -> set[str]:
+        """Entities that must be read from the recorder for this room."""
+        return {entity for entity in (self.demand_entity, self.temperature_entity) if entity}
+
+
+@dataclass(slots=True)
 class SeasonWindow:
     """A heating season window (start inclusive, end inclusive)."""
 
@@ -435,6 +491,59 @@ def generator_configs(entry: ConfigEntry) -> list[GeneratorConfig]:
             )
         )
     return generators
+
+
+def room_configs(entry: ConfigEntry) -> list[RoomConfig]:
+    """Return the rooms configured as subentries of the entry."""
+    rooms: list[RoomConfig] = []
+    for subentry in entry.subentries.values():
+        if subentry.subentry_type != SUBENTRY_TYPE_ROOM:
+            continue
+        data = subentry.data
+        rated = data.get(CONF_RATED_OUTPUT_W)
+        area = data.get(CONF_FLOOR_AREA_M2)
+        volume = data.get(CONF_VOLUME_M3)
+        rooms.append(
+            RoomConfig(
+                room_id=data[CONF_ROOM_ID],
+                subentry_id=subentry.subentry_id,
+                name=subentry.title or data.get(CONF_NAME, data[CONF_ROOM_ID]),
+                area_id=data.get(CONF_AREA_ID),
+                demand_entity=data.get(CONF_DEMAND_ENTITY),
+                demand_kind=data.get(CONF_DEMAND_KIND, "percentage"),
+                temperature_entity=data.get(CONF_ROOM_TEMPERATURE_ENTITY),
+                emitter_kind=data.get(CONF_EMITTER_KIND, "radiator"),
+                rated_output_w=float(rated) if rated is not None else None,
+                floor_area_m2=float(area) if area is not None else None,
+                volume_m3=float(volume) if volume is not None else None,
+                price_entity=data.get(CONF_PRICE_ENTITY),
+                enabled=bool(data.get(CONF_ENABLED, True)),
+            )
+        )
+    return rooms
+
+
+def rooms_options(entry: ConfigEntry) -> dict[str, Any]:
+    """Return the rooms options section with defaults applied."""
+    opts = dict(entry.options.get(OPT_ROOMS, {}))
+    opts.setdefault(CONF_ROOMS_ALLOCATION, DEFAULT_ROOMS_ALLOCATION)
+    opts.setdefault(CONF_ROOMS_MIN_FIT_DAYS, DEFAULT_ROOMS_MIN_FIT_DAYS)
+    opts.setdefault(CONF_OUTPUT_W_PER_M2_RADIATOR, DEFAULT_OUTPUT_W_PER_M2["radiator"])
+    opts.setdefault(CONF_OUTPUT_W_PER_M2_UNDERFLOOR, DEFAULT_OUTPUT_W_PER_M2["underfloor"])
+    opts.setdefault(CONF_OUTPUT_W_PER_M2_ELECTRIC, DEFAULT_OUTPUT_W_PER_M2["electric"])
+    opts.setdefault(CONF_OUTPUT_W_PER_M2_OTHER, DEFAULT_OUTPUT_W_PER_M2["other"])
+    return opts
+
+
+def output_w_per_m2_table(entry: ConfigEntry) -> dict[str, float]:
+    """Return the configurable emitter-output table (METHODS 12.2 placeholders)."""
+    opts = rooms_options(entry)
+    return {
+        "radiator": float(opts[CONF_OUTPUT_W_PER_M2_RADIATOR]),
+        "underfloor": float(opts[CONF_OUTPUT_W_PER_M2_UNDERFLOOR]),
+        "electric": float(opts[CONF_OUTPUT_W_PER_M2_ELECTRIC]),
+        "other": float(opts[CONF_OUTPUT_W_PER_M2_OTHER]),
+    }
 
 
 def measure_configs(entry: ConfigEntry) -> list[MeasureConfig]:
@@ -673,6 +782,23 @@ def build_site_from_entry(entry: ConfigEntry) -> Any:
         house=core_models.HouseParams(fit_wind=bool(methods[CONF_HOUSE_FIT_WIND])),
     )
     generators = [_core_generator(config, summer) for config in generator_configs(entry)]
+    rooms = [
+        core_models.Room(
+            id=room.room_id,
+            name=room.name,
+            area_id=room.area_id,
+            demand_entity=room.demand_entity,
+            demand_kind=core_models.DemandKind(room.demand_kind),
+            temperature_entity=room.temperature_entity,
+            emitter_kind=core_models.EmitterKind(room.emitter_kind),
+            rated_output_w=room.rated_output_w,
+            floor_area_m2=room.floor_area_m2,
+            volume_m3=room.volume_m3,
+            price_entity=room.price_entity,
+            enabled=room.enabled,
+        )
+        for room in room_configs(entry)
+    ]
     measures = [
         core_models.Measure(
             id=measure.measure_id,
@@ -697,6 +823,7 @@ def build_site_from_entry(entry: ConfigEntry) -> Any:
         weather=weather_config,
         generators=generators,
         measures=measures,
+        rooms=rooms,
     )
 
 
@@ -1042,6 +1169,100 @@ def record_to_metrics(record: Any, generators: Iterable[GeneratorConfig]) -> Day
         cop=cop,
         tac_primary=tac_primary,
     )
+
+
+# --------------------------------------------------------------------------------
+# Rooms (METHODS 12)
+# --------------------------------------------------------------------------------
+
+
+def _demand_statistic_value(kind: str, integral: float | None) -> float | None:
+    """Value written to ``room_<id>_demand`` (percent, hours, or kWh)."""
+    if integral is None:
+        return None
+    if kind in ("percentage", "valve_position"):
+        return float(integral) * 100.0
+    if kind == "binary":
+        return float(integral) * 24.0
+    return float(integral)
+
+
+def allocate_rooms(
+    site: Any,
+    records: Iterable[Any],
+    inputs_by_day: Mapping[date, Mapping[str, Any]],
+    output_w_per_m2: Mapping[str, float] | None = None,
+) -> tuple[list[Any], dict[date, float]]:
+    """Allocate site space heat across rooms; returns room records and unallocated kWh."""
+    day_inputs: dict[date, dict[str, Any]] = {}
+    for day, rooms in inputs_by_day.items():
+        converted: dict[str, Any] = {}
+        for room_id, item in rooms.items():
+            if isinstance(item, core_rooms.RoomDayInput):
+                converted[room_id] = item
+            else:
+                converted[room_id] = core_rooms.RoomDayInput(
+                    raw=item.get("raw"),
+                    t_room_mean=item.get("t_room_mean"),
+                    from_history=bool(item.get("from_history", False)),
+                    heating_hours=item.get("heating_hours"),
+                )
+        day_inputs[day] = converted
+    return core_rooms.allocate_period(
+        site.enabled_rooms,
+        day_inputs,
+        records,
+        output_w_per_m2=output_w_per_m2,
+    )
+
+
+def merge_room_metrics(
+    metrics: list[DayMetrics],
+    room_records: Iterable[Any],
+    unallocated: Mapping[date, float],
+    rooms: Iterable[RoomConfig],
+) -> list[DayMetrics]:
+    """Attach room and unallocated values onto existing day metrics."""
+    by_date: dict[date, list[Any]] = {}
+    for record in room_records:
+        by_date.setdefault(record.date, []).append(record)
+    rooms_by_id = {room.room_id: room for room in rooms}
+    for day in metrics:
+        day.values[METRIC_HEAT_UNALLOCATED] = unallocated.get(day.date, 0.0)
+        for record in by_date.get(day.date, ()):
+            room = rooms_by_id.get(record.room_id)
+            kind = room.demand_kind if room is not None else "percentage"
+            day.values[room_heat_metric(record.room_id)] = record.heat_room_kwh
+            day.values[room_demand_metric(record.room_id)] = _demand_statistic_value(
+                kind, record.demand_integral
+            )
+            if record.t_room_mean is not None:
+                day.values[room_t_mean_metric(record.room_id)] = record.t_room_mean
+    return metrics
+
+
+def fit_room_signature(
+    room: Any,
+    room_records: Iterable[Any],
+    site_records: Iterable[Any],
+    *,
+    start: date,
+    end: date,
+    min_days: int = DEFAULT_MIN_FIT_DAYS,
+    outlier_k: float = DEFAULT_OUTLIER_THRESHOLD,
+) -> dict[str, Any] | None:
+    """Fit one room's energy signature; returns a JSON-friendly dict or None."""
+    fit = core_room_signature.fit_room_signature(
+        room,
+        room_records,
+        site_records,
+        core_models.Period(start=start, end=end),
+        min_days=min_days,
+        outlier_k=outlier_k,
+    )
+    if fit is None:
+        return None
+    return _flatten_fit(fit)
 
 
 # --------------------------------------------------------------------------------

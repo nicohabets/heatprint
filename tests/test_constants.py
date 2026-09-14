@@ -26,6 +26,14 @@ def test_conversion_constants() -> None:
     assert pytest.approx(41.6667, abs=1e-3) == constants.W_PER_K_FROM_KWH_PER_K_DAY
     assert constants.PBL_WIND_SQRT_COEF == 1.0
     assert pytest.approx(1 / 480) == constants.PBL_SUN_COEF
+    assert constants.DEFAULT_CEILING_HEIGHT_M == 2.5
+    assert set(constants.DEFAULT_OUTPUT_W_PER_M2) == {
+        "radiator",
+        "underfloor",
+        "electric",
+        "other",
+    }
+    assert constants.DEFAULT_OUTPUT_W_PER_M2["radiator"] == 70.0
 
 
 def test_month_weights_mindergas() -> None:

@@ -8,11 +8,19 @@ from pathlib import Path
 
 from dashboard_config import (
     MISSING_ENTITIES_NOTE,
+    MISSING_ROOMS_NOTE,
     OVERVIEW_ENTITY_SPECS,
+    ROOM_ENTITY_KEYS,
+    ROOMS_DASHBOARD_VIEW_PATH,
     build_overview_config,
+    build_rooms_config,
     dashboard_title,
     dashboard_url_path,
     resolve_overview_entity_ids,
+    resolve_rooms_entity_ids,
+    room_entity_unique_id,
+    rooms_dashboard_title,
+    rooms_dashboard_url_path,
     site_entity_unique_id,
 )
 
@@ -41,6 +49,8 @@ _ENGLISH_OBJECT_IDS: dict[str, str] = {
     "data_quality": "data_quality",
     "last_weather_update": "last_weather_update",
     "data_gap": "data_gap",
+    "heat_unallocated_season": "unallocated_heat_season",
+    "most_expensive_room": "most_expensive_room",
 }
 
 # Dutch has_entity_name slugs (translations/nl.json) for site "Thuis".
@@ -65,6 +75,33 @@ _DUTCH_OBJECT_IDS: dict[str, str] = {
     "data_quality": "datakwaliteit",
     "last_weather_update": "laatste_weerupdate",
     "data_gap": "datagat",
+    "heat_unallocated_season": "niet_toegewezen_warmte_seizoen",
+    "most_expensive_room": "duurste_kamer",
+}
+
+# Room sensor slugs (has_entity_name on the room device).
+_ENGLISH_ROOM_OBJECT_IDS: dict[str, str] = {
+    "room_heat_yesterday": "heat_yesterday",
+    "room_heat_season": "heat_season",
+    "room_share_season": "share_season",
+    "room_heat_loss_coefficient": "heat_loss_coefficient",
+    "room_specific_heat_loss": "specific_heat_loss",
+    "room_balance_temperature": "balance_temperature",
+    "room_fit_quality": "fit_quality",
+    "room_heat_per_m2_season": "heat_per_m2_season",
+    "room_data_quality": "data_quality",
+}
+
+_DUTCH_ROOM_OBJECT_IDS: dict[str, str] = {
+    "room_heat_yesterday": "warmte_gisteren",
+    "room_heat_season": "warmte_seizoen",
+    "room_share_season": "aandeel_seizoen",
+    "room_heat_loss_coefficient": "warmteverliescoefficient",
+    "room_specific_heat_loss": "specifiek_warmteverlies",
+    "room_balance_temperature": "balanstemperatuur",
+    "room_fit_quality": "fitkwaliteit",
+    "room_heat_per_m2_season": "warmte_per_m2_seizoen",
+    "room_data_quality": "datakwaliteit",
 }
 
 
@@ -104,20 +141,29 @@ def test_url_path_contains_hyphen() -> None:
     assert dashboard_url_path("home") == "heatprint-home"
     assert dashboard_url_path("my_house") == "heatprint-my_house"
     assert "-" in dashboard_url_path("")
+    assert rooms_dashboard_url_path("home") == "heatprint-home-rooms"
+    assert "-" in rooms_dashboard_url_path("thuis")
 
 
 def test_title_includes_site_name() -> None:
     assert dashboard_title("Heerlen") == "Heatprint (Heerlen)"
     assert dashboard_title("") == "Heatprint"
+    assert rooms_dashboard_title("Heerlen") == "Heatprint Rooms (Heerlen)"
+    assert rooms_dashboard_title("") == "Heatprint Rooms"
 
 
 def test_unique_id_matches_sensor_and_binary_sensor() -> None:
     assert site_entity_unique_id("abc123", "heat_space_yesterday") == "abc123_heat_space_yesterday"
     assert site_entity_unique_id("abc123", "data_gap") == "abc123_data_gap"
+    assert (
+        room_entity_unique_id("abc123", "living", "room_heat_yesterday")
+        == "abc123_living_room_heat_yesterday"
+    )
 
     sensor_src = (INTEGRATION / "sensor.py").read_text(encoding="utf-8")
     binary_src = (INTEGRATION / "binary_sensor.py").read_text(encoding="utf-8")
     assert 'f"{coordinator.entry.entry_id}_{description.key}"' in sensor_src
+    assert 'f"{coordinator.entry.entry_id}_{room.room_id}_{description.key}"' in sensor_src
     assert 'f"{coordinator.entry.entry_id}_{BINARY_SENSOR_DATA_GAP}"' in binary_src
 
 
@@ -275,3 +321,114 @@ def test_empty_registry_uses_markdown_notes_not_dead_ids() -> None:
         "**Season to date",
         "**Energy signature and forecast",
     }
+
+
+def _rooms_payload() -> list[dict[str, str]]:
+    return [{"room_id": "living", "name": "Living"}, {"room_id": "bath", "name": "Bath"}]
+
+
+def _rooms_registry(
+    entry_id: str, site_id: str, room_object_ids: dict[str, str], site_object_ids: dict[str, str]
+) -> FakeEntityRegistry:
+    entries: dict[tuple[str, str, str], str] = {}
+    for key in ("heat_unallocated_season", "most_expensive_room"):
+        slug = site_object_ids[key]
+        entries[("sensor", "heatprint", site_entity_unique_id(entry_id, key))] = (
+            f"sensor.{site_id}_{slug}"
+        )
+    for room_id, device_slug in (("living", "living"), ("bath", "bath")):
+        for key, slug in room_object_ids.items():
+            unique = room_entity_unique_id(entry_id, room_id, key)
+            entries[("sensor", "heatprint", unique)] = f"sensor.{site_id}_{device_slug}_{slug}"
+    return FakeEntityRegistry(entries)
+
+
+def test_resolve_dutch_room_object_ids_from_mock_registry() -> None:
+    entry_id = "entry-thuis"
+    registry = _rooms_registry(entry_id, "thuis", _DUTCH_ROOM_OBJECT_IDS, _DUTCH_OBJECT_IDS)
+    resolved = resolve_rooms_entity_ids(registry.async_get_entity_id, entry_id, _rooms_payload())
+    assert resolved["heat_unallocated_season"] == "sensor.thuis_niet_toegewezen_warmte_seizoen"
+    assert resolved["most_expensive_room"] == "sensor.thuis_duurste_kamer"
+    assert resolved["rooms"]["living"]["room_heat_yesterday"] == (
+        "sensor.thuis_living_warmte_gisteren"
+    )
+    assert resolved["rooms"]["living"]["room_heat_loss_coefficient"] == (
+        "sensor.thuis_living_warmteverliescoefficient"
+    )
+    assert "heat_yesterday" not in resolved["rooms"]["living"]["room_heat_yesterday"]
+    assert set(resolved["rooms"]["living"]) == set(ROOM_ENTITY_KEYS)
+
+
+def test_rooms_dashboard_uses_dutch_resolved_ids_not_english_guesses() -> None:
+    entry_id = "entry-thuis"
+    registry = _rooms_registry(entry_id, "thuis", _DUTCH_ROOM_OBJECT_IDS, _DUTCH_OBJECT_IDS)
+    resolved = resolve_rooms_entity_ids(registry.async_get_entity_id, entry_id, _rooms_payload())
+    config = build_rooms_config(
+        "thuis",
+        site_name="Thuis",
+        rooms=[{"room_id": "living", "name": "Woonkamer"}, {"room_id": "bath", "name": "Badkamer"}],
+        entity_ids=resolved,
+    )
+    dumped = json.dumps(config)
+    assert config["views"][0]["path"] == ROOMS_DASHBOARD_VIEW_PATH
+    assert config["views"][0]["title"] == "Rooms"
+    assert "sensor.thuis_niet_toegewezen_warmte_seizoen" in dumped
+    assert "sensor.thuis_duurste_kamer" in dumped
+    assert "sensor.thuis_living_warmte_gisteren" in dumped
+    assert "sensor.thuis_living_warmte_seizoen" in dumped
+    assert "sensor.thuis_living_heat_yesterday" not in dumped
+    assert "sensor.thuis_unallocated_heat_season" not in dumped
+    assert "heatprint:thuis_heat_unallocated" in dumped
+    assert "heatprint:thuis_room_living_heat" in dumped
+    assert "heatprint:thuis_room_bath_heat" in dumped
+    assert "heatprint:thuis_heat_space" in dumped
+    assert "custom:apexcharts-card" not in dumped
+
+
+def test_rooms_dashboard_uses_english_resolved_ids() -> None:
+    entry_id = "entry-home"
+    registry = _rooms_registry(entry_id, "home", _ENGLISH_ROOM_OBJECT_IDS, _ENGLISH_OBJECT_IDS)
+    resolved = resolve_rooms_entity_ids(registry.async_get_entity_id, entry_id, _rooms_payload())
+    config = build_rooms_config(
+        "home", site_name="Home", rooms=_rooms_payload(), entity_ids=resolved
+    )
+    dumped = json.dumps(config)
+    assert "sensor.home_unallocated_heat_season" in dumped
+    assert "sensor.home_most_expensive_room" in dumped
+    assert "sensor.home_living_heat_yesterday" in dumped
+    assert "heatprint:home_room_living_heat" in dumped
+
+
+def test_rooms_dashboard_empty_rooms_has_note_not_dead_ids() -> None:
+    config = build_rooms_config("thuis", site_name="Thuis", rooms=[], entity_ids={})
+    dumped = json.dumps(config)
+    assert MISSING_ROOMS_NOTE in dumped
+    assert "sensor.thuis_" not in dumped
+    assert "heatprint:thuis_heat_unallocated" in dumped
+    assert "heatprint:thuis_heat_space" in dumped
+
+
+def test_overview_includes_unallocated_when_registered() -> None:
+    entity_ids = _dutch_entity_ids("thuis")
+    config = build_overview_config("thuis", site_name="Thuis", entity_ids=entity_ids)
+    dumped = json.dumps(config)
+    assert "sensor.thuis_niet_toegewezen_warmte_seizoen" in dumped
+    assert "sensor.thuis_duurste_kamer" in dumped
+
+
+def test_room_sensor_keys_match_dashboard_and_translations() -> None:
+    """Dashboard keys, sensor.py and NL/EN names stay aligned (Dutch UI slugs)."""
+    sensor_src = (INTEGRATION / "sensor.py").read_text(encoding="utf-8")
+    for key in ROOM_ENTITY_KEYS:
+        assert f"key={key}" in sensor_src or f"key=SENSOR_{key.upper()}" in sensor_src
+    strings = json.loads((INTEGRATION / "strings.json").read_text(encoding="utf-8"))
+    nl = json.loads((INTEGRATION / "translations" / "nl.json").read_text(encoding="utf-8"))
+    en = json.loads((INTEGRATION / "translations" / "en.json").read_text(encoding="utf-8"))
+    for key in (*ROOM_ENTITY_KEYS, "heat_unallocated_season", "most_expensive_room"):
+        assert key in strings["entity"]["sensor"]
+        assert key in nl["entity"]["sensor"]
+        assert en["entity"]["sensor"][key] == strings["entity"]["sensor"][key]
+    assert nl["entity"]["sensor"]["room_heat_yesterday"]["name"] == "Warmte gisteren"
+    assert nl["entity"]["sensor"]["most_expensive_room"]["name"] == "Duurste kamer"
+    assert "rooms" in strings["options"]["step"]["init"]["menu_options"]
+    assert nl["options"]["step"]["init"]["menu_options"]["rooms"] == "Kamers"
