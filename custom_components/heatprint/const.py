@@ -167,6 +167,10 @@ CONF_VOLUME_M3: Final = "volume_m3"
 CONF_ENABLED: Final = "enabled"
 CONF_ROOMS_ALLOCATION: Final = "allocation_enabled"
 CONF_ROOMS_MIN_FIT_DAYS: Final = "min_room_fit_days"
+CONF_ROOMS_AUTO_SYNC: Final = "auto_sync"
+CONF_ROOMS_EXCLUDE_AREAS: Final = "exclude_area_ids"
+CONF_ROOMS_SYNC_NOW: Final = "sync_now"
+OPT_SYNC_ROOMS: Final = "sync_rooms"
 CONF_OUTPUT_W_PER_M2_RADIATOR: Final = "output_w_per_m2_radiator"
 CONF_OUTPUT_W_PER_M2_UNDERFLOOR: Final = "output_w_per_m2_underfloor"
 CONF_OUTPUT_W_PER_M2_ELECTRIC: Final = "output_w_per_m2_electric"
@@ -334,6 +338,7 @@ DEFAULT_OUTPUT_W_PER_M2: Final[dict[str, float]] = {
 }
 DEFAULT_ROOMS_ALLOCATION: Final = True
 DEFAULT_ROOMS_MIN_FIT_DAYS: Final = 30
+DEFAULT_ROOMS_AUTO_SYNC: Final = True
 UNIT_W_PER_K_PER_M2: Final = "W/(m²·K)"
 UNIT_KWH_PER_M2: Final = "kWh/m²"
 

@@ -9,6 +9,7 @@ advanced parameters; the reconfigure flow changes location and weather source.
 
 from __future__ import annotations
 
+import logging
 import math
 import re
 import zoneinfo
@@ -140,7 +141,10 @@ from .const import (
     CONF_ROOM_ID,
     CONF_ROOM_TEMPERATURE_ENTITY,
     CONF_ROOMS_ALLOCATION,
+    CONF_ROOMS_AUTO_SYNC,
+    CONF_ROOMS_EXCLUDE_AREAS,
     CONF_ROOMS_MIN_FIT_DAYS,
+    CONF_ROOMS_SYNC_NOW,
     CONF_SCOP,
     CONF_SEASON_START,
     CONF_SITE_ID,
@@ -178,6 +182,7 @@ from .const import (
     DEFAULT_PBL_TST,
     DEFAULT_PBL_WIND_SQRT_COEF,
     DEFAULT_ROOMS_ALLOCATION,
+    DEFAULT_ROOMS_AUTO_SYNC,
     DEFAULT_ROOMS_MIN_FIT_DAYS,
     DEFAULT_SCOP,
     DEFAULT_SUMMER_END,
@@ -223,6 +228,7 @@ from .const import (
     OPT_METHODS,
     OPT_PRICING,
     OPT_ROOMS,
+    OPT_SYNC_ROOMS,
     PBL_PARAMETER_SETS,
     PBL_WIND_MODES,
     PROVIDER_HA_SENSORS,
@@ -256,7 +262,12 @@ from .core_api import (
     inspect_readings_csv,
     weather_signature_from_data,
 )
+from .first_run import default_entry_options, default_weather_config
+from .room_discovery import discover_rooms_from_hass
+from .room_sync import discovered_to_subentry_payloads, sync_rooms_from_hass
 from .site_defaults import site_defaults_from_hass
+
+_LOGGER = logging.getLogger(__name__)
 
 STATE_CLASS_CUMULATIVE = {"total", "total_increasing"}
 MONTH_DAY_RE = re.compile(r"^(0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01])$")
@@ -817,51 +828,129 @@ class HeatprintConfigFlow(ConfigFlow, domain=DOMAIN):
             SUBENTRY_TYPE_ROOM: RoomSubentryFlowHandler,
         }
 
-    # --- step 1: site ------------------------------------------------------------------
+    # --- step 1: confirm HA home (no extra questions) ----------------------------------
+
+    def _auto_weather(self) -> dict[str, Any]:
+        """Weather from HA home country/coordinates; never asked on first setup."""
+        defaults = site_defaults_from_hass(self.hass)
+        nearest = None
+        if defaults.country == "NL":
+            _, nearest = _station_options(defaults.latitude, defaults.longitude)
+        return default_weather_config(defaults.country, nearest_station_id=nearest)
+
+    def _auto_generators(self) -> list[dict[str, Any]]:
+        """Create generator drafts from high-confidence HA energy sensors."""
+        gas, heat_pump = _detect_candidates(self.hass)
+        generators: list[dict[str, Any]] = []
+        existing: set[str] = set()
+        for entity_id in gas:
+            base = {
+                CONF_NAME: KIND_DEFAULTS[KIND_GAS_BOILER].name,
+                CONF_KIND: KIND_GAS_BOILER,
+                CONF_ROLE: ROLE_BOTH,
+            }
+            details = {CONF_ENERGY_ENTITY: entity_id}
+            generator = normalize_generator(self.hass, base, details, existing)
+            existing.add(generator[CONF_GENERATOR_ID])
+            generators.append(generator)
+        for entity_id in heat_pump:
+            base = {
+                CONF_NAME: KIND_DEFAULTS[KIND_HEAT_PUMP].name,
+                CONF_KIND: KIND_HEAT_PUMP,
+                CONF_ROLE: ROLE_BOTH,
+            }
+            details = {CONF_ELECTRIC_ENTITY: entity_id}
+            generator = normalize_generator(self.hass, base, details, existing)
+            existing.add(generator[CONF_GENERATOR_ID])
+            generators.append(generator)
+        return generators
+
+    def _weather_label(self, weather: Mapping[str, Any]) -> str:
+        """Short weather source for the confirm screen."""
+        provider = weather.get(CONF_PROVIDER, "-")
+        if provider == PROVIDER_KNMI and weather.get(CONF_STATION_ID):
+            station_id = str(weather[CONF_STATION_ID])
+            station = KNMI_STATIONS.get(station_id, (station_id, 0, 0))[0]
+            return f"KNMI {station} ({station_id})"
+        if provider == PROVIDER_OPEN_METEO:
+            return "Open-Meteo"
+        return str(provider)
 
     async def async_step_user(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
-        """Step 1: site name only. Location, time zone and country come from HA home."""
-        errors: dict[str, str] = {}
+        """Single confirm: reuse HA home, weather, meters and heated areas."""
         defaults = site_defaults_from_hass(self.hass)
+        site_id = slugify(defaults.name) or "home"
+        weather = self._auto_weather()
+        discovery = discover_rooms_from_hass(self.hass)
+        generators = self._auto_generators()
         if user_input is not None:
-            name = str(user_input[CONF_NAME]).strip()
-            site_id = slugify(name)
-            if not name or not site_id:
-                errors[CONF_NAME] = "invalid_name"
-            elif any(
-                entry.data.get(CONF_SITE_ID) == site_id or entry.title == name
+            if any(
+                entry.data.get(CONF_SITE_ID) == site_id or entry.title == defaults.name
                 for entry in self._async_current_entries()
             ):
-                errors[CONF_NAME] = "name_exists"
-            if not errors:
-                await self.async_set_unique_id(site_id)
-                self._abort_if_unique_id_configured()
-                self._site = {
-                    CONF_SITE_ID: site_id,
-                    CONF_NAME: name,
-                    CONF_LATITUDE: defaults.latitude,
-                    CONF_LONGITUDE: defaults.longitude,
-                    CONF_TIMEZONE: defaults.timezone,
-                    CONF_COUNTRY: defaults.country,
-                }
-                return await self._async_step_weather()
+                return self.async_abort(reason="already_configured")
+            await self.async_set_unique_id(site_id)
+            self._abort_if_unique_id_configured()
+            error = await _async_validate_weather(
+                self.hass, weather, defaults.latitude, defaults.longitude
+            )
+            if error:
+                _LOGGER.warning("Weather check at first-run failed (%s); continuing", error)
+            site = {
+                CONF_SITE_ID: site_id,
+                CONF_NAME: defaults.name,
+                CONF_LATITUDE: defaults.latitude,
+                CONF_LONGITUDE: defaults.longitude,
+                CONF_TIMEZONE: defaults.timezone,
+                CONF_COUNTRY: defaults.country,
+                CONF_WEATHER: weather,
+            }
+            subentries = [
+                ConfigSubentryData(
+                    data=generator,
+                    subentry_type=SUBENTRY_TYPE_GENERATOR,
+                    title=generator[CONF_NAME],
+                    unique_id=generator[CONF_GENERATOR_ID],
+                )
+                for generator in generators
+            ]
+            for payload in discovered_to_subentry_payloads(discovery.rooms):
+                subentries.append(
+                    ConfigSubentryData(
+                        data=payload["data"],
+                        subentry_type=SUBENTRY_TYPE_ROOM,
+                        title=payload["title"],
+                        unique_id=payload["unique_id"],
+                    )
+                )
+            return self.async_create_entry(
+                title=defaults.name,
+                data=site,
+                options=default_entry_options(),
+                subentries=subentries,
+            )
+        generator_text = (
+            ", ".join(
+                f"{item[CONF_NAME]} ({item.get(CONF_ENERGY_ENTITY) or item.get(CONF_ELECTRIC_ENTITY)})"
+                for item in generators
+            )
+            or "—"
+        )
         return self.async_show_form(
             step_id="user",
-            data_schema=vol.Schema(
-                {
-                    vol.Required(
-                        CONF_NAME,
-                        default=user_input.get(CONF_NAME) if user_input else defaults.name,
-                    ): TextSelector()
-                }
-            ),
+            data_schema=vol.Schema({}),
             description_placeholders={
+                "name": defaults.name,
                 "latitude": f"{defaults.latitude:.4f}",
                 "longitude": f"{defaults.longitude:.4f}",
                 "timezone": defaults.timezone,
                 "country": defaults.country or "—",
+                "weather": self._weather_label(weather),
+                "generators": generator_text,
+                "rooms": discovery.room_summary(),
+                "skipped": discovery.skipped_summary(),
             },
-            errors=errors,
+            last_step=True,
         )
 
     # --- step 2: weather ---------------------------------------------------------------
@@ -1300,6 +1389,7 @@ class HeatprintOptionsFlow(OptionsFlow):
         self._import_unit = UNIT_M3
         self._import_inspection: Any = None
         self._import_result: dict[str, Any] = {}
+        self._sync_summary = "0 created, 0 updated"
 
     async def async_step_init(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
         """Show the options menu."""
@@ -1313,6 +1403,7 @@ class HeatprintOptionsFlow(OptionsFlow):
                 OPT_PRICING,
                 OPT_INTEGRATIONS,
                 OPT_ROOMS,
+                OPT_SYNC_ROOMS,
                 OPT_ADVANCED,
             ],
         )
@@ -1745,27 +1836,43 @@ class HeatprintOptionsFlow(OptionsFlow):
         return self.async_show_form(step_id="advanced", data_schema=schema)
 
     async def async_step_rooms(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
-        """Default emitter output, room-fit days and allocation on/off."""
+        """Default emitter output, auto-sync from HA areas and allocation on/off."""
         current = self._section(OPT_ROOMS)
         if user_input is not None:
-            return self._save(
-                OPT_ROOMS,
-                {
-                    CONF_ROOMS_ALLOCATION: bool(user_input[CONF_ROOMS_ALLOCATION]),
-                    CONF_ROOMS_MIN_FIT_DAYS: int(user_input[CONF_ROOMS_MIN_FIT_DAYS]),
-                    CONF_OUTPUT_W_PER_M2_RADIATOR: float(user_input[CONF_OUTPUT_W_PER_M2_RADIATOR]),
-                    CONF_OUTPUT_W_PER_M2_UNDERFLOOR: float(
-                        user_input[CONF_OUTPUT_W_PER_M2_UNDERFLOOR]
-                    ),
-                    CONF_OUTPUT_W_PER_M2_ELECTRIC: float(user_input[CONF_OUTPUT_W_PER_M2_ELECTRIC]),
-                    CONF_OUTPUT_W_PER_M2_OTHER: float(user_input[CONF_OUTPUT_W_PER_M2_OTHER]),
-                },
-            )
+            exclude = user_input.get(CONF_ROOMS_EXCLUDE_AREAS) or []
+            if isinstance(exclude, str):
+                exclude = [exclude]
+            values = {
+                CONF_ROOMS_ALLOCATION: bool(user_input[CONF_ROOMS_ALLOCATION]),
+                CONF_ROOMS_AUTO_SYNC: bool(user_input[CONF_ROOMS_AUTO_SYNC]),
+                CONF_ROOMS_EXCLUDE_AREAS: list(exclude),
+                CONF_ROOMS_MIN_FIT_DAYS: int(user_input[CONF_ROOMS_MIN_FIT_DAYS]),
+                CONF_OUTPUT_W_PER_M2_RADIATOR: float(user_input[CONF_OUTPUT_W_PER_M2_RADIATOR]),
+                CONF_OUTPUT_W_PER_M2_UNDERFLOOR: float(
+                    user_input[CONF_OUTPUT_W_PER_M2_UNDERFLOOR]
+                ),
+                CONF_OUTPUT_W_PER_M2_ELECTRIC: float(user_input[CONF_OUTPUT_W_PER_M2_ELECTRIC]),
+                CONF_OUTPUT_W_PER_M2_OTHER: float(user_input[CONF_OUTPUT_W_PER_M2_OTHER]),
+            }
+            if user_input.get(CONF_ROOMS_SYNC_NOW):
+                sync_rooms_from_hass(self.hass, self.config_entry)
+            return self._save(OPT_ROOMS, values)
         schema = vol.Schema(
             {
                 vol.Required(
                     CONF_ROOMS_ALLOCATION,
                     default=current.get(CONF_ROOMS_ALLOCATION, DEFAULT_ROOMS_ALLOCATION),
+                ): BooleanSelector(),
+                vol.Required(
+                    CONF_ROOMS_AUTO_SYNC,
+                    default=current.get(CONF_ROOMS_AUTO_SYNC, DEFAULT_ROOMS_AUTO_SYNC),
+                ): BooleanSelector(),
+                vol.Optional(
+                    CONF_ROOMS_EXCLUDE_AREAS,
+                    description=_suggested(current.get(CONF_ROOMS_EXCLUDE_AREAS) or []),
+                ): AreaSelector(AreaSelectorConfig(multiple=True)),
+                vol.Required(
+                    CONF_ROOMS_SYNC_NOW, default=False
                 ): BooleanSelector(),
                 vol.Required(
                     CONF_ROOMS_MIN_FIT_DAYS,
@@ -1798,6 +1905,46 @@ class HeatprintOptionsFlow(OptionsFlow):
             }
         )
         return self.async_show_form(step_id="rooms", data_schema=schema)
+
+    async def async_step_sync_rooms(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
+        """One-click sync of room subentries from Home Assistant areas."""
+        from .dashboard import async_ensure_rooms_dashboard
+
+        discovery = discover_rooms_from_hass(
+            self.hass,
+            exclude_area_ids=self._section(OPT_ROOMS).get(CONF_ROOMS_EXCLUDE_AREAS) or [],
+        )
+        if user_input is not None:
+            plan = sync_rooms_from_hass(self.hass, self.config_entry)
+            self._sync_summary = plan.summary()
+            try:
+                await async_ensure_rooms_dashboard(self.hass, self.config_entry, recreate=True)
+            except Exception:  # noqa: BLE001 - dashboard must not fail options
+                _LOGGER.exception("Could not refresh the Heatprint rooms dashboard after sync")
+            return await self.async_step_sync_rooms_done()
+        return self.async_show_form(
+            step_id="sync_rooms",
+            data_schema=vol.Schema({}),
+            description_placeholders={
+                "rooms": discovery.room_summary(),
+                "skipped": discovery.skipped_summary(),
+            },
+        )
+
+    async def async_step_sync_rooms_done(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
+        """Show the sync result; options stay as they are."""
+        if user_input is not None:
+            return self.async_create_entry(data=self.config_entry.options)
+        return self.async_show_form(
+            step_id="sync_rooms_done",
+            data_schema=vol.Schema({}),
+            description_placeholders={"summary": self._sync_summary},
+            last_step=True,
+        )
 
 
 # --------------------------------------------------------------------------------
@@ -2050,7 +2197,7 @@ def room_schema(defaults: Mapping[str, Any], *, show_price: bool) -> vol.Schema:
         vol.Optional(
             CONF_ROOM_TEMPERATURE_ENTITY,
             description=_suggested(defaults.get(CONF_ROOM_TEMPERATURE_ENTITY)),
-        ): _entity(["temperature"]),
+        ): EntitySelector(EntitySelectorConfig(domain=["sensor", "climate"])),
         vol.Required(
             CONF_EMITTER_KIND, default=defaults.get(CONF_EMITTER_KIND, EMITTER_KIND_RADIATOR)
         ): _select(EMITTER_KINDS, "emitter_kind"),
