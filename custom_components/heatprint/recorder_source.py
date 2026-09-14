@@ -82,6 +82,46 @@ async def async_daily_sums(
     return result
 
 
+def hourly_rows_by_day(
+    rows: Iterable[dict[str, Any]], tz: tzinfo, value_key: str
+) -> dict[date, dict[int, float]]:
+    """Group hourly statistic rows by local date, keyed by the hour-start timestamp.
+
+    The integer key is the POSIX start of the hour so electric and price series
+    can be aligned without depending on clock-hour labels (DST-safe).
+    """
+    result: dict[date, dict[int, float]] = {}
+    for row in rows:
+        value = row.get(value_key)
+        if value is None:
+            continue
+        start = datetime.fromtimestamp(float(row["start"]), tz=tz)
+        result.setdefault(start.date(), {})[int(start.timestamp())] = float(value)
+    return result
+
+
+async def async_hourly_changes(
+    hass: HomeAssistant, entity_ids: Iterable[str], start: date, end: date, tz: tzinfo
+) -> dict[str, dict[date, dict[int, float]]]:
+    """Return hourly ``change`` of cumulative entities, grouped by local day."""
+    ids = {entity_id for entity_id in entity_ids if entity_id}
+    rows = await _async_statistics(hass, ids, start, end, tz, "hour", {"change"}, CANONICAL_UNITS)
+    return {
+        statistic_id: hourly_rows_by_day(items, tz, "change") for statistic_id, items in rows.items()
+    }
+
+
+async def async_hourly_means(
+    hass: HomeAssistant, entity_ids: Iterable[str], start: date, end: date, tz: tzinfo
+) -> dict[str, dict[date, dict[int, float]]]:
+    """Return hourly ``mean`` of measurement entities, grouped by local day."""
+    ids = {entity_id for entity_id in entity_ids if entity_id}
+    rows = await _async_statistics(hass, ids, start, end, tz, "hour", {"mean"}, None)
+    return {
+        statistic_id: hourly_rows_by_day(items, tz, "mean") for statistic_id, items in rows.items()
+    }
+
+
 async def async_daily_means(
     hass: HomeAssistant, entity_ids: Iterable[str], start: date, end: date, tz: tzinfo
 ) -> dict[str, dict[date, float]]:

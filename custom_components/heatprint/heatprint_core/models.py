@@ -122,6 +122,13 @@ class EmitterKind(StrEnum):
     OTHER = "other"
 
 
+class PriceMode(StrEnum):
+    """How a generator's daily cost is computed (METHODS section 13)."""
+
+    FLAT = "flat"
+    DYNAMIC = "dynamic"
+
+
 #: Names of the degree-day methods (METHODS section 4), in reporting order.
 METHOD_NAMES: tuple[str, ...] = ("classic", "knmi14", "pbl", "house")
 
@@ -329,6 +336,7 @@ class Generator(JsonMixin):
     conversion: Conversion = field(default_factory=Conversion)
     dhw: DhwConfig = field(default_factory=DhwConfig)
     price_entity: str | None = None
+    price_mode: PriceMode = PriceMode.FLAT
     co2_factor: float | None = None
 
     @classmethod
@@ -533,6 +541,7 @@ class DailyEnergy(JsonMixin):
     heat_dhw_kwh: float
     heat_space_kwh: float
     cop_day: float | None = None
+    cost_eur: float | None = None
     flags: set[Flag] = field(default_factory=set)
 
 
@@ -559,6 +568,7 @@ class DailyRecord(JsonMixin):
     heat_by_generator: dict[str, DailyEnergy] = field(default_factory=dict)
     share_heat_pump: float | None = None
     cost_eur: float | None = None
+    cost_space_eur: float | None = None
     co2_kg: float | None = None
     flags: set[Flag] = field(default_factory=set)
 

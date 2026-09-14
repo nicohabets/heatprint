@@ -71,6 +71,8 @@ def test_hybrid_ten_days() -> None:
     assert day1.share_heat_pump == 0.0  # heat pump not installed yet: no ENERGY_MISSING
     assert day1.gas_m3 == 5.0 and day1.electric_kwh == 0.0
     assert day1.cost_eur == pytest.approx(6.5)
+    assert day1.cost_space_eur == pytest.approx(6.5 * 4.5 / 5.0)
+    assert day1.heat_by_generator["boiler"].cost_eur == pytest.approx(6.5)
     assert day1.co2_kg == pytest.approx(5.0 * 1.78)
     assert Flag.ENERGY_MISSING not in day1.flags
     assert Flag.WEATHER_PARTIAL in day1.flags  # no previous day for the TAC

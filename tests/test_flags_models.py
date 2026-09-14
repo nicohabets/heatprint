@@ -27,6 +27,7 @@ from heatprint_core.models import (
     MeasureCategory,
     MethodConfig,
     Period,
+    PriceMode,
     Role,
     Season,
     SignatureFit,
@@ -36,10 +37,11 @@ from heatprint_core.models import (
 
 
 def test_flag_values_and_exclusion() -> None:
-    assert len(Flag) == 17
+    assert len(Flag) == 18
     assert Flag.DHW_BASELINE_MISSING.value == "dhw_baseline_missing"
     assert Flag.ROOM_DEMAND_MISSING.value == "room_demand_missing"
     assert Flag.ROOM_NOT_FITTED.value == "room_not_fitted"
+    assert Flag.PRICE_ESTIMATED_FLAT.value == "price_estimated_flat"
     assert Flag.WEATHER_MISSING.value == "weather_missing"
     assert Flag("outlier") is Flag.OUTLIER
     assert {
@@ -64,6 +66,8 @@ def test_bitmask_round_trip() -> None:
     assert list(Flag).index(Flag.DHW_BASELINE_MISSING) == 11
     assert flags_to_bitmask({Flag.DHW_BASELINE_MISSING}) == 1 << 11
     assert flags_from_bitmask(1 << 11) == {Flag.DHW_BASELINE_MISSING}
+    assert list(Flag).index(Flag.PRICE_ESTIMATED_FLAT) == 17
+    assert flags_to_bitmask({Flag.PRICE_ESTIMATED_FLAT}) == 1 << 17
 
 
 def test_parse_flags_case_insensitive() -> None:
@@ -107,6 +111,12 @@ def test_generator_for_kind_defaults() -> None:
     assert heat_pump.conversion.mode is ConversionMode.COP_FIXED
     assert heat_pump.is_heat_pump
     assert not boiler.is_heat_pump
+    assert boiler.price_mode is PriceMode.FLAT
+    dynamic = Generator.for_kind(
+        "hp2", "HP2", GeneratorKind.HEAT_PUMP, role=Role.SPACE, price_mode=PriceMode.DYNAMIC
+    )
+    assert dynamic.to_dict()["price_mode"] == "dynamic"
+    assert Generator.from_dict(dynamic.to_dict()).price_mode is PriceMode.DYNAMIC
 
 
 def test_site_json_round_trip() -> None:
@@ -191,6 +201,8 @@ def test_daily_record_round_trip() -> None:
         tac_house=3.0,
         dd={"classic": 15.95, "pbl": 14.0},
         heat_space_kwh=30.0,
+        cost_eur=8.0,
+        cost_space_eur=7.2,
         heat_by_generator={
             "boiler": DailyEnergy(date(2026, 1, 10), "boiler", 4.0, 0.0, 33.4, 3.4, 30.0)
         },

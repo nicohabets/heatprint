@@ -145,6 +145,7 @@ CONF_SCOP: Final = "scop"
 CONF_COP: Final = "cop"
 CONF_FACTOR: Final = "factor"
 CONF_PRICE_ENTITY: Final = "price_entity"
+CONF_PRICE_MODE: Final = "price_mode"
 CONF_CO2_FACTOR: Final = "co2_factor"
 SECTION_CONVERSION: Final = "conversion"
 SECTION_DHW: Final = "dhw"
@@ -202,6 +203,13 @@ GENERATOR_KINDS: Final = [
     KIND_OTHER,
 ]
 HEAT_PUMP_KINDS: Final = frozenset({KIND_HEAT_PUMP, KIND_AIR_TO_AIR})
+ELECTRIC_GENERATOR_KINDS: Final = frozenset(
+    {KIND_HEAT_PUMP, KIND_ELECTRIC_HEATER, KIND_AIR_TO_AIR}
+)
+
+PRICE_MODE_FLAT: Final = "flat"
+PRICE_MODE_DYNAMIC: Final = "dynamic"
+PRICE_MODES: Final = [PRICE_MODE_FLAT, PRICE_MODE_DYNAMIC]
 
 ROLE_SPACE: Final = "space"
 ROLE_DHW: Final = "dhw"
@@ -330,6 +338,10 @@ DEFAULT_ROOMS_MIN_FIT_DAYS: Final = 30
 DEFAULT_ROOMS_AUTO_SYNC: Final = True
 UNIT_W_PER_K_PER_M2: Final = "W/(m²·K)"
 UNIT_KWH_PER_M2: Final = "kWh/m²"
+UNIT_EUR: Final = "EUR"
+UNIT_EUR_PER_KWH: Final = "EUR/kWh"
+UNIT_EUR_PER_M2: Final = "EUR/m²"
+UNIT_KG: Final = "kg"
 
 
 class KindDefaults(NamedTuple):
@@ -467,6 +479,8 @@ METRIC_GAS: Final = "gas"
 METRIC_HEAT_GENERATOR_PREFIX: Final = "heat_"
 METRIC_HEAT_DHW_GENERATOR_PREFIX: Final = "heat_dhw_"
 METRIC_HEAT_UNALLOCATED: Final = "heat_unallocated"
+METRIC_COST: Final = "cost"
+METRIC_CO2: Final = "co2"
 METRIC_ROOM_PREFIX: Final = "room_"
 
 SITE_METRICS: Final[tuple[MetricDef, ...]] = (
@@ -482,6 +496,8 @@ SITE_METRICS: Final[tuple[MetricDef, ...]] = (
     MetricDef(METRIC_ELECTRIC_HP, STATISTIC_SUM, UnitOfEnergy.KILO_WATT_HOUR, "energy"),
     MetricDef(METRIC_GAS, STATISTIC_SUM, UnitOfVolume.CUBIC_METERS, "volume"),
     MetricDef(METRIC_HEAT_UNALLOCATED, STATISTIC_SUM, UnitOfEnergy.KILO_WATT_HOUR, "energy"),
+    MetricDef(METRIC_COST, STATISTIC_SUM, UNIT_EUR, None),
+    MetricDef(METRIC_CO2, STATISTIC_SUM, UNIT_KG, None),
 )
 METHOD_TO_DD_METRIC: Final[dict[str, str]] = {
     METHOD_CLASSIC: METRIC_DD_CLASSIC,
@@ -521,6 +537,11 @@ def room_t_mean_metric(room_id: str) -> str:
     return f"{METRIC_ROOM_PREFIX}{room_id}_t_mean"
 
 
+def room_cost_metric(room_id: str) -> str:
+    """Return the metric key for allocated space-heating cost of one room."""
+    return f"{METRIC_ROOM_PREFIX}{room_id}_cost"
+
+
 # --- Data quality flags (METHODS 10); order defines the bit in the compact store ---
 FLAG_WEATHER_MISSING: Final = "WEATHER_MISSING"
 FLAG_WEATHER_PARTIAL: Final = "WEATHER_PARTIAL"
@@ -539,6 +560,7 @@ FLAG_ROOM_DEMAND_FROM_HISTORY: Final = "ROOM_DEMAND_FROM_HISTORY"
 FLAG_ROOM_WEIGHT_ASSUMED: Final = "ROOM_WEIGHT_ASSUMED"
 FLAG_ROOM_NOT_FITTED: Final = "ROOM_NOT_FITTED"
 FLAG_ROOM_TEMPERATURE_MISSING: Final = "ROOM_TEMPERATURE_MISSING"
+FLAG_PRICE_ESTIMATED_FLAT: Final = "PRICE_ESTIMATED_FLAT"
 FLAG_NAMES: Final[tuple[str, ...]] = (
     FLAG_WEATHER_MISSING,
     FLAG_WEATHER_PARTIAL,
@@ -557,6 +579,7 @@ FLAG_NAMES: Final[tuple[str, ...]] = (
     FLAG_ROOM_WEIGHT_ASSUMED,
     FLAG_ROOM_NOT_FITTED,
     FLAG_ROOM_TEMPERATURE_MISSING,
+    FLAG_PRICE_ESTIMATED_FLAT,
 )
 FLAG_BITS: Final[dict[str, int]] = {name: 1 << index for index, name in enumerate(FLAG_NAMES)}
 # Days carrying one of these flags are excluded from fits and k-values.
@@ -639,7 +662,10 @@ SENSOR_GENERATOR_HEAT_SPACE_SEASON: Final = "generator_heat_space_season"
 SENSOR_GENERATOR_HEAT_DHW_SEASON: Final = "generator_heat_dhw_season"
 SENSOR_GENERATOR_SHARE_SEASON: Final = "generator_share_season"
 SENSOR_HEAT_UNALLOCATED_SEASON: Final = "heat_unallocated_season"
+SENSOR_COST_SPACE_SEASON: Final = "cost_space_season"
+SENSOR_CO2_SEASON: Final = "co2_season"
 SENSOR_MOST_EXPENSIVE_ROOM: Final = "most_expensive_room"
+SENSOR_GENERATOR_AVG_PRICE_PAID: Final = "avg_price_paid"
 SENSOR_ROOM_HEAT_YESTERDAY: Final = "room_heat_yesterday"
 SENSOR_ROOM_HEAT_SEASON: Final = "room_heat_season"
 SENSOR_ROOM_SHARE_SEASON: Final = "room_share_season"
@@ -648,5 +674,7 @@ SENSOR_ROOM_SPECIFIC_HEAT_LOSS: Final = "room_specific_heat_loss"
 SENSOR_ROOM_BALANCE_TEMPERATURE: Final = "room_balance_temperature"
 SENSOR_ROOM_FIT_QUALITY: Final = "room_fit_quality"
 SENSOR_ROOM_HEAT_PER_M2_SEASON: Final = "room_heat_per_m2_season"
+SENSOR_ROOM_COST_SEASON: Final = "room_cost_season"
+SENSOR_ROOM_COST_PER_M2_SEASON: Final = "room_cost_per_m2_season"
 SENSOR_ROOM_DATA_QUALITY: Final = "room_data_quality"
 BINARY_SENSOR_DATA_GAP: Final = "data_gap"

@@ -5,6 +5,33 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.2.4] - 2026-09-14
+
+### Added
+- Site `cost_eur` and `co2_kg` are written as external statistics
+  (`heatprint:<site>_cost`, `heatprint:<site>_co2`) from each generator's
+  `price_entity` and CO₂ factor (METHODS §13.1). Flat tariff first.
+- `price_mode: dynamic` (ADR 0006): hourly cost from recorded hourly
+  statistics on the price entity (`mean`) and the electric meter (`change`).
+  Missing hourly series falls back to the day's mean price with flag
+  `PRICE_ESTIMATED_FLAT`.
+- Room cost allocation (METHODS §12.5): `room_<id>_cost` statistics,
+  `room_cost_season` / `room_cost_per_m2_season` sensors.
+- Sensors: `cost_space_season`, `co2_season`, and
+  `avg_price_paid` (per generator, only when `price_mode: dynamic`).
+- `most_expensive_room` ranks by allocated cost when cost data exists;
+  heat ranking stays as `by_heat` / fallback.
+- Site pricing options (`co2_entity` and gas/electric/district factors)
+  are applied. Live `co2_entity` overrides electric factors per day.
+- `price_entity` is shown again on room add/reconfigure (metered rooms).
+  Electric generators can set `price_mode`.
+
+### Changed
+- Version lockstep is 0.2.4 (`manifest.json`, `pyproject.toml`,
+  `heatprint_core.__version__`).
+- DATA_MODEL, METHODS §12.5/§13, ROADMAP, CONFIG_FLOW, ARCHITECTURE and
+  PRODUCT_BRIEF now describe the shipped cost/CO₂ path instead of deferring it.
+
 ## [0.2.3] - 2026-09-14
 
 ### Removed

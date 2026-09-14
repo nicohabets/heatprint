@@ -159,10 +159,12 @@
               "description": "Optionele kosten- en emissiecijfers per dag.",
               "data": {
                 "price_entity": "Prijssensor",
+                "price_mode": "Prijsmode",
                 "co2_factor": "CO2-factor"
               },
               "data_description": {
-                "price_entity": "Sensor met de prijs per eenheid van de meter.",
+                "price_entity": "Sensor met de prijs per eenheid van de meter (€/m³ of €/kWh). Wordt gebruikt voor dagelijkse kostenstatistieken.",
+                "price_mode": "Vast gebruikt de daggemiddelde prijs. Dynamisch vermenigvuldigt uurlijkse stroom met de opgenomen uurprijs (alleen elektrische opwekkers).",
                 "co2_factor": "kg CO2 per eenheid van de meter."
               }
             }
@@ -239,10 +241,12 @@
               "description": "Optionele kosten- en emissiecijfers per dag.",
               "data": {
                 "price_entity": "Prijssensor",
+                "price_mode": "Prijsmode",
                 "co2_factor": "CO2-factor"
               },
               "data_description": {
-                "price_entity": "Sensor met de prijs per eenheid van de meter.",
+                "price_entity": "Sensor met de prijs per eenheid van de meter (€/m³ of €/kWh). Wordt gebruikt voor dagelijkse kostenstatistieken.",
+                "price_mode": "Vast gebruikt de daggemiddelde prijs. Dynamisch vermenigvuldigt uurlijkse stroom met de opgenomen uurprijs (alleen elektrische opwekkers).",
                 "co2_factor": "kg CO2 per eenheid van de meter."
               }
             }
@@ -340,7 +344,7 @@
             "floor_area_m2": "Maakt specifiek warmteverlies (W/(m²·K)) en warmte per m² mogelijk.",
             "volume_m3": "Wordt bewaard voor later; niet gebruikt in de huidige berekeningen.",
             "enabled": "Uitgeschakelde kamers houden hun historie maar worden overgeslagen bij de dagelijkse toewijzing.",
-            "price_entity": "Optionele override voor een kamer met eigen meter. Site-kostensensoren worden nog niet weggeschreven (METHODS §13)."
+            "price_entity": "Optionele override voor een kamer met eigen meter. Standaard is de ruimteverwarmingsprijs van die dag per kWh."
           }
         },
         "reconfigure": {
@@ -695,6 +699,12 @@
         "house": "Huisfit"
       }
     },
+    "price_mode": {
+      "options": {
+        "flat": "Vast tarief (daggemiddelde prijs)",
+        "dynamic": "Dynamisch / day-ahead (opgenomen uurprijs)"
+      }
+    },
     "pbl_parameter_set": {
       "options": {
         "practical": "Praktisch (temperatuur en wind)",
@@ -859,6 +869,21 @@
       },
       "generator_share_season": {
         "name": "Aandeel seizoen"
+      },
+      "cost_space_season": {
+        "name": "Kosten ruimteverwarming seizoen"
+      },
+      "co2_season": {
+        "name": "CO₂ seizoen"
+      },
+      "avg_price_paid": {
+        "name": "Gemiddelde betaalde prijs"
+      },
+      "room_cost_season": {
+        "name": "Kosten seizoen"
+      },
+      "room_cost_per_m2_season": {
+        "name": "Kosten per m² seizoen"
       }
     },
     "binary_sensor": {

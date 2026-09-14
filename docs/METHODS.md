@@ -342,6 +342,7 @@ CSV import). Output: consumption per local day.
 | `OUTLIER` | residual > 4 × rmse | excluded after refit |
 | `IMPORTED` | from CSV | informational |
 | `DHW_BASELINE_MISSING` | no DHW baseline (and no measurement that day) | all heat of that generator as space heating; allowed in fits |
+| `PRICE_ESTIMATED_FLAT` | dynamic tariff lacked hourly statistics that day | day's mean price × billed amount; allowed |
 
 ---
 
@@ -497,9 +498,8 @@ its own until that method exists.
 
 ### 12.5 Per-room and total cost
 
-`cost_eur` is already computed per site per day from each generator's `price_entity` (§DATA_MODEL
-§2.1, currently not yet written as a statistic - ROADMAP open item 1). Once that lands, room cost
-follows the same allocation as heat:
+`cost_eur` is computed per site per day from each generator's `price_entity` (§DATA_MODEL
+§2.1) and written as `heatprint:<site>_cost` (0.2.4). Room cost follows the same allocation as heat:
 
 ```
 cost_space_eur(d) = Σ_generators cost_eur(d) restricted to that generator's space-heating share
@@ -580,10 +580,9 @@ an EN 12831-style design heat-loss calculation and Heatprint does not claim that
 
 ## 13. Cost and CO₂
 
-`DailyRecord.cost_eur` and `.co2_kg` are already named in §DATA_MODEL §2.1 but this document has
-not, until now, specified how they are computed - the gap tracked as ROADMAP open item 1. This
-section closes that gap and adds dynamic-tariff support in the same pass, since both change the
-same code path.
+`DailyRecord.cost_eur` and `.co2_kg` are named in §DATA_MODEL §2.1. This section specifies how
+they are computed (flat and dynamic) and how the Home Assistant layer writes them as statistics
+and sensors (0.2.4).
 
 ### 13.1 Flat tariff (default)
 
@@ -643,9 +642,10 @@ Per-room cost allocation (§12.5) is unaffected: it multiplies `share_r(d)` by w
 
 ### 13.3 CO₂
 
-CO₂ stays flat-factor-based (§13.1) in this version; a live grid carbon-intensity signal
-(analogous to dynamic pricing) is a plausible future idea but is out of scope here - it was not
-asked for and would need its own data-source research before being specified.
+CO₂ stays daily-factor-based (§13.1). Site pricing options override the kind default when the
+generator still has that default. A configured `co2_entity` (daily `mean` kg/kWh) overrides
+electric generators on days it has a reading; missing days fall back to the generator factor.
+Hourly grid carbon intensity is out of scope.
 
 ---
 

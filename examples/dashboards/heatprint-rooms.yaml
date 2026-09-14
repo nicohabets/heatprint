@@ -17,8 +17,8 @@
 # Custom cards (apexcharts) are omitted on purpose so the dashboard loads
 # without HACS frontend extras.
 #
-# Room cost sensors are not created in 0.2.0 (site cost_eur is not written
-# as a statistic yet). most_expensive_room is ranked by allocated heat.
+# Room cost sensors write from 0.2.4 (heatprint:<site>_room_<id>_cost).
+# most_expensive_room ranks by allocated cost when cost data exists.
 
 title: Rooms
 path: rooms
@@ -31,12 +31,13 @@ cards:
           **Per-room space heating.** Heat is allocated from the site total
           using each room's demand signal. Apparent UA includes interzonal
           exchange and is not an EN 12831 design figure. most_expensive_room
-          is ranked by allocated heat until site cost statistics land.
+          is ranked by allocated cost when cost data exists; otherwise by heat.
 
       - type: entities
         title: Site rooms summary
         entities:
           - entity: sensor.home_unallocated_heat_season
+          - entity: sensor.home_space_heating_cost_season
           - entity: sensor.home_most_expensive_room
 
       - type: entities
@@ -48,6 +49,8 @@ cards:
           - entity: sensor.home_living_heat_loss_coefficient
           - entity: sensor.home_living_specific_heat_loss
           - entity: sensor.home_living_balance_temperature
+          - entity: sensor.home_living_cost_season
+          - entity: sensor.home_living_cost_per_m2_season
           - entity: sensor.home_living_data_quality
 
   - type: vertical-stack
@@ -66,3 +69,5 @@ cards:
             name: Unallocated
           - entity: heatprint:home_room_living_heat
             name: Living
+          - entity: heatprint:home_room_living_cost
+            name: Living cost

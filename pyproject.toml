@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "heatprint-core"
-version = "0.2.3"
+version = "0.2.4"
 description = "Weather-corrected heating analytics for any mix of gas, heat pump, electric and district heat. Pure-Python core used by the Heatprint Home Assistant integration."
 readme = "README.md"
 requires-python = ">=3.11"

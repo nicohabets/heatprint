@@ -159,10 +159,12 @@
               "description": "Optional cost and emission figures per day.",
               "data": {
                 "price_entity": "Price sensor",
+                "price_mode": "Price mode",
                 "co2_factor": "CO2 factor"
               },
               "data_description": {
-                "price_entity": "Sensor with the price per unit of the meter.",
+                "price_entity": "Sensor with the price per unit of the meter (€/m³ or €/kWh). Used for daily cost statistics.",
+                "price_mode": "Flat uses the day's mean price. Dynamic multiplies hourly electricity by the recorded hourly price (electric generators only).",
                 "co2_factor": "kg CO2 per unit of the meter."
               }
             }
@@ -239,10 +241,12 @@
               "description": "Optional cost and emission figures per day.",
               "data": {
                 "price_entity": "Price sensor",
+                "price_mode": "Price mode",
                 "co2_factor": "CO2 factor"
               },
               "data_description": {
-                "price_entity": "Sensor with the price per unit of the meter.",
+                "price_entity": "Sensor with the price per unit of the meter (€/m³ or €/kWh). Used for daily cost statistics.",
+                "price_mode": "Flat uses the day's mean price. Dynamic multiplies hourly electricity by the recorded hourly price (electric generators only).",
                 "co2_factor": "kg CO2 per unit of the meter."
               }
             }
@@ -340,7 +344,7 @@
             "floor_area_m2": "Enables specific heat loss (W/(m²·K)) and heat per m².",
             "volume_m3": "Captured for later use; not used in the current calculations.",
             "enabled": "Disabled rooms keep their history but are skipped in daily allocation.",
-            "price_entity": "Optional override for a metered-energy room. Site cost sensors are not written yet (METHODS §13)."
+            "price_entity": "Optional override for a metered-energy room. Defaults to the day's space-heating cost per kWh."
           }
         },
         "reconfigure": {
@@ -695,6 +699,12 @@
         "house": "House fit"
       }
     },
+    "price_mode": {
+      "options": {
+        "flat": "Flat tariff (daily mean price)",
+        "dynamic": "Dynamic / day-ahead (hourly recorded price)"
+      }
+    },
     "pbl_parameter_set": {
       "options": {
         "practical": "Practical (temperature and wind)",
@@ -859,6 +869,21 @@
       },
       "generator_share_season": {
         "name": "Share season"
+      },
+      "cost_space_season": {
+        "name": "Space heating cost season"
+      },
+      "co2_season": {
+        "name": "CO₂ season"
+      },
+      "avg_price_paid": {
+        "name": "Average price paid"
+      },
+      "room_cost_season": {
+        "name": "Cost season"
+      },
+      "room_cost_per_m2_season": {
+        "name": "Cost per m² season"
       }
     },
     "binary_sensor": {

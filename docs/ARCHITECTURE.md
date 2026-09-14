@@ -60,7 +60,8 @@ flowchart TB
         R["readings<br/>meter readings → daily consumption"]
         A["analysis<br/>signature (PRISM) · compare ·<br/>normalize (NAC) · forecast"]
         I["importers<br/>csv (generic, mindergas)"]
-        P["pipeline<br/>build_daily_records(site, weather, energy)"]
+        P["pipeline<br/>build_daily_records(site, weather, energy, prices)"]
+        C["cost<br/>flat / dynamic hourly (ADR 0006)"]
         RM["rooms<br/>allocation · signature"]
     end
 
@@ -69,7 +70,7 @@ flowchart TB
         FR["first_run / site_defaults<br/>HA home + weather + room options"]
         RD["room_discovery / room_sync<br/>heated HA areas → room subentries"]
         CO["coordinator<br/>daily run 06:15 local time,<br/>backfill task, cache"]
-        RS["recorder_source<br/>read statistics (daily sums, daily means)"]
+        RS["recorder_source<br/>daily sums/means + hourly change/mean"]
         ST["statistics_writer<br/>external statistics heatprint:*"]
         SE["sensor / binary_sensor<br/>entity descriptions"]
         SV["services<br/>import · recompute · fit · compare ·<br/>measure_effect · forecast · export · push · clear ·<br/>fit_room · create_dashboard"]
@@ -85,6 +86,7 @@ flowchart TB
     CO --> W
     P --> E --> H
     P --> R
+    P --> C
     CO --> ST
     CO --> SE
     CO --> DB
@@ -105,7 +107,7 @@ Responsibilities per HA module:
 | `room_sync.py` | Idempotent create/update of `room` subentries; preserves user overrides | Deleting missing areas |
 | `dashboard.py` / `dashboard_config.py` | Create/refresh the stock Lovelace overview and Rooms dashboards; entity cards resolve `entity_id` via unique_id | Custom cards, English object-id guesses |
 | `coordinator.py` | Schedules runs, fetches weather (via the core providers with HA's aiohttp session), reads the recorder, calls `pipeline.build_daily_records`, writes statistics/store, updates entities | Formulas |
-| `recorder_source.py` | `statistics_during_period` per day for energy (sum/change) and weather (mean) | Interpretation |
+| `recorder_source.py` | `statistics_during_period` per day for energy (sum/change) and weather (mean); hourly `change`/`mean` for `price_mode: dynamic` (ADR 0006) | Interpretation |
 | `statistics_writer.py` | `async_add_external_statistics` with idempotent daily records; rewrites on recomputation | Reading |
 | `sensor.py` | `SensorEntityDescription` per metric, value from coordinator data | Storage |
 | `services.py` | Schemas, response data (`SupportsResponse.ONLY`), files under `config/heatprint/` | Calculating (delegates to the core) |
@@ -190,6 +192,7 @@ heatprint/
 │   ├── translations/{en,nl}.json
 │   └── heatprint_core/           # calculation core (bundled; HA-free)
 │       ├── models.py  constants.py  flags.py  pipeline.py  readings.py  heat.py  dhw.py
+│       ├── cost.py                 # METHODS §13 (HA-free; hourly keys are opaque)
 │       ├── weather/{base,knmi,open_meteo,climatology}.py
 │       ├── methods/{effective_temperature,degree_days,pbl_params}.py
 │       ├── analysis/{signature,normalize,compare,forecast}.py

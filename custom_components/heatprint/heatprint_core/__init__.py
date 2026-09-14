@@ -17,6 +17,7 @@ from .analysis import (
     normalized_consumption,
     saving_between,
 )
+from .cost import billed_amount, generator_cost, hourly_cost, space_share_of_cost
 from .dhw import estimate_baseline, split_dhw
 from .flags import Flag
 from .heat import carrier_to_heat, cop_day
@@ -47,6 +48,7 @@ from .models import (
     MethodConfig,
     PblParams,
     Period,
+    PriceMode,
     Provider,
     Role,
     Room,
@@ -81,7 +83,7 @@ from .weather import (
     remaining_season_dd,
 )
 
-__version__ = "0.2.3"
+__version__ = "0.2.4"
 
 __all__ = [
     "CarrierInput",
@@ -113,6 +115,7 @@ __all__ = [
     "OpenMeteoClient",
     "PblParams",
     "Period",
+    "PriceMode",
     "Provider",
     "Role",
     "Room",
@@ -128,6 +131,7 @@ __all__ = [
     "allocate_day",
     "allocate_period",
     "apply_room_not_fitted",
+    "billed_amount",
     "build_climatology",
     "build_daily_records",
     "carrier_to_heat",
@@ -141,6 +145,8 @@ __all__ = [
     "fit_room_signature",
     "fit_signature",
     "forecast_season",
+    "generator_cost",
+    "hourly_cost",
     "indicative_ua_w_per_k",
     "inspect_readings_csv",
     "measure_effect",
@@ -156,6 +162,7 @@ __all__ = [
     "saving_between",
     "season_for",
     "season_window",
+    "space_share_of_cost",
     "split_dhw",
     "t_eff",
     "tac_series",

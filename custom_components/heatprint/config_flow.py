@@ -131,6 +131,7 @@ from .const import (
     CONF_PBL_WIND_MODE,
     CONF_PBL_WIND_SQRT_COEF,
     CONF_PRICE_ENTITY,
+    CONF_PRICE_MODE,
     CONF_PROVIDER,
     CONF_RADIATION_ENTITY,
     CONF_RATED_OUTPUT_W,
@@ -195,6 +196,7 @@ from .const import (
     DHW_MODES,
     DHW_OVERRIDE_KEEP,
     DHW_OVERRIDE_OPTIONS,
+    ELECTRIC_GENERATOR_KINDS,
     DOMAIN,
     EMITTER_KIND_RADIATOR,
     EMITTER_KINDS,
@@ -227,6 +229,8 @@ from .const import (
     OPT_PRICING,
     OPT_ROOMS,
     OPT_SYNC_ROOMS,
+    PRICE_MODE_FLAT,
+    PRICE_MODES,
     PBL_PARAMETER_SETS,
     PBL_WIND_MODES,
     PROVIDER_HA_SENSORS,
@@ -575,6 +579,12 @@ def generator_details_schema(kind: str, role: str, defaults: Mapping[str, Any]) 
             CONF_CO2_FACTOR, default=defaults.get(CONF_CO2_FACTOR, KIND_DEFAULTS[kind].co2_factor)
         ): _number(0.0, 10.0, 0.001),
     }
+    if kind in ELECTRIC_GENERATOR_KINDS:
+        pricing[
+            vol.Required(
+                CONF_PRICE_MODE, default=defaults.get(CONF_PRICE_MODE, PRICE_MODE_FLAT)
+            )
+        ] = _select(PRICE_MODES, "price_mode")
     fields[vol.Required(SECTION_PRICING)] = section(vol.Schema(pricing), {"collapsed": True})
     return vol.Schema(fields)
 
@@ -663,6 +673,8 @@ def normalize_generator(
     ):
         if details.get(key):
             data[key] = details[key]
+    if kind in ELECTRIC_GENERATOR_KINDS:
+        data[CONF_PRICE_MODE] = details.get(CONF_PRICE_MODE, PRICE_MODE_FLAT)
     if kind == KIND_HEAT_PUMP:
         # For heat pumps the electric meter is the carrier (DATA_MODEL 1.3).
         if details.get(CONF_ELECTRIC_ENTITY):
@@ -2066,10 +2078,9 @@ class RoomSubentryFlowHandler(_SubentryFlowBase):
                 return self.async_create_entry(
                     title=room[CONF_NAME], data=room, unique_id=room[CONF_ROOM_ID]
                 )
-        # Price/cost sensors are deferred (METHODS §13 / 0.2.4); hide until they land.
         return self.async_show_form(
             step_id="user",
-            data_schema=room_schema(defaults, show_price=False),
+            data_schema=room_schema(defaults, show_price=True),
             errors=errors,
         )
 
@@ -2092,6 +2103,6 @@ class RoomSubentryFlowHandler(_SubentryFlowBase):
                 )
         return self.async_show_form(
             step_id="reconfigure",
-            data_schema=room_schema(defaults, show_price=False),
+            data_schema=room_schema(defaults, show_price=True),
             errors=errors,
         )

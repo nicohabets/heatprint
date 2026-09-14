@@ -50,6 +50,8 @@ _ENGLISH_OBJECT_IDS: dict[str, str] = {
     "last_weather_update": "last_weather_update",
     "data_gap": "data_gap",
     "heat_unallocated_season": "unallocated_heat_season",
+    "cost_space_season": "space_heating_cost_season",
+    "co2_season": "co2_season",
     "most_expensive_room": "most_expensive_room",
 }
 
@@ -76,6 +78,8 @@ _DUTCH_OBJECT_IDS: dict[str, str] = {
     "last_weather_update": "laatste_weerupdate",
     "data_gap": "datagat",
     "heat_unallocated_season": "niet_toegewezen_warmte_seizoen",
+    "cost_space_season": "kosten_ruimteverwarming_seizoen",
+    "co2_season": "co2_seizoen",
     "most_expensive_room": "duurste_kamer",
 }
 
@@ -89,6 +93,8 @@ _ENGLISH_ROOM_OBJECT_IDS: dict[str, str] = {
     "room_balance_temperature": "balance_temperature",
     "room_fit_quality": "fit_quality",
     "room_heat_per_m2_season": "heat_per_m2_season",
+    "room_cost_season": "cost_season",
+    "room_cost_per_m2_season": "cost_per_m2_season",
     "room_data_quality": "data_quality",
 }
 
@@ -101,6 +107,8 @@ _DUTCH_ROOM_OBJECT_IDS: dict[str, str] = {
     "room_balance_temperature": "balanstemperatuur",
     "room_fit_quality": "fitkwaliteit",
     "room_heat_per_m2_season": "warmte_per_m2_seizoen",
+    "room_cost_season": "kosten_seizoen",
+    "room_cost_per_m2_season": "kosten_per_m2_seizoen",
     "room_data_quality": "datakwaliteit",
 }
 
@@ -331,7 +339,7 @@ def _rooms_registry(
     entry_id: str, site_id: str, room_object_ids: dict[str, str], site_object_ids: dict[str, str]
 ) -> FakeEntityRegistry:
     entries: dict[tuple[str, str, str], str] = {}
-    for key in ("heat_unallocated_season", "most_expensive_room"):
+    for key in ("heat_unallocated_season", "cost_space_season", "most_expensive_room"):
         slug = site_object_ids[key]
         entries[("sensor", "heatprint", site_entity_unique_id(entry_id, key))] = (
             f"sensor.{site_id}_{slug}"
@@ -424,7 +432,14 @@ def test_room_sensor_keys_match_dashboard_and_translations() -> None:
     strings = json.loads((INTEGRATION / "strings.json").read_text(encoding="utf-8"))
     nl = json.loads((INTEGRATION / "translations" / "nl.json").read_text(encoding="utf-8"))
     en = json.loads((INTEGRATION / "translations" / "en.json").read_text(encoding="utf-8"))
-    for key in (*ROOM_ENTITY_KEYS, "heat_unallocated_season", "most_expensive_room"):
+    for key in (
+        *ROOM_ENTITY_KEYS,
+        "heat_unallocated_season",
+        "cost_space_season",
+        "co2_season",
+        "avg_price_paid",
+        "most_expensive_room",
+    ):
         assert key in strings["entity"]["sensor"]
         assert key in nl["entity"]["sensor"]
         assert en["entity"]["sensor"][key] == strings["entity"]["sensor"][key]

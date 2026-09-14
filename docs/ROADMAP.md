@@ -11,10 +11,10 @@
 | 0.2.1 | Runs on Nico's HA | Auto-discover rooms from HA areas + climate/demand; one-screen first-run from `zone.home`; coordinator end-to-end, KNMI 380, DSMR gas, mindergas CSV (reference case still needs local export) | rooms auto-sync done; live reference case still planned |
 | 0.2.2 | Docs vs codebase audit | Align ARCHITECTURE / CONFIG_FLOW / DATA_MODEL / PRODUCT_BRIEF with shipped 0.2.1; list remaining code gaps | done (docs) |
 | 0.2.3 | First-run cleanup | Delete dead wizard; surface weather-check failures; emit `ROOM_NOT_FITTED`; `clear_statistics` room means | done |
-| 0.2.4 / 0.3 | Cost + health checks | Full F18 cost/CO₂ + dynamic tariffs (METHODS §13) and §14 health-check repairs — not half-implemented in 0.2.3 | planned |
+| 0.2.4 | Cost + CO₂ | F18 site `cost_eur`/`co2_kg` statistics, `price_mode: dynamic` (ADR 0006), room cost allocation, `cost_space_season` / `avg_price_paid` / `co2_season` | done |
+| 0.3 | Health checks | METHODS §14 data-source health-check repairs (`STUCK_VALUE`, `IMPLAUSIBLE_VALUE`, `SCALE_DRIFT`, `WEATHER_STALLED`) | planned |
 | 0.3.0 | Hybrid | Heat pump generator with thermal/electric meters, heat pump share, daily COP, season 2026/27 live | planned (when the heat pump is installed) |
-| 1.0.0 | HACS release | Measure effect with CI, mindergas bridge, cost/CO₂, COP curve, DHW monthly profile, repairs/diagnostics, HACS default | planned |
-| 1.1.0 | Room cost | Per-room and total heating cost (needs site `cost_eur` statistics, METHODS §13) plus cost ranking for `most_expensive_room` | planned |
+| 1.0.0 | HACS release | Measure effect with CI, mindergas bridge, COP curve, DHW monthly profile, repairs/diagnostics, HACS default | planned |
 | 2.0.0 | Visual insight | Custom card (energy signature), occupancy regressor, export/CLI, opt-in benchmark | idea |
 
 ## Definition of done per release
@@ -38,9 +38,10 @@ Closed in this pre-alpha:
 
 Deferred (not required for a coherent pre-alpha):
 
-1. `cost_eur` and `co2_kg` are now specified (METHODS §13, including dynamic/day-ahead
-   tariffs, §13.2) but still computed in the core only, not written as a statistic/sensor;
-   price entities are not read (`core_api.build_daily_records`, F18 / v1.0).
+1. `cost_eur` and `co2_kg` **written in 0.2.4** as `heatprint:<site>_cost` / `_co2`.
+   Generator `price_entity` is read (daily mean; hourly mean + electric `change` when
+   `price_mode: dynamic`). Missing hourly series falls back to the day's mean with
+   `PRICE_ESTIMATED_FLAT`. Forecast-attribute adapters remain out of scope (ADR 0006).
 2. Statistics require local midnight to fall on a whole UTC hour; time zones with a
    half-hour offset (e.g. India) are not supported. The recorder's daily buckets
    follow the HA time zone, not the site time zone.
@@ -54,12 +55,11 @@ Deferred (not required for a coherent pre-alpha):
 6. Post-create "Compute effect" notification after adding a measure (service exists; v1.0 UI).
 7. PDF eq. 17 sun term *outside* inertia — Heatprint keeps sun inside `T_eff` (METHODS §3);
    default practical model has `include_sun` off and therefore matches PDF eq. 20.
-8. Rooms **heat** side shipped in 0.2.0 (subentry, allocation, room fit, sensors,
-   Rooms dashboard). Room **cost** sensors are skipped until site `cost_eur` is
-   written as a statistic (item 1 / METHODS §13). Cost/CO₂ dynamic tariffs (§13)
-   and data-source health checks (§14) are still specified only — no
-   `price_mode: dynamic` handling, and no `STUCK_VALUE`/`IMPLAUSIBLE_VALUE`/
-   `SCALE_DRIFT`/`WEATHER_STALLED` checks or repairs yet.
+8. Rooms **heat** shipped in 0.2.0; room **cost** sensors, space-cost allocation
+   and cost ranking for `most_expensive_room` shipped in 0.2.4 (METHODS §12.5 / §13).
+   Data-source health checks (§14) are still specified only — no
+   `STUCK_VALUE`/`IMPLAUSIBLE_VALUE`/`SCALE_DRIFT`/`WEATHER_STALLED` checks or
+   repairs yet.
 9. Leftover multi-step first-run wizard — **removed in 0.2.3**. First-run
    auto-creates generators (heat-pump role `both`) and rooms.
 10. First-run weather validation is still non-blocking (offline must not stall
@@ -70,8 +70,9 @@ Deferred (not required for a coherent pre-alpha):
     **Import meter readings**.
 12. `ROOM_NOT_FITTED` is **written in 0.2.3** when a room has fewer than the
     minimum fit days (skipped once a room fit exists).
-13. Options collect `co2_entity`; the coordinator does not read it. `cost_space_season`
-    and `avg_price_paid` sensors are specified but not created (item 1 / 0.2.4).
+13. `co2_entity` and site gas/electric/district CO₂ factors **are applied in 0.2.4**.
+    Live `co2_entity` (daily mean kg/kWh) overrides electric generators on days it
+    has a reading. `cost_space_season`, `co2_season` and `avg_price_paid` exist.
 14. `heatprint.clear_statistics` (whole site) **also drops** room `*_demand` /
     `*_t_mean` mean statistics (0.2.3).
 

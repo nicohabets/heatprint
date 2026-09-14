@@ -163,7 +163,8 @@ site setting (step 5 and options), not a per-generator one.
 
 | Field | Selector | Default |
 |---|---|---|
-| `price_entity` | entity (sensor) | - |
+| `price_entity` | entity (sensor) | - (daily `mean` €/m³ or €/kWh; required for cost statistics) |
+| `price_mode` | select: `flat`, `dynamic` | `flat` (electric kinds only; dynamic uses recorded hourly statistics, ADR 0006) |
 | `co2_factor` | number | per kind (gas 1.78 kg/m³; electricity 0.30 kg/kWh or a CO₂ sensor) |
 
 After 4.5: "Add another generator?" (yes → 4.1).
@@ -266,7 +267,7 @@ Discovery heuristics (METHODS §12.6):
 | `floor_area_m2` | number, optional | - | |
 | `volume_m3` | number, optional | - | Captured; unused by any calculation (METHODS §12.4) |
 | `enabled` | boolean | true | Disabling keeps history but stops daily allocation |
-| `price_entity` | entity, optional | site default | Hidden until site cost sensors land (METHODS §13 / 0.2.4). Stored if already set; not shown on add/reconfigure |
+| `price_entity` | entity, optional | site default | Shown on add/reconfigure. Used for `metered_energy` rooms; otherwise the site's `cost_space / heat_space` |
 
 Validation: `demand_entity` exists and its unit/device_class is plausible for `demand_kind`
 (errors `entity_not_found`, `demand_kind_mismatch`); with `metered_energy`, the same
@@ -291,7 +292,9 @@ Sections (menu):
    (dropdowns, never a JSON `mapping`). Choose generator and unit, confirm →
    import and recompute from the earliest imported day. The action
    `heatprint.import_readings` remains for automations.
-5. **Prices and CO₂** - default factors, CO₂ sensor.
+5. **Prices and CO₂** - default gas/electric/district CO₂ factors and optional live
+   `co2_entity` (daily mean kg/kWh, applied to electric generators). Per-generator
+   prices live on the generator subentry (`price_entity` / `price_mode`).
 6. **Integrations** - mindergas.nl bridge: API token (password field), generator choice,
    daily push on/off. The token lives in `entry.options["integrations"]` (Home Assistant
    does not encrypt `.storage`); it is never logged and is redacted from diagnostics

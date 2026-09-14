@@ -52,6 +52,7 @@ from .const import (
     CONF_CLASSIC_HEATING_LIMIT,
     CONF_CLASSIC_WEIGHTED,
     CONF_CLIMATOLOGY_YEARS,
+    CONF_CO2_ENTITY,
     CONF_CO2_FACTOR,
     CONF_CONVERSION_MODE,
     CONF_COP,
@@ -62,11 +63,14 @@ from .const import (
     CONF_DHW_FIXED_PER_DAY,
     CONF_DHW_MODE,
     CONF_DHW_OVERRIDE,
+    CONF_DISTRICT_CO2_FACTOR,
     CONF_EFFICIENCY,
+    CONF_ELECTRIC_CO2_FACTOR,
     CONF_ELECTRIC_ENTITY,
     CONF_ENERGY_ENTITY,
     CONF_FACTOR,
     CONF_FALLBACK,
+    CONF_GAS_CO2_FACTOR,
     CONF_GENERATOR_ID,
     CONF_HA_ENTITIES,
     CONF_HEATING_VALUE,
@@ -110,6 +114,7 @@ from .const import (
     CONF_PBL_WIND_MODE,
     CONF_PBL_WIND_SQRT_COEF,
     CONF_PRICE_ENTITY,
+    CONF_PRICE_MODE,
     CONF_PROVIDER,
     CONF_RADIATION_ENTITY,
     CONF_ROLE,
@@ -135,6 +140,9 @@ from .const import (
     DEFAULT_COP_AIR_TO_AIR,
     DEFAULT_DISTRICT_EFFICIENCY,
     DEFAULT_FACTOR,
+    DEFAULT_DISTRICT_CO2_KG_PER_KWH,
+    DEFAULT_ELECTRIC_CO2_KG_PER_KWH,
+    DEFAULT_GAS_CO2_KG_PER_M3,
     DEFAULT_GAS_EFFICIENCY,
     DEFAULT_METHOD_PRIMARY,
     DEFAULT_METHODS_ENABLED,
@@ -150,6 +158,7 @@ from .const import (
     DHW_BASELINE,
     DHW_NONE,
     DHW_OVERRIDE_KEEP,
+    ELECTRIC_GENERATOR_KINDS,
     FALLBACK_NONE,
     FLAG_ENERGY_MISSING,
     FLAG_WEATHER_PROVISIONAL,
@@ -159,6 +168,7 @@ from .const import (
     HEATING_VALUE_HS,
     HEATING_VALUES_KWH_PER_M3,
     KIND_DEFAULTS,
+    KIND_AIR_TO_AIR,
     KIND_DISTRICT_HEAT,
     KIND_ELECTRIC_HEATER,
     KIND_GAS_BOILER,
@@ -171,6 +181,8 @@ from .const import (
     METRIC_DD_HOUSE,
     METRIC_DD_KNMI14,
     METRIC_DD_PBL,
+    METRIC_CO2,
+    METRIC_COST,
     METRIC_ELECTRIC_HP,
     METRIC_GAS,
     METRIC_HEAT_DHW,
@@ -183,7 +195,9 @@ from .const import (
     OPT_DHW,
     OPT_HISTORY,
     OPT_METHODS,
+    OPT_PRICING,
     OPT_ROOMS,
+    PRICE_MODE_FLAT,
     PROVIDER_HA_SENSORS,
     PROVIDER_KNMI,
     PROVIDER_OPEN_METEO,
@@ -199,6 +213,7 @@ from .const import (
     UNIT_M3,
     generator_dhw_metric,
     generator_metric,
+    room_cost_metric,
     room_demand_metric,
     room_heat_metric,
     room_t_mean_metric,
@@ -325,6 +340,7 @@ class GeneratorConfig:
     dhw_mode: str
     dhw_fixed_per_day: float | None
     price_entity: str | None
+    price_mode: str
     co2_factor: float
 
     @property
@@ -346,6 +362,11 @@ class GeneratorConfig:
     def is_heat_pump(self) -> bool:
         """Return True for heat pump kinds (share and electric_hp statistics)."""
         return self.kind in HEAT_PUMP_KINDS
+
+    @property
+    def is_electric(self) -> bool:
+        """Return True when cost is billed on electric kWh (METHODS 13.2)."""
+        return self.kind in ELECTRIC_GENERATOR_KINDS
 
 
 @dataclass(slots=True)
@@ -482,9 +503,12 @@ def generator_configs(entry: ConfigEntry) -> list[GeneratorConfig]:
                 dhw_mode=dhw_mode,
                 dhw_fixed_per_day=fixed_value,
                 price_entity=data.get(CONF_PRICE_ENTITY),
+                price_mode=data.get(CONF_PRICE_MODE, PRICE_MODE_FLAT),
                 co2_factor=co2_factor,
             )
         )
+    for generator in generators:
+        generator.co2_factor = resolved_co2_factor(entry, generator)
     return generators
 
 
@@ -602,6 +626,53 @@ def history_options(entry: ConfigEntry) -> dict[str, Any]:
     return opts
 
 
+def pricing_options(entry: ConfigEntry) -> dict[str, Any]:
+    """Return the pricing/CO₂ options with defaults applied."""
+    opts = dict(entry.options.get(OPT_PRICING, {}))
+    opts.setdefault(CONF_GAS_CO2_FACTOR, DEFAULT_GAS_CO2_KG_PER_M3)
+    opts.setdefault(CONF_ELECTRIC_CO2_FACTOR, DEFAULT_ELECTRIC_CO2_KG_PER_KWH)
+    opts.setdefault(CONF_DISTRICT_CO2_FACTOR, DEFAULT_DISTRICT_CO2_KG_PER_KWH)
+    return opts
+
+
+def resolved_co2_factor(entry: ConfigEntry, generator: GeneratorConfig) -> float:
+    """Generator CO₂ factor, using site pricing options when the kind default is kept."""
+    pricing = pricing_options(entry)
+    site_by_kind = {
+        KIND_GAS_BOILER: float(pricing[CONF_GAS_CO2_FACTOR]),
+        KIND_HEAT_PUMP: float(pricing[CONF_ELECTRIC_CO2_FACTOR]),
+        KIND_ELECTRIC_HEATER: float(pricing[CONF_ELECTRIC_CO2_FACTOR]),
+        KIND_AIR_TO_AIR: float(pricing[CONF_ELECTRIC_CO2_FACTOR]),
+        KIND_DISTRICT_HEAT: float(pricing[CONF_DISTRICT_CO2_FACTOR]),
+    }
+    default = KIND_DEFAULTS[generator.kind].co2_factor
+    if abs(generator.co2_factor - default) < 1e-9:
+        return float(site_by_kind.get(generator.kind, generator.co2_factor))
+    return float(generator.co2_factor)
+
+
+def effective_co2_factors(
+    entry: ConfigEntry,
+    generators: Iterable[GeneratorConfig],
+    co2_entity_by_day: Mapping[date, float] | None = None,
+) -> dict[str, float | dict[date, float]]:
+    """Per-generator CO₂ factor (kg per billed unit), with an optional live sensor.
+
+    ``co2_entity`` (daily mean kg/kWh) overrides electric generators on days it
+    has a reading (METHODS 13.1). Missing days fall back to the resolved factor
+    stored on the core ``Generator``.
+    """
+    live = dict(co2_entity_by_day or {})
+    result: dict[str, float | dict[date, float]] = {}
+    for generator in generators:
+        factor = resolved_co2_factor(entry, generator)
+        if generator.is_electric and live:
+            result[generator.generator_id] = dict(live)
+        else:
+            result[generator.generator_id] = factor
+    return result
+
+
 def summer_window(entry: ConfigEntry) -> tuple[str, str]:
     """Return the site-level summer window as two MM-DD strings."""
     dhw_opts = entry.options.get(OPT_DHW, {})
@@ -698,6 +769,7 @@ def _core_generator(config: GeneratorConfig, summer: tuple[str, str]) -> Any:
         conversion=conversion,
         dhw=dhw,
         price_entity=config.price_entity,
+        price_mode=core_models.PriceMode(config.price_mode),
         co2_factor=config.co2_factor,
     )
 
@@ -1022,13 +1094,14 @@ def build_daily_records(
     house_fit: Mapping[str, Any] | None,
     start: date,
     end: date,
-    co2_factors: Mapping[str, float] | None = None,
+    co2_factors: Mapping[str, float | Mapping[date, float]] | None = None,
+    prices: Mapping[str, float | Mapping[date, float]] | None = None,
+    hourly_electric: Mapping[str, Mapping[date, Mapping[object, float]]] | None = None,
+    hourly_price: Mapping[str, Mapping[date, Mapping[object, float]]] | None = None,
 ) -> list[Any]:
     """Run the core pipeline and return core DailyRecord objects for start..end."""
     fit = fit_from_dict(house_fit)
     outliers = [date.fromisoformat(str(day)) for day in (house_fit or {}).get("outliers", [])]
-    # Price entities are not read from the recorder yet (v1.0 / F18); cost_eur stays
-    # None here. CO2 still uses the configured per-generator factor.
     # The baselines are always passed (possibly empty): with None the core would
     # estimate them from this window alone, which for a 90-day winter chunk yields a
     # bogus "summer" baseline. Without a baseline all heat counts as space heating.
@@ -1041,7 +1114,10 @@ def build_daily_records(
         dhw_by_generator=_energy_series(energy, "dhw"),
         baselines=dict(baselines),
         house_fit=fit,
+        prices=dict(prices) if prices else None,
         co2_factors=dict(co2_factors) if co2_factors else None,
+        hourly_electric_by_generator=dict(hourly_electric) if hourly_electric else None,
+        hourly_price_by_generator=dict(hourly_price) if hourly_price else None,
         outlier_dates=outliers,
         start=start,
         end=end,
@@ -1150,6 +1226,10 @@ def record_to_metrics(record: Any, generators: Iterable[GeneratorConfig]) -> Day
         values[METRIC_GAS] = gas_m3
     if has_hp:
         values[METRIC_ELECTRIC_HP] = electric_hp
+    if record.cost_eur is not None:
+        values[METRIC_COST] = record.cost_eur
+    if record.co2_kg is not None:
+        values[METRIC_CO2] = record.co2_kg
     tac_primary = record.tac_house if record.tac_house is not None else record.tac_pbl
     return DayMetrics(
         date=record.date,
@@ -1182,6 +1262,7 @@ def allocate_rooms(
     records: Iterable[Any],
     inputs_by_day: Mapping[date, Mapping[str, Any]],
     output_w_per_m2: Mapping[str, float] | None = None,
+    metered_prices: Mapping[date, Mapping[str, float]] | None = None,
 ) -> tuple[list[Any], dict[date, float]]:
     """Allocate site space heat across rooms; returns room records and unallocated kWh."""
     day_inputs: dict[date, dict[str, Any]] = {}
@@ -1203,6 +1284,7 @@ def allocate_rooms(
         day_inputs,
         records,
         output_w_per_m2=output_w_per_m2,
+        metered_prices=metered_prices,
     )
 
 
@@ -1223,6 +1305,8 @@ def merge_room_metrics(
             room = rooms_by_id.get(record.room_id)
             kind = room.demand_kind if room is not None else "percentage"
             day.values[room_heat_metric(record.room_id)] = record.heat_room_kwh
+            if record.cost_room_eur is not None:
+                day.values[room_cost_metric(record.room_id)] = record.cost_room_eur
             day.values[room_demand_metric(record.room_id)] = _demand_statistic_value(
                 kind, record.demand_integral
             )

@@ -88,11 +88,14 @@ def test_options_and_subentries_keep_their_live_steps() -> None:
     assert _class_step_ids(tree, "RoomSubentryFlowHandler") >= {"user", "reconfigure"}
 
 
-def test_room_add_does_not_force_price_entity() -> None:
-    """Manual room add used to pass show_price or True; cost is deferred."""
+def test_room_add_shows_price_entity() -> None:
+    """Price entity is shown now that site cost sensors write statistics."""
     source = FLOW.read_text(encoding="utf-8")
     assert "show_price or True" not in source
-    assert "show_price=False" in source
+    assert "show_price=True" in source
+    assert "show_price=False" not in source
+    assert "CONF_PRICE_MODE" in source
+    assert "ELECTRIC_GENERATOR_KINDS" in source
 
 
 def test_name_exists_string_removed() -> None:

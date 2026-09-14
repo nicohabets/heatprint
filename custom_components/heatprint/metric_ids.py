@@ -21,6 +21,8 @@ METRIC_HEAT_DHW = "heat_dhw"
 METRIC_ELECTRIC_HP = "electric_hp"
 METRIC_GAS = "gas"
 METRIC_HEAT_UNALLOCATED = "heat_unallocated"
+METRIC_COST = "cost"
+METRIC_CO2 = "co2"
 
 SITE_SUM_METRICS: tuple[str, ...] = (
     METRIC_DD_CLASSIC,
@@ -32,6 +34,8 @@ SITE_SUM_METRICS: tuple[str, ...] = (
     METRIC_HEAT_UNALLOCATED,
     METRIC_GAS,
     METRIC_ELECTRIC_HP,
+    METRIC_COST,
+    METRIC_CO2,
 )
 SITE_MEAN_METRICS: tuple[str, ...] = (METRIC_T_MEAN, METRIC_TAC_PBL, METRIC_TAC_HOUSE)
 
@@ -66,6 +70,11 @@ def room_t_mean_metric(room_id: str) -> str:
     return f"room_{room_id}_t_mean"
 
 
+def room_cost_metric(room_id: str) -> str:
+    """Return the metric key for allocated space-heating cost of one room."""
+    return f"room_{room_id}_cost"
+
+
 def generator_clear_statistic_ids(site_id: str, generator_id: str) -> list[str]:
     """Statistic ids removed when clearing one generator."""
     return [
@@ -98,6 +107,7 @@ def site_clear_statistic_ids(
     for room_id in room_ids:
         for key in (
             room_heat_metric(room_id),
+            room_cost_metric(room_id),
             room_demand_metric(room_id),
             room_t_mean_metric(room_id),
         ):
