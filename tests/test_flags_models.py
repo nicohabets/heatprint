@@ -36,6 +36,36 @@ from heatprint_core.models import (
 )
 
 
+def test_ha_flag_names_lockstep_with_core() -> None:
+    """``const.FLAG_NAMES`` bit order must match ``Flag`` so stored masks stay valid."""
+    import ast
+    from pathlib import Path
+
+    const = Path(__file__).resolve().parents[1] / "custom_components" / "heatprint" / "const.py"
+    tree = ast.parse(const.read_text(encoding="utf-8"))
+    names: list[str] | None = None
+    for node in tree.body:
+        if isinstance(node, ast.Assign):
+            targets = [t.id for t in node.targets if isinstance(t, ast.Name)]
+        elif isinstance(node, ast.AnnAssign) and isinstance(node.target, ast.Name):
+            targets = [node.target.id]
+        else:
+            continue
+        if "FLAG_NAMES" not in targets or node.value is None:
+            continue
+        elts = getattr(node.value, "elts", None)
+        if elts is None:
+            continue
+        names = []
+        for elt in elts:
+            if isinstance(elt, ast.Name):
+                names.append(elt.id.removeprefix("FLAG_"))
+            elif isinstance(elt, ast.Constant) and isinstance(elt.value, str):
+                names.append(elt.value)
+    assert names is not None
+    assert [name.lower() for name in names] == [flag.value for flag in Flag]
+
+
 def test_flag_values_and_exclusion() -> None:
     assert len(Flag) == 18
     assert Flag.DHW_BASELINE_MISSING.value == "dhw_baseline_missing"

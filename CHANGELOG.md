@@ -31,6 +31,8 @@ All notable changes to this project are documented here. The format follows
   `heatprint_core.__version__`).
 - DATA_MODEL, METHODS §12.5/§13, ROADMAP, CONFIG_FLOW, ARCHITECTURE and
   PRODUCT_BRIEF now describe the shipped cost/CO₂ path instead of deferring it.
+  Closed audit leftovers for F18 / room cost / `co2_entity` were moved out of
+  the deferred list.
 
 ## [0.2.3] - 2026-09-14
 

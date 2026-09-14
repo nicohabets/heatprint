@@ -27,6 +27,8 @@ from homeassistant.helpers.event import async_track_time_change
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 from homeassistant.util import dt as dt_util
 
+from heatprint_core.cost import avg_price_paid
+
 from .const import (
     BACKFILL_CHUNK_DAYS,
     CONF_BACKFILL_YEARS,
@@ -1090,8 +1092,7 @@ class HeatprintCoordinator(DataUpdateCoordinator[HeatprintData]):
             item.price_mode = generator.price_mode
             item.cost_eur = generator_cost.get(generator.generator_id) or None
             item.electric_kwh = generator_electric.get(generator.generator_id, 0.0)
-            if item.electric_kwh > 0 and item.cost_eur is not None:
-                item.avg_price_paid = item.cost_eur / item.electric_kwh
+            item.avg_price_paid = avg_price_paid(item.cost_eur, item.electric_kwh)
 
     async def _async_maybe_fit(
         self, season: SeasonWindow, records: list[Any]

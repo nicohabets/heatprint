@@ -98,6 +98,16 @@ def test_room_add_shows_price_entity() -> None:
     assert "ELECTRIC_GENERATOR_KINDS" in source
 
 
+def test_avg_price_paid_sensor_is_dynamic_only() -> None:
+    """METHODS 13.2: ``avg_price_paid`` exists only when ``price_mode: dynamic``."""
+    sensor = REPO / "custom_components" / "heatprint" / "sensor.py"
+    source = sensor.read_text(encoding="utf-8")
+    assert "dynamic_only=True" in source
+    assert "SENSOR_GENERATOR_AVG_PRICE_PAID" in source
+    assert "PRICE_MODE_DYNAMIC" in source
+    assert "if not description.dynamic_only or generator.price_mode == PRICE_MODE_DYNAMIC" in source
+
+
 def test_name_exists_string_removed() -> None:
     strings = (REPO / "custom_components" / "heatprint" / "strings.json").read_text(
         encoding="utf-8"

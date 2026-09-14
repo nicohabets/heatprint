@@ -7,7 +7,8 @@ imports (ADR 0001) and of forecast-attribute adapters (ADR 0006).
 
 from __future__ import annotations
 
-from collections.abc import Mapping
+from collections.abc import Iterable, Mapping
+from datetime import date, datetime, tzinfo
 from typing import Any
 
 from .flags import Flag
@@ -106,3 +107,25 @@ def site_default_price(cost_space_eur: float | None, heat_space_kwh: float) -> f
     if cost_space_eur is None or heat_space_kwh <= 0:
         return None
     return float(cost_space_eur) / float(heat_space_kwh)
+
+
+def avg_price_paid(cost_eur: float | None, electric_kwh: float) -> float | None:
+    """Season (or window) weighted price ``Σ cost / Σ electric`` (METHODS 13.2)."""
+    if cost_eur is None or electric_kwh <= 0:
+        return None
+    return float(cost_eur) / float(electric_kwh)
+
+
+def group_hourly_by_local_day(
+    samples: Iterable[tuple[float, float]], tz: tzinfo
+) -> dict[date, dict[int, float]]:
+    """Group ``(posix_start, value)`` by local date, keyed by hour-start timestamp.
+
+    Hour keys are POSIX seconds so electric and price series align across DST
+    (METHODS 13.2, ADR 0006). A spring-forward day has 23 hours; a fall-back day 25.
+    """
+    result: dict[date, dict[int, float]] = {}
+    for start_ts, value in samples:
+        start = datetime.fromtimestamp(float(start_ts), tz=tz)
+        result.setdefault(start.date(), {})[int(start.timestamp())] = float(value)
+    return result

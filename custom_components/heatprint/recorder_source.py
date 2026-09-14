@@ -22,6 +22,8 @@ from homeassistant.components.recorder.statistics import statistics_during_perio
 from homeassistant.core import HomeAssistant
 from homeassistant.util import dt as dt_util
 
+from heatprint_core.cost import group_hourly_by_local_day
+
 from .history_values import value_from_sample
 
 # Request canonical units so the core always receives m3 for gas/volume and kWh for
@@ -90,14 +92,13 @@ def hourly_rows_by_day(
     The integer key is the POSIX start of the hour so electric and price series
     can be aligned without depending on clock-hour labels (DST-safe).
     """
-    result: dict[date, dict[int, float]] = {}
+    samples: list[tuple[float, float]] = []
     for row in rows:
         value = row.get(value_key)
         if value is None:
             continue
-        start = datetime.fromtimestamp(float(row["start"]), tz=tz)
-        result.setdefault(start.date(), {})[int(start.timestamp())] = float(value)
-    return result
+        samples.append((float(row["start"]), float(value)))
+    return group_hourly_by_local_day(samples, tz)
 
 
 async def async_hourly_changes(

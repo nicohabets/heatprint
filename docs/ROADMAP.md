@@ -31,50 +31,43 @@ Closed in this pre-alpha:
 
 - `DHW_BASELINE_MISSING` flag (METHODS §6 / §10); coordinator also estimates a baseline
   for `dhw_mode = measured` so days without a measurement can fall back.
-- `heatprint.clear_statistics` service (optional `generator_id`).
+- `heatprint.clear_statistics` service (optional `generator_id`); whole-site clear
+  also drops room `*_demand` / `*_t_mean` (0.2.3).
 - METHODS documents the COP-curve floor of 1.0, the bootstrap 0.5 K grid, and that
   `compare_periods` raises `InsufficientDataError` when Σ dd is 0 (never NaN).
 - PBL 2022 daily wind term verified: `T - √W` (`c_sqrt = 1.0`) and optional `Q/480`.
+- Site and room cost/CO₂ (0.2.4): `price_entity` and `co2_entity` are read;
+  `heatprint:<site>_cost` / `_co2` and `room_<id>_cost` are written; `price_mode:
+  dynamic` uses recorded hourly statistics (ADR 0006) with `PRICE_ESTIMATED_FLAT`
+  fallback; `cost_space_season`, `co2_season`, `avg_price_paid`, room cost sensors
+  and cost ranking for `most_expensive_room` exist. Forecast-attribute adapters
+  remain out of scope.
+- Multi-step first-run wizard removed in 0.2.3. `ROOM_NOT_FITTED` is written when
+  a room has fewer than the minimum fit days.
 
-Deferred (not required for a coherent pre-alpha):
+Still open (not this release):
 
-1. `cost_eur` and `co2_kg` **written in 0.2.4** as `heatprint:<site>_cost` / `_co2`.
-   Generator `price_entity` is read (daily mean; hourly mean + electric `change` when
-   `price_mode: dynamic`). Missing hourly series falls back to the day's mean with
-   `PRICE_ESTIMATED_FLAT`. Forecast-attribute adapters remain out of scope (ADR 0006).
-2. Statistics require local midnight to fall on a whole UTC hour; time zones with a
+1. Statistics require local midnight to fall on a whole UTC hour; time zones with a
    half-hour offset (e.g. India) are not supported. The recorder's daily buckets
    follow the HA time zone, not the site time zone.
-3. Real Heerlen reference case (KNMI 380 + four gas years of mindergas export) — needs
+2. Real Heerlen reference case (KNMI 380 + four gas years of mindergas export) — needs
    Nico's local export; the core reproduces the mindergas *formula* on fixture data
    within 1%. Scheduled with the v0.2 live HA run.
-4. GitHub repository description and topics (`custom-integration`, `hacs-integration`,
+3. GitHub repository description and topics (`custom-integration`, `hacs-integration`,
    `homeassistant`). HACS CI ignores those two checks until they are set on the repo.
-5. Strict mypy CI gate and `pytest-homeassistant-custom-component` for the HA
+4. Strict mypy CI gate and `pytest-homeassistant-custom-component` for the HA
    shell. Still open after v0.2 (rooms shipped without the HA test plugin).
-6. Post-create "Compute effect" notification after adding a measure (service exists; v1.0 UI).
-7. PDF eq. 17 sun term *outside* inertia — Heatprint keeps sun inside `T_eff` (METHODS §3);
+5. Post-create "Compute effect" notification after adding a measure (service exists; v1.0 UI).
+6. PDF eq. 17 sun term *outside* inertia — Heatprint keeps sun inside `T_eff` (METHODS §3);
    default practical model has `include_sun` off and therefore matches PDF eq. 20.
-8. Rooms **heat** shipped in 0.2.0; room **cost** sensors, space-cost allocation
-   and cost ranking for `most_expensive_room` shipped in 0.2.4 (METHODS §12.5 / §13).
-   Data-source health checks (§14) are still specified only — no
-   `STUCK_VALUE`/`IMPLAUSIBLE_VALUE`/`SCALE_DRIFT`/`WEATHER_STALLED` checks or
-   repairs yet.
-9. Leftover multi-step first-run wizard — **removed in 0.2.3**. First-run
-   auto-creates generators (heat-pump role `both`) and rooms.
-10. First-run weather validation is still non-blocking (offline must not stall
-    setup). **0.2.3** shows the failure on the confirm step and opens a repair /
-    persistent notification. Reconfigure still blocks on `cannot_connect` /
-    `no_data_for_station`.
-11. `import_now` is stored as `false` and has no Options control. Use
-    **Import meter readings**.
-12. `ROOM_NOT_FITTED` is **written in 0.2.3** when a room has fewer than the
-    minimum fit days (skipped once a room fit exists).
-13. `co2_entity` and site gas/electric/district CO₂ factors **are applied in 0.2.4**.
-    Live `co2_entity` (daily mean kg/kWh) overrides electric generators on days it
-    has a reading. `cost_space_season`, `co2_season` and `avg_price_paid` exist.
-14. `heatprint.clear_statistics` (whole site) **also drops** room `*_demand` /
-    `*_t_mean` mean statistics (0.2.3).
+7. METHODS §14 data-source health-check repairs — still specified only
+   (`STUCK_VALUE` / `IMPLAUSIBLE_VALUE` / `SCALE_DRIFT` / `WEATHER_STALLED`).
+8. First-run weather validation is still non-blocking (offline must not stall
+   setup). **0.2.3** shows the failure on the confirm step and opens a repair /
+   persistent notification. Reconfigure still blocks on `cannot_connect` /
+   `no_data_for_station`.
+9. `import_now` is stored as `false` and has no Options control. Use
+   **Import meter readings**.
 
 ## Research items
 
